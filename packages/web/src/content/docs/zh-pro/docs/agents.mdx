@@ -1,0 +1,181 @@
+---
+title: 代理
+description: 在 opencode 中配置和使用专门的代理。
+---
+
+智能体是专门的 AI 助手，可以为特定任务和工作流程进行配置。借助它们，你能够使用自定义提示词、模型以及工具访问权限来创建特定工具。
+
+## 创建智能体
+
+你可以使用 `opencode agent create` 命令创建新的智能体。这个交互式命令会执行以下操作：
+
+1. 询问智能体的保存位置（全局位置或特定项目位置）
+2. 提示你描述智能体应执行的任务
+3. 生成适当的系统提示词和标识符
+4. 让你选择智能体可以访问的工具
+5. 创建一个包含智能体配置的 markdown 文件
+
+```bash
+opencode agent create
+```
+
+该命令将指导你完成创建流程，并根据你的需求自动生成一个结构清晰的智能体。
+
+## 内置智能体
+
+opencode 带有一个内置的 `general` 智能体：
+
+- **general** - 用于研究复杂问题、搜索代码和执行多步骤任务的通用智能体。当你搜索关键词或文件，且不确定在前几次尝试中就能找到合适匹配内容时，可使用此智能体。
+
+## 配置
+
+智能体可在您的 `opencode.json` 配置文件中进行配置，或可通过markdown 文件配置。
+
+### JSON 配置
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "code-reviewer": {
+      "description": "审查代码的最佳实践和潜在问题",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "你是一个代码审查员。专注于安全性、性能和可维护性。",
+      "tools": {
+        "write": false,
+        "edit": false
+      }
+    },
+    "test-writer": {
+      "description": "用于编写全面测试的专门代理",
+      "prompt": "你是一个测试编写专家。编写彻底、可维护的测试。",
+      "tools": {
+        "bash": true,
+        "read": true,
+        "write": true
+      }
+    }
+  }
+}
+```
+
+### Markdown 配置
+
+你也可以使用 markdown 文件来定义智能体。将这些文件放置在以下位置：
+
+- 全局：`~/.config/opencode/agent/`
+- 项目：`.opencode/agent/`
+
+```markdown title="~/.config/opencode/agent/code-reviewer.md"
+---
+description: 审查代码，检查最佳实践和潜在问题
+model: anthropic/claude-sonnet-4-20250514
+tools:
+  write: false
+  edit: false
+---
+
+你是一个在安全性、性能和可维护性方面具有专业知识的代码审查员。
+
+专注于：
+
+- 安全漏洞
+- 性能瓶颈
+- 代码可维护性
+- 对最佳实践的遵循情况
+```
+
+## 智能体属性
+
+### 必需项
+
+- **description** - 对智能体的功能以及适用场景的简要说明
+
+### 可选项
+
+- **model** - 要使用的特定模型（默认使用您配置好的模型）
+- **prompt** - 为智能体设置的自定义系统提示词
+- **tools** - 指定智能体可访问哪些工具的对象（每个工具对应 true/false）
+- **disable** - 设为 true 以禁用该智能体
+
+## 工具访问权限
+
+默认情况下，智能体继承与主助手相同的工具访问权限。你可以限制或启用特定工具：
+
+```json
+{
+  "agent": {
+    "readonly-agent": {
+      "description": "用于分析的只读智能体",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      }
+    }
+  }
+}
+```
+
+您可能想要控制的常见工具：
+
+- `write` - 创建新文件
+- `edit` - 修改现有文件
+- `bash` - 执行 shell 命令
+- `read` - 读取文件
+- `glob` - 搜索文件
+- `grep` - 搜索文件内容
+
+## 使用智能体
+
+智能体配置后，可通过任务工具自动使用。主助手会根据智能体的描述，在执行专项任务时调用它们。
+
+## 最佳实践
+
+1. **清晰的描述** - 撰写具体的描述，帮助主助手知晓何时使用每个智能体
+2. **聚集提示词** - 让智能体的提示词紧扣其特定角色
+3. **适当的工具访问权限** - 仅为智能体赋予执行任务所需的工具
+4. **一致的命名** - 为智能体使用表意清晰、前后一致的名称
+5. **项目专属智能体** - 针对项目特定的工作流程，使用 `.opencode/agent/`路径
+
+## 示例
+
+### 文档智能体
+
+```markdown title="~/.config/opencode/agent/docs-writer.md"
+---
+description: 编写和维护项目文档
+tools:
+  bash: false
+---
+
+你是一名技术文档撰写者。创建清晰、全面的文档。
+
+关注要点：
+
+- 清晰的阐释
+- 合理的结构
+- 代码示例
+- 用户友好的语言
+```
+
+### 安全审计员
+
+```markdown title="~/.config/opencode/agent/security-auditor.md"
+---
+description: 执行安全审计并识别漏洞
+tools:
+  write: false
+  edit: false
+---
+
+你是一个安全专家。专注于识别潜在的安全问题。
+
+需排查：
+
+- 输入验证漏洞
+- 身份验证和授权缺陷
+- 数据泄露风险
+- 依赖项漏洞
+- 配置安全问题
+```

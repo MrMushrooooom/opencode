@@ -1,0 +1,152 @@
+---
+title: 规则
+description: 为 opencode 设置自定义指令。
+---
+
+你可以通过创建 `AGENTS.md` 文件为 opencode 提供自定义指令。这类似于 `CLAUDE.md` 或 Cursor 的规则。它包含将包含在 LLM 上下文中的指令，以根据你的特定项目自定义其行为。
+
+---
+
+## 初始化
+
+要创建新的 `AGENTS.md` 文件，你可以在 opencode 中运行 `/init` 命令。
+
+:::tip
+你应该将项目的 `AGENTS.md` 文件提交到 Git。
+:::
+
+这将扫描你的项目及其所有内容以了解项目的相关内容，并生成一个 `AGENTS.md` 文件。这有助于 opencode 更好地导航项目。
+
+如果你有现有的 `AGENTS.md` 文件，这将尝试添加到其中。
+
+---
+
+## 示例
+
+你也可以手动创建此文件。以下是你可以在 `AGENTS.md` 文件中放入的一些内容的示例。
+
+```markdown title="AGENTS.md"
+# SST v3 单体仓库项目
+
+这是一个使用 TypeScript 的 SST v3 单体仓库。项目使用 bun workspaces 进行包管理。
+
+## 项目结构
+
+- `packages/` - 包含所有工作区包（functions、core、web 等）
+- `infra/` - 按服务拆分的基础设施定义（storage.ts、api.ts、web.ts）
+- `sst.config.ts` - 带有动态导入的主 SST 配置
+
+## 代码标准
+
+- 使用启用严格模式的 TypeScript
+- 共享代码放在 `packages/core/` 中，并正确配置导出
+- 函数放在 `packages/functions/` 中
+- 基础设施应该拆分为 `infra/` 中的逻辑文件
+
+## 单体仓库约定
+
+- 使用工作区名称导入共享模块：`@my-app/core/example`
+```
+
+我们在这里添加项目特定的指令，这将与你的团队共享。
+
+---
+
+## 类型
+
+opencode 还支持从多个位置读取 `AGENTS.md` 文件。这服务于不同的目的。
+
+### 项目
+
+我们上面看到的那些，其中 `AGENTS.md` 放在项目根目录中，是项目特定的规则。这些只在你在此目录或其子目录中工作时适用。
+
+### 全局
+
+你也可以在 `~/.config/opencode/AGENTS.md` 文件中有全局规则。这适用于所有 opencode 会话。
+
+由于这不会提交到 Git 或与你的团队共享，我们建议使用它来指定 LLM 应该遵循的任何个人规则。
+
+---
+
+## 优先级
+
+所以当 opencode 启动时，它会查找：
+
+1. **本地文件**，通过从当前目录向上遍历
+2. **全局文件**，通过检查 `~/.config/opencode/AGENTS.md`
+
+如果你同时有全局和项目特定的规则，opencode 会将它们组合在一起。
+
+---
+
+## 自定义指令
+
+你可以在 `opencode.json` 或全局 `~/.config/opencode/opencode.json` 中指定自定义指令文件。这允许你和你的团队重用现有规则，而不必将它们复制到 AGENTS.md。
+
+示例：
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["CONTRIBUTING.md", "docs/guidelines.md", ".cursor/rules/*.md"]
+}
+```
+
+所有指令文件都与你的 `AGENTS.md` 文件组合。
+
+---
+
+## 引用外部文件
+
+虽然 opencode 不会自动解析 `AGENTS.md` 中的文件引用，但你可以通过两种方式实现类似的功能：
+
+### 使用 opencode.json
+
+推荐的方法是使用 `opencode.json` 中的 `instructions` 字段：
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["docs/development-standards.md", "test/testing-guidelines.md", "packages/*/AGENTS.md"]
+}
+```
+
+### AGENTS.md 中的手动指令
+
+你可以通过在 `AGENTS.md` 中提供明确的指令来教 opencode 读取外部文件。这是一个实际示例：
+
+```markdown title="AGENTS.md"
+# TypeScript 项目规则
+
+## 外部文件加载
+
+重要：当你遇到文件引用（例如 @rules/general.md）时，使用你的 Read 工具在需要时加载它。它们与手头的特定任务相关。
+
+指令：
+
+- 不要预先加载所有引用 - 基于实际需要使用延迟加载
+- 加载时，将内容视为覆盖默认值的强制性指令
+- 在需要时递归遵循引用
+
+## 开发指南
+
+对于 TypeScript 代码风格和最佳实践：@docs/typescript-guidelines.md
+对于 React 组件架构和 hooks 模式：@docs/react-patterns.md
+对于 REST API 设计和错误处理：@docs/api-standards.md
+对于测试策略和覆盖率要求：@test/testing-guidelines.md
+
+## 通用指南
+
+立即阅读以下文件，因为它与所有工作流程相关：@rules/general-guidelines.md。
+```
+
+这种方法允许你：
+
+- 创建模块化、可重用的规则文件
+- 通过符号链接或 git 子模块在项目间共享规则
+- 在引用详细指南的同时保持 AGENTS.md 简洁
+- 确保 opencode 仅在特定任务需要时加载文件
+
+:::tip
+对于具有共享标准的单体仓库或项目，使用带有 glob 模式的 `opencode.json`（如 `packages/*/AGENTS.md`）比手动指令更易维护。
+:::

@@ -1,0 +1,87 @@
+---
+title: 格式化器
+description: 使用 opencode 进行代码格式化
+---
+
+opencode 会在文件被写入或编辑后，自动使用针对不同语言的格式化器对代码进行格式化。这确保了你的项目在无需手动干预的情况下始终保持一致的代码风格。
+
+## 内置格式化器
+
+opencode 内置了多种主流语言和框架的格式化器：
+
+| 格式化器         | 语言/扩展名                                                                                           | 依赖要求                              |
+| -------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| gofmt          | .go                                                                                                  | 需安装 `gofmt` 命令                   |
+| mix            | .ex, .exs, .eex, .heex, .leex, .neex, .sface                                                         | 需安装 `mix` 命令                     |
+| prettier       | .js, .jsx, .ts, .tsx, .html, .css, .md, .json, .yaml, 及[更多](https://prettier.io/docs/en/index.html) | package.json 中需有 `prettier` 依赖    |
+| biome          | .js, .jsx, .ts, .tsx, .html, .css, .md, .json, .yaml, 及[更多](https://biomejs.dev/)                  | 需有 `biome.json` 配置文件            |
+| zig            | .zig, .zon                                                                                           | 需安装 `zig` 命令                     |
+| clang-format   | .c, .cpp, .h, .hpp, .ino, 及[更多](https://clang.llvm.org/docs/ClangFormat.html)                      | 需有 `.clang-format` 配置文件          |
+| ktlint         | .kt, .kts                                                                                            | 需安装 `ktlint` 命令                   |
+| ruff           | .py, .pyi                                                                                            | 需安装并配置 `ruff` 命令               |
+| rubocop        | .rb, .rake, .gemspec, .ru                                                                            | 需安装 `rubocop` 命令                  |
+| standardrb     | .rb, .rake, .gemspec, .ru                                                                            | 需安装 `standardrb` 命令               |
+| htmlbeautifier | .erb, .html.erb                                                                                      | 需安装 `htmlbeautifier` 命令           |
+
+只要你的项目环境满足相应依赖，格式化器会自动启用。
+
+## 配置
+
+你可以通过 `opencode.json` 配置文件中的 `formatter` 部分自定义格式化器。
+
+### 禁用格式化器
+
+如需禁用某个格式化器，将其 `disabled` 属性设为 `true`：
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "formatter": {
+    "prettier": {
+      "disabled": true
+    }
+  }
+}
+```
+
+### 自定义格式化器
+
+你可以通过指定命令、环境变量和文件扩展名，覆盖默认格式化器或添加新的自定义格式化器：
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "formatter": {
+    "custom-prettier": {
+      "command": ["npx", "prettier", "--write", "$FILE"],
+      "environment": {
+        "NODE_ENV": "development"
+      },
+      "extensions": [".js", ".ts", ".jsx", ".tsx"]
+    }
+  }
+}
+```
+
+命令中的 `$FILE` 占位符会被自动替换为当前被格式化的文件路径。
+
+### 配置项说明
+
+每个格式化器配置支持以下属性：
+
+| 属性         | 类型      | 说明                                         |
+| ------------ | --------- | -------------------------------------------- |
+| `disabled`   | boolean   | 设为 `true` 可禁用该格式化器                 |
+| `command`    | string[]  | 执行格式化的命令                             |
+| `environment`| object    | 运行格式化器时设置的环境变量                 |
+| `extensions` | string[]  | 该格式化器处理的文件扩展名                   |
+
+## 工作原理
+
+当 opencode 写入或编辑文件时，会：
+
+1. 根据文件扩展名匹配所有已启用的格式化器
+2. 对文件执行相应的格式化命令
+3. 自动应用格式化后的更改
+
+这一过程在后台无缝完成，确保你的代码始终保持统一、专业的格式，无需手动操作。

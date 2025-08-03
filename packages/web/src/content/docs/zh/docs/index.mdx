@@ -1,0 +1,262 @@
+---
+title: 入门指南
+description: 开始使用 opencode。
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components"
+
+[**opencode**](/) 是一个专为终端构建的 AI 编程助手。
+
+![opencode TUI with the opencode theme](../../../../assets/lander/screenshot.png)
+
+让我们开始吧。
+
+---
+
+#### 前置要求
+
+要使用 opencode，你需要：
+
+1. 一个现代化的终端模拟器，比如：
+
+   - [WezTerm](https://wezterm.org)，跨平台
+   - [Alacritty](https://alacritty.org)，跨平台
+   - [Ghostty](https://ghostty.org)，Linux 和 macOS
+   - [Kitty](https://sw.kovidgoyal.net/kitty/)，Linux 和 macOS
+
+2. 你想要使用的 LLM 提供商的 API 密钥。
+
+---
+
+## 安装
+
+安装 opencode 最简单的方法是通过安装脚本。
+
+```bash
+curl -fsSL https://opencode.ai/install | bash
+```
+
+你也可以通过以下方式安装：
+
+- **使用 Node.js**
+
+  <Tabs>
+    <TabItem label="npm">
+      ```bash
+      npm install -g opencode-ai
+      ```
+    </TabItem>
+    <TabItem label="Bun">
+      ```bash
+      bun install -g opencode-ai
+      ```
+    </TabItem>
+    <TabItem label="pnpm">
+      ```bash
+      pnpm install -g opencode-ai
+      ```
+    </TabItem>
+    <TabItem label="Yarn">
+      ```bash
+      yarn global add opencode-ai
+      ```
+    </TabItem>
+  </Tabs>
+
+- **在 macOS 上使用 Homebrew**
+
+  ```bash
+  brew install sst/tap/opencode
+  ```
+
+- **在 Arch Linux 上使用 Paru**
+
+  ```bash
+  paru -S opencode-bin
+  ```
+
+#### Windows
+
+目前自动安装方法在 Windows 上不能正常工作。不过你可以从 [Releases](https://github.com/sst/opencode/releases) 下载二进制文件。
+
+---
+
+## 配置
+
+使用 opencode，你可以通过配置 API 密钥来使用任何 LLM 提供商。
+
+我们建议注册 [Claude Pro](https://www.anthropic.com/news/claude-pro) 或 [Max](https://www.anthropic.com/max)，这是使用 opencode 最具成本效益的方式。
+
+注册后，运行 `opencode auth login` 并选择 Anthropic。
+
+```bash
+$ opencode auth login
+
+┌  Add credential
+│
+◆  Select provider
+│  ● Anthropic (recommended)
+│  ○ OpenAI
+│  ○ Google
+│  ○ Amazon Bedrock
+│  ○ Azure
+│  ○ DeepSeek
+│  ○ Groq
+│  ...
+└
+```
+
+或者，你可以选择其他提供商之一。[了解更多](/zh/docs/providers#directory)。
+
+---
+
+## 初始化
+
+现在你已经配置了提供商，可以导航到你想处理的项目。
+
+```bash
+cd /path/to/project
+```
+
+然后运行 opencode。
+
+```bash
+opencode
+```
+
+接下来，通过运行以下命令为项目初始化 opencode。
+
+```bash frame="none"
+/init
+```
+
+这将让 opencode 分析你的项目并在项目根目录创建一个 `AGENTS.md` 文件。
+
+:::tip
+你应该将项目的 `AGENTS.md` 文件提交到 Git。
+:::
+
+这有助于 opencode 理解项目结构和使用的编码模式。
+
+---
+
+## 使用
+
+现在你已经准备好使用 opencode 来处理你的项目了。随时向它提问任何问题！
+
+如果你是第一次使用 AI 编程助手，这里有一些可能有帮助的示例。
+
+---
+
+### 提问
+
+你可以让 opencode 向你解释代码库。
+
+```txt frame="none"
+How is authentication handled in @packages/functions/src/api/index.ts
+```
+
+如果你没有参与代码库的某个部分，这会很有帮助。
+
+:::tip
+使用 `@` 键可以在项目中模糊搜索文件。
+:::
+
+---
+
+### 添加功能
+
+你可以让 opencode 为你的项目添加新功能。不过我们首先建议让它创建一个计划。
+
+1. **创建计划**
+
+   opencode 有一个_计划模式_，它会禁用修改能力，而是建议_如何_实现功能。
+
+   使用 **Tab** 键切换到该模式。你会在右下角看到这个指示器。
+
+   ```bash frame="none" title="切换到计划模式"
+   <TAB>
+   ```
+
+   现在让我们描述我们想要它做什么。
+
+   ```txt frame="none"
+   When a user deletes a note, we'd like to flag it as deleted in the database.
+   Then create a screen that shows all the recently deleted notes.
+   From this screen, the user can undelete a note or permanently delete it.
+   ```
+
+   你想给 opencode 足够的细节来理解你想要什么。就像你在和团队中的初级开发人员交谈一样。
+
+   :::tip
+   给 opencode 充足的上下文和示例，帮助它理解你想要什么。
+   :::
+
+2. **迭代计划**
+
+   一旦它给你一个计划，你可以给它反馈或添加更多细节。
+
+   ```txt frame="none"
+   We'd like to design this new screen using a design I've used before.
+   [Image #1] Take a look at this image and use it as a reference.
+   ```
+
+   :::tip
+   将图片拖放到终端中，将其添加到提示中。
+   :::
+
+   opencode 可以扫描你给它的任何图片并将其添加到提示中。你可以通过将图片拖放到终端中来实现这一点。
+
+3. **构建功能**
+
+   一旦你对计划感到满意，再次按 **Tab** 键切换回_构建模式_。
+
+   ```bash frame="none"
+   <TAB>
+   ```
+
+   并要求它进行更改。
+
+   ```bash frame="none"
+   Sounds good! Go ahead and make the changes.
+   ```
+
+---
+
+### 进行更改
+
+对于更直接的更改，你可以让 opencode 直接构建，而不必先审查计划。
+
+```txt frame="none"
+We need to add authentication to the /settings route. Take a look at how this is
+handled in the /notes route in @packages/functions/src/notes.ts and implement
+the same logic in @packages/functions/src/settings.ts
+```
+
+你想确保提供足够的细节，这样 opencode 就能做出正确的更改。
+
+---
+
+## 分享
+
+你与 opencode 的对话可以[与你的团队分享](/zh/docs/share)。
+
+```bash frame="none"
+/share
+```
+
+这将创建当前对话的链接并将其复制到剪贴板。
+
+:::note
+对话默认不会共享。
+:::
+
+这里有一个与 opencode 的[示例对话](https://opencode.ai/s/4XP1fce5)。
+
+---
+
+## 自定义
+
+就是这样！你现在已经是使用 opencode 的专家了。
+
+要让它成为你自己的，我们建议[选择一个主题](/zh/docs/themes)、[自定义快捷键](/zh/docs/keybinds)、[配置代码格式化器](/zh/docs/formatters)，或者玩玩 [opencode 配置](/zh/docs/config)。

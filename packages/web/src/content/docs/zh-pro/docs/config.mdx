@@ -1,0 +1,331 @@
+---
+title: 配置
+description: 使用 opencode JSON 配置文件。
+---
+
+你可以使用 JSON 配置文件来配置 opencode。
+
+## 格式
+
+opencode 支持 JSON 和 JSONC（带注释的 JSON）两种格式。你可以在配置文件中使用注释：
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  // 主题配置
+  "theme": "opencode",
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "autoupdate": true,
+}
+```
+
+该配置文件可用于对 opencode 进行全局配置，或针对特定项目进行配置。
+
+---
+
+### 全局配置
+
+将你的全局 opencode 配置文件放置在 `~/.config/opencode/opencode.json` 路径下。你可以使用全局配置来设置主题、提供商或快捷键等。
+
+---
+
+### 项目级配置
+
+你也可以在项目中添加 `opencode.json`文件。这有助于配置项目专属的提供商或模式。
+
+当 opencode 启动时，它会在当前目录中查找配置文件，或未找到，会向上遍历，直到找到最近的 Git 目录。
+
+该配置文件也可以安全地提交到 Git仓库，并使用与全局配置相同的模式。
+
+---
+
+### 自定义配置文件
+
+你可以通过 `OPENCODE_CONFIG` 环境变量指定自定义配置文件。该自定义配置的优先级高于全局和项目配置。
+
+```bash
+export OPENCODE_CONFIG=/path/to/my/custom-config.json
+opencode run "Hello world"
+```
+
+---
+
+## 模式定义
+
+配置文件的模式定义在 [**`opencode.ai/config.json`**](https://opencode.ai/config.json) 中。
+
+你的编辑器应能基于此模式进行验证和自动补全。
+
+---
+
+### 模式
+
+opencode 内置两种模式：_build_，默认模式，启用所有工具。和 _plan_，受限模式，禁用文件修改工具。你可以通过`mode` 选项覆盖这些内置模式，或定义自己的自定义模式。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mode": {
+    "build": {},
+    "plan": {},
+    "my-custom-mode": {}
+  }
+}
+```
+
+[了解更多](/zh/docs/modes)。
+
+---
+
+### 模型
+
+你可以通过 `provider`、`model` 和 `small_model` 选项在 opencode 配置中设定你想要使用的提供商和具体模型。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {},
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "small_model": "anthropic/claude-3-5-haiku-20241022"
+}
+```
+
+`small_model` 选项用于配置专门处理摘要、标题生成等轻量级任务的独立模型。默认情况下，opencode 会尝试使用更经济的模型（如果提供商有的话），否则会回退到你的主模型。
+
+你也可以配置[本地模型](/zh/docs/models#local)。[了解更多](/zh/docs/models)。
+
+---
+
+### 主题
+
+你可以通过 `theme` 选项在 opencode 配置中设置想要使用的主题。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": ""
+}
+```
+
+[了解更多](/zh/docs/themes)。
+
+---
+
+### 日志记录
+
+日志会写入到以下路径：
+
+- **macOS/Linux**：`~/.local/share/opencode/log/`
+- **Windows**：`%APPDATA%\opencode\log\`
+
+---
+
+### 分享
+
+你可以通过 `share` 选项配置[分享](/zh/docs/share)功能。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "share": "manual"
+}
+```
+
+该选项可设置心下值：
+
+- `"manual"` - 允许通过命令手动分享（默认）
+- `"auto"` - 自动分享新对话
+- `"disabled"` - 完全禁用分享
+
+默认情况下，分享设置为手动模式，此时你需要使用 `/share` 命令明确分享对话。
+
+---
+
+### 快捷键
+
+你可以通过 `keybinds` 选项自定义快捷键。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "keybinds": {}
+}
+```
+
+[了解更多](/zh/docs/keybinds)。
+
+---
+
+### 自动更新
+
+opencode 会在启动时自动下载所有可用的更新。你可通过 `autoupdate` 选项禁用此功能。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false
+}
+```
+
+---
+
+### MCP 服务器
+
+你可以通过 `mcp` 选项配置想要使用的 MCP 服务器。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {}
+}
+```
+
+[了解更多](/zh/docs/mcp-servers)。
+
+---
+
+### 指令
+
+你可以通过 `instructions` 选项，为正在使用的模型配置指令。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["CONTRIBUTING.md", "docs/guidelines.md", ".cursor/rules/*.md"]
+}
+```
+
+该功能接受一组路径和通配符模式，用于定位指令文件。[了解更多关于规则](/zh/docs/rules)。
+
+---
+
+### 智能体
+
+你可以通过 `agent` 选项为特定任务配置专用智能体。
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "code-reviewer": {
+      "description": "审查代码的最佳实践和潜在问题",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "你是一个代码审查员。专注于安全性、性能和可维护性。",
+      "tools": {
+        // 为仅审查代理禁用文件修改工具
+        "write": false,
+        "edit": false,
+      },
+    },
+  },
+}
+```
+
+你也可以通过 `~/.config/opencode/agent/` 或 `.opencode/agent/` 路径下的 markdown 文件定义智能体。[了解更多](/zh/docs/agents)。
+
+---
+
+### 禁用的提供商
+
+你可通过 `disabled_providers` 选项禁用自动加载的提供商。此功能适用于：当你希望阻止某些提供商被加载，即使其凭据已配置生效的情况。
+
+---
+
+### 格式化工具
+
+你可以通过 `formatter` 选项配置代码格式化工具。详见[格式化工具文档](/zh/docs/formatters)。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "disabled_providers": ["openai", "gemini"]
+}
+```
+
+`disabled_providers` 选项接受提供商 ID 数组。当提供商被禁用时：
+
+- 即使设置了环境变量也不会被加载
+- 即使通过 `opencode auth login` 配置了 API 密钥也不会被加载
+- 该提供商的模型不会出现在模型选择列表中
+
+---
+
+### 权限管理
+
+你可以通过 `permission` 选项配置权限，以控制 AI 智能体在代码库中的操作范围。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "edit": "ask",
+    "bash": "ask"
+  }
+}
+```
+
+权限系统允许你为敏感操作配置明确的批准要求：
+
+- `edit` - 控制文件编辑操作是否需要用户批准（可选值`"ask"` 或 `"allow"`）
+- `bash` - 控制 bash 命令是否需要用户批准（可选值 `"ask"`/`"allow"` 或模式映射）
+
+[了解更多关于权限设置](/zh/docs/permissions)。
+
+---
+
+## 变量系统
+
+你可以在配置文件中使用变量替换功能来引用环境变量和文件内容。
+
+---
+
+### 环境变量
+
+使用 `{env:VARIABLE_NAME}` 语法来替换环境变量：
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "{env:OPENCODE_MODEL}",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "apiKey": "{env:ANTHROPIC_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+如果环境变量未设置，将被替换为空字符串。
+
+---
+
+### 文件
+
+使用 `{file:path/to/file}` 语法替换文件内容：
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["{file:./custom-instructions.md}"],
+  "provider": {
+    "openai": {
+      "options": {
+        "apiKey": "{file:~/.secrets/openai-key}"
+      }
+    }
+  }
+}
+```
+
+文件路径可以是：
+
+- 相对于配置文件目录的相对路径
+- 以 `/` 或 `~` 开头的绝对路径
+
+典型应用场景：
+
+- 将敏感数据（如 API 密钥）存储在独立文件中。
+- 引入大型指令文件而避免配置文件杂乱。
+- 在多个配置文件中共享通用配置片段。

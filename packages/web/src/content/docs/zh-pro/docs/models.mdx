@@ -1,0 +1,83 @@
+---
+title: 模型
+description: 配置 LLM 提供商和模型。
+---
+
+opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.dev) 来支持 **75+ 个 LLM 提供商**，并且支持运行本地模型。
+
+---
+
+## 提供商
+
+最受欢迎的提供商默认预加载。如果你通过 `opencode auth login` 添加了提供商的凭据，当你启动 opencode 时它们将可用。
+
+了解更多关于[提供商](/zh/docs/providers)。
+
+---
+
+## 选择模型
+
+一旦你配置了提供商，你可以通过输入以下命令选择你想要的模型：
+
+```bash frame="none"
+/models
+```
+
+---
+
+## 推荐模型
+
+有很多模型，每周都有新模型出现。
+
+:::tip
+考虑使用我们推荐的模型之一。
+:::
+
+然而，只有少数几个模型在生成代码和工具调用方面都很出色。
+
+以下是我们推荐与 opencode 一起使用的模型：
+
+- Claude Sonnet 4
+- Claude Opus 4
+- Kimi K2
+- Qwen3 Coder
+- GPT 4.1
+- Gemini 2.5 Pro
+
+---
+
+## 设置默认模型
+
+要将其中一个设置为默认模型，你可以在 opencode 配置中设置 `model` 键。
+
+```json title="opencode.json" {3}
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "lmstudio/google/gemma-3n-e4b"
+}
+```
+
+这里的完整 ID 是 `provider_id/model_id`。
+
+如果你配置了[自定义提供商](/zh/docs/providers#custom)，`provider_id` 是配置 `provider` 部分中的键，`model_id` 是 `provider.models` 中的键。
+
+---
+
+## 加载模型
+
+当 opencode 启动时，它会检查以下内容：
+
+1. opencode 配置中的模型列表。
+
+   ```json title="opencode.json"
+   {
+     "$schema": "https://opencode.ai/config.json",
+     "model": "anthropic/claude-sonnet-4-20250514"
+   }
+   ```
+
+   这里的格式是 `provider/model`。
+
+2. 最后使用的模型。
+
+3. 使用内部优先级的第一模型。

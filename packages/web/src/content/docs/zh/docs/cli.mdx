@@ -1,0 +1,132 @@
+---
+title: CLI
+description: opencode CLI 选项和命令。
+---
+
+运行 opencode CLI 会在当前目录下启动。
+
+```bash
+opencode
+```
+
+或者你可以指定一个特定的工作目录来启动。
+
+```bash
+opencode /path/to/project
+```
+
+---
+
+## 命令
+
+opencode CLI 还提供了以下命令。
+
+---
+
+### run
+
+通过直接传入提示词在非交互模式下运行 opencode。
+
+```bash
+opencode run [message..]
+```
+
+这个功能适用于脚本自动化，或者当你需要快速获取答案而不想启动完整的 TUI 界面时。例如：
+
+```bash "opencode run"
+opencode run Explain the use of context in Go
+```
+
+#### 参数
+
+| 参数          | 简写 | 说明                                |
+| ------------ | ----- | ------------------------------------------ |
+| `--continue` | `-c`  | 继续上一个会话                  |
+| `--session`  | `-s`  | 指定要继续的会话 ID                     |
+| `--share`    |       | 分享当前会话                          |
+| `--model`    | `-m`  | 指定要使用的模型，格式为 provider/model |
+
+---
+
+### auth
+
+用于管理提供商认证凭据和登录的命令。
+
+```bash
+opencode auth [command]
+```
+
+---
+
+#### login
+
+opencode 基于 [Models.dev](https://models.dev) 的提供商列表，你可以使用 `opencode auth login` 来配置任何想要使用的提供商的 API 密钥。这些配置会存储在 `~/.local/share/opencode/auth.json` 文件中。
+
+```bash
+opencode auth login
+```
+
+当 opencode 启动时，会从凭据文件加载提供商配置。如果你的环境变量或项目中的 `.env` 文件定义了任何密钥，也会被一并加载。
+
+---
+
+#### list
+
+列出凭据文件中存储的所有已认证的提供商。
+
+```bash
+opencode auth list
+```
+
+或者使用简写形式。
+
+```bash
+opencode auth ls
+```
+
+---
+
+#### logout
+
+通过从凭据文件中清除指定提供商来注销认证。
+
+```bash
+opencode auth logout
+```
+
+---
+
+### upgrade
+
+将 opencode 更新到最新版本或指定版本。
+
+```bash
+opencode upgrade [target]
+```
+
+更新到最新版本。
+
+```bash
+opencode upgrade
+```
+
+更新到指定版本。
+
+```bash
+opencode upgrade v0.1.48
+```
+
+---
+
+## 全局参数
+
+opencode CLI 支持以下全局参数。
+
+| 参数           | 简写 | 说明          |
+| -------------- | ----- | -------------------- |
+| `--help`       | `-h`  | 显示帮助信息         |
+| `--version`    |       | 显示版本号 |
+| `--print-logs` |       | 将日志输出到 stderr |
+| `--prompt`     | `-p`  | 指定要使用的提示词        |
+| `--model`      | `-m`  | 指定要使用的模型，格式为 provider/model |
+| `--mode`       |       | 指定要使用的模式          |

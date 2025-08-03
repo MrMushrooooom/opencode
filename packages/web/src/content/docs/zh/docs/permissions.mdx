@@ -1,0 +1,90 @@
+---
+title: 权限控制
+description: 控制 AI 代理在你的代码库中可以执行的操作
+---
+
+默认情况下，opencode **允许所有操作**，无需显式批准。
+
+权限系统提供细粒度控制，可以限制 AI 代理在你的代码库中执行的操作，允许你为敏感操作（如文件编辑、bash 命令等）配置显式批准要求。
+
+---
+
+## 配置
+
+权限在 `opencode.json` 文件的 `permission` 键下配置。以下是可用的选项。
+
+---
+
+### edit
+
+使用 `permission.edit` 键控制文件编辑操作是否需要用户批准。
+
+- `"ask"` - 编辑文件前提示批准
+- `"allow"` - 允许所有文件编辑操作，无需批准
+
+```json title="opencode.json" {4}
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "edit": "ask"
+  }
+}
+```
+
+---
+
+### bash
+
+控制 bash 命令是否需要用户批准。
+
+:::tip
+你可以指定哪些命令无需批准即可运行。
+:::
+
+这可以全局配置或使用特定模式配置。将此设置为 `"ask"` 是最严格的模式，要求所有 bash 命令都需要批准。
+
+例如：
+
+- **要求所有命令都需要批准**
+
+  ```json title="opencode.json"
+  {
+    "$schema": "https://opencode.ai/config.json",
+    "permission": {
+      "bash": "ask"
+    }
+  }
+  ```
+
+- **批准特定命令**
+
+  ```json title="opencode.json"
+  {
+    "$schema": "https://opencode.ai/config.json",
+    "permission": {
+      "bash": {
+        "git status": "allow",
+        "git diff": "allow",
+        "npm run build": "allow",
+        "ls": "allow",
+        "pwd": "allow"
+      }
+    }
+  }
+  ```
+
+- **使用通配符模式限制特定命令**
+
+  ```json title="opencode.json"
+  {
+    "$schema": "https://opencode.ai/config.json",
+    "permission": {
+      "bash": {
+        "git push": "ask",
+        "*": "allow"
+      }
+    }
+  }
+  ```
+
+  此配置默认允许所有命令（`"*": "allow"`），但要求 `git push` 命令需要批准。
