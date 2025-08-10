@@ -3,12 +3,12 @@ title: MCP 服务器
 description: 添加本地和远程 MCP 工具
 ---
 
-你可以使用 _Model Context Protocol_（MCP）向 opencode 添加外部工具。opencode 支持两种类型：
+你可以使用 _模型上下文协议_（MCP）将外部工具添加到 opencode 中。opencode 支持以下两种方式：
 
 - 本地服务器
 - 远程服务器
 
-一旦添加，MCP 工具会自动与内置工具一起提供给 LLM 使用。
+添加后，MCP 工具会自动与内置工具一起提供给 LLM 使用。
 
 ---
 
@@ -18,7 +18,7 @@ description: 添加本地和远程 MCP 工具
 
 ### 本地服务器
 
-在 MCP 对象中使用 `"type": "local"` 添加本地 MCP 服务器。可以添加多个 MCP 服务器。每个服务器的键名可以是任意名称。
+要添加本地 MCP 服务器，可在 MCP 对象中使用 `"type": "local"` 。可以添加多个 MCP 服务器。每个服务器的键名可以自定义。
 
 ```json title="opencode.json"
 {
@@ -41,7 +41,7 @@ description: 添加本地和远程 MCP 工具
 }
 ```
 
-你也可以通过将 `enabled` 设为 `false` 来禁用服务器。这在你想临时禁用服务器而不从配置中删除它时很有用。
+你也可以通过将 `enabled` 设为 `false` 来禁用服务器。如果你想暂时禁用服务器而不从配置中删除它，可用此方式。
 
 ### 远程服务器
 
@@ -63,7 +63,7 @@ description: 添加本地和远程 MCP 工具
 }
 ```
 
-本地和远程服务器可以在同一个 `mcp` 配置对象中一起使用。
+本地服务器和远程服务器可以在同一个 `mcp` 配置对象中一起使用。
 
 ```json title="opencode.json"
 {

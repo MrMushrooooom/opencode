@@ -9,15 +9,15 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
 ## 提供商
 
-最受欢迎的提供商默认预加载。如果你通过 `opencode auth login` 添加了提供商的凭据，当你启动 opencode 时它们将可用。
+大多数热门提供商默认已预加载。如果你通过 `opencode auth login` 添加了某个提供商的凭据，当你启动 opencode 时该提供商就能使用。
 
-了解更多关于[提供商](/zh/docs/providers)。
+了解更多关于[提供商]的信息(/zh/docs/providers)。
 
 ---
 
 ## 选择模型
 
-一旦你配置了提供商，你可以通过输入以下命令选择你想要的模型：
+配置好提供商后，你可以通过输入以下命令选择你想要的模型：
 
 ```bash frame="none"
 /models
@@ -27,15 +27,15 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
 ## 推荐模型
 
-有很多模型，每周都有新模型出现。
+目前有大量模型，而且每周都有新模型推出。
 
-:::tip
-考虑使用我们推荐的模型之一。
+:::提示
+建议考虑使用我们推荐的模型。
 :::
 
-然而，只有少数几个模型在生成代码和工具调用方面都很出色。
+不过，只有少数几个模型在生成代码和工具调用方面都很出色。
 
-以下是我们推荐与 opencode 一起使用的模型：
+以下是我们推荐与 opencode 配合使用的模型：
 
 - Claude Sonnet 4
 - Claude Opus 4
@@ -59,15 +59,17 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
 这里的完整 ID 是 `provider_id/model_id`。
 
-如果你配置了[自定义提供商](/zh/docs/providers#custom)，`provider_id` 是配置 `provider` 部分中的键，`model_id` 是 `provider.models` 中的键。
+如果你配置了[自定义提供商](/zh/docs/providers#custom)，`provider_id` 是配置 `provider` 部分对应的键，`model_id` 是 `provider.models` 里对应的键。
 
 ---
 
 ## 加载模型
 
-当 opencode 启动时，它会检查以下内容：
+当 opencode 启动时，它会按以下优先级顺序检查模型：
 
-1. opencode 配置中的模型列表。
+1. --model 或 -m 命令行标记。格式与配置文件中的一致：provider_id/model_id 。
+
+2. opencode 配置中的模型列表。
 
    ```json title="opencode.json"
    {
@@ -78,6 +80,6 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
    这里的格式是 `provider/model`。
 
-2. 最后使用的模型。
+3. 最后使用的模型。
 
-3. 使用内部优先级的第一模型。
+4. 按内部优先级排序的首个模型。

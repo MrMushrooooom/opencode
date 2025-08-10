@@ -1,6 +1,6 @@
 ---
 title: 快捷键绑定（Keybinds）
-description: 自定义你的快捷键绑定
+description: 自定义你的快捷键
 ---
 
 opencode 提供了一套可自定义的快捷键绑定（keybinds），你可以通过 opencode 配置文件进行个性化设置。
@@ -45,15 +45,15 @@ opencode 提供了一套可自定义的快捷键绑定（keybinds），你可以
 }
 ```
 
-## Leader key
+## 先导键
 
-opencode 大多数快捷键都基于 `leader` 键设计，这样可以有效避免与终端自身快捷键的冲突。
+opencode 使用 `leader` 键作为大多数快捷键的触发键，这样可以有效避免与终端中的快捷键冲突。
 
 默认情况下，`ctrl+x` 是 leader 键，大多数操作都需要先按下 leader 键再按对应的快捷键。例如，启动新会话时，你需要先按 `ctrl+x`，再按 `n`。
 
 你也可以不用 leader 键，但我们推荐使用 leader 键以获得更好的兼容性。
 
-## 禁用某个快捷键
+## 禁用快捷键
 
 如需禁用某个快捷键，只需在配置中将其值设置为 "none" 即可。
 

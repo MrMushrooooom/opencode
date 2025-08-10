@@ -1,17 +1,17 @@
 ---
 title: GitHub
-description: 在 GitHub issues 和 pull-requests 中使用 opencode
+description: 在 GitHub 问题和摘取请求中使用 opencode
 ---
 
-opencode 与你的 GitHub 工作流程集成。在评论中提及 `/opencode` 或 `/oc`，opencode 将在你的 GitHub Actions runner 中执行任务。
+opencode 与你的 GitHub 工作流程集成。在评论中标注 `/opencode` 或 `/oc`，opencode 将在你的 GitHub Actions 运行器中执行任务。
 
 ---
 
 ## 功能
 
 - **分类问题**：让 opencode 查看问题并向你解释。
-- **修复和实现**：让 opencode 修复问题或实现功能。它将在新分支中工作并提交包含所有更改的 PR。
-- **安全**：opencode 在你的 GitHub runner 内运行。
+- **修复和实现**：让 opencode 修复问题或实现功能。它将在新分支中开展工作并提交包含所有更改的 PR。
+- **安全**：opencode 在你的 GitHub 运行器内运行。
 
 ---
 
@@ -77,8 +77,8 @@ opencode github install
 
 ## 配置
 
-- `model`：opencode 使用的模型。采用 `provider/model` 格式。这是**必需的**。
-- `share`：分享会话。对于公共仓库，会话默认共享。
+- `model`：opencode 使用的模型。采用 `provider/model` 格式。这是**必需项**。
+- `share`：分享会话。对于公共仓库，会话默认是共享的。
 
 ---
 
@@ -88,7 +88,7 @@ opencode github install
 
 - **解释问题**
 
-  在 GitHub issue 中添加此评论。
+  在 GitHub 问题中添加如下评论。
 
   ```
   /opencode explain this issue
@@ -98,13 +98,13 @@ opencode github install
 
 - **修复问题**
 
-  在 GitHub issue 中，说：
+  在 GitHub 问题中输入：
 
   ```
   /opencode fix this
   ```
 
-  opencode 将创建一个新分支，实现更改，并打开包含更改的 PR。
+  opencode 将会创建一个新分支，实施更改，并提交一个包含更改的 PR。
 
 - 审查 PR 并进行更改
 

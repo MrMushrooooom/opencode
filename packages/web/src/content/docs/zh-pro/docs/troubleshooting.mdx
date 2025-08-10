@@ -1,45 +1,45 @@
 ---
-title: 常见问题
+title: 故障排查
 description: 常见问题及其解决方法。
 ---
 
-要调试 opencode 的任何问题，你可以检查日志或它本地存储的会话数据。
+要调试 opencode 的任何问题，你可以查看日志或它在本地存储的会话数据。
 
 ---
 
 ### 日志
 
-日志文件写入到：
+日志文件的存储路径如下：
 
 - **macOS/Linux**：`~/.local/share/opencode/log/`
 - **Windows**：`%APPDATA%\opencode\log\`
 
 日志文件以时间戳命名（例如，`2025-01-09T123456.log`），并保留最近的 10 个日志文件。
 
-你可以在[配置文件](/zh/docs/config#logging)中配置日志级别以获得更详细的调试信息。
+你可以在[配置文件](/zh/docs/config#logging)中配置日志级别，以获得更详细的调试信息。
 
 ---
 
 ### 存储
 
-opencode 在磁盘上存储会话数据和其他应用程序数据：
+opencode 将会话数据和其他应用程序数据存储在磁盘的以下位置：
 
 - **macOS/Linux**：`~/.local/share/opencode/`
 - **Windows**：`%USERPROFILE%\.local\share\opencode`
 
-此目录包含：
+此目录包含以下内容：
 
 - `auth.json` - 认证数据，如 API 密钥、OAuth 令牌
 - `log/` - 应用程序日志
 - `project/` - 项目特定数据，如会话和消息数据
-  - 如果项目在 Git 仓库内，它存储在 `./<project-slug>/storage/` 中
-  - 如果不是 Git 仓库，它存储在 `./global/storage/` 中
+  - 如果项目在 Git 仓库内，存储路径为`./<project-slug>/storage/` 
+  - 如果不是 Git 仓库，存储路径为 `./global/storage/` 
 
 ---
 
 ## 获取帮助
 
-如果你遇到 opencode 问题：
+如果你在使用 opencode 时遇到问题：
 
 1. **在 GitHub 上报告问题**
 
@@ -47,7 +47,7 @@ opencode 在磁盘上存储会话数据和其他应用程序数据：
 
    [**github.com/sst/opencode/issues**](https://github.com/sst/opencode/issues)
 
-   在创建新问题之前，搜索现有问题以查看你的问题是否已经被报告。
+   在创建新问题之前，请先搜索现有问题，以查看你的问题是否已经被报告。
 
 2. **加入我们的 Discord**
 
@@ -67,7 +67,7 @@ opencode 在磁盘上存储会话数据和其他应用程序数据：
 
 1. 检查日志中的错误消息
 2. 尝试使用 `--print-logs` 运行以在终端中查看输出
-3. 使用 `opencode upgrade` 确保你有最新版本
+3. 使用 `opencode upgrade` 确保安装的是最新版本
 
 ---
 
@@ -81,13 +81,13 @@ opencode 在磁盘上存储会话数据和其他应用程序数据：
 
 ### 模型不可用
 
-1. 检查你是否已与提供商认证
+1. 检查你是否已与通过模型提供商的身份认证
 2. 验证配置中的模型名称是否正确
-3. 某些模型可能需要特定的访问权限或订阅
+3. 部分模型可能需要特定的访问权限或订阅
 
 ---
 
-### Linux 上的复制/粘贴不工作
+### Linux 上的复制/粘贴功能失效
 
 Linux 用户需要安装以下剪贴板工具之一才能使复制/粘贴功能正常工作：
 
@@ -109,7 +109,7 @@ apt install -y wl-clipboard
 
 ```bash
 apt install -y xvfb
-# 并运行：
+# 然后运行：
 Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 export DISPLAY=:99.0
 ```

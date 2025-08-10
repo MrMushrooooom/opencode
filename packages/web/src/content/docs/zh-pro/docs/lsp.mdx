@@ -1,15 +1,15 @@
 ---
 title: LSP 服务器
-description: opencode 的 Language Server Protocol 集成
+description: opencode 可与你的 LSP 服务器集成
 ---
 
-opencode 集成了 Language Server Protocol (LSP)，以增强 LLM 与你的代码库的交互能力。LSP 服务器为不同编程语言提供智能代码分析和编辑功能。
+opencode 会集成你的语言服务协议 (LSP)，以增强大语言模型 （LLM） 与你的代码库的交互能力。它利用诊断功能向LLM提供反馈，并通过跳转定义和查找引用功能辅助代码导航。
 
 ## 内置 LSP 服务器
 
 opencode 内置了多种主流语言的 LSP 服务器：
 
-| LSP 服务器   | 语言/扩展名                                   | 依赖要求                              |
+| LSP 服务器   | 扩展名                                   | 运行要求                              |
 | ------------ | -------------------------------------------- | ------------------------------------- |
 | typescript   | .ts, .tsx, .js, .jsx, .mjs, .cjs, .mts, .cts | 项目中需有 `typescript` 依赖          |
 | gopls        | .go                                          | 需安装 `go` 命令                     |
@@ -19,11 +19,36 @@ opencode 内置了多种主流语言的 LSP 服务器：
 | zls          | .zig, .zon                                   | 需安装 `zig` 命令                     |
 | csharp       | .cs                                          | 需安装 `.NET SDK`                     |
 
-只要你的项目环境满足相应依赖，LSP 服务器会自动启用。
+当检测到符合上述扩展名的文件且满足运行要求时，LSP 服务器会自动启用。
 
-## 配置
+## 工作原理
 
-你可以通过 `opencode.json` 配置文件中的 `lsp` 部分自定义 LSP 服务器。
+当 opencode 打开一个文件时，会执行以下操作：
+
+1. 根据文件扩展名匹配所有已启用的 LSP 服务器
+2. 如果相应的 LSP 服务器未运行，则启动它
+
+## 配置项说明
+
+你可以通过 opencode 配置中的 `lsp` 部分自定义 LSP 服务器。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": { }
+}
+
+每个 LSP 服务器配置支持以下属性：
+
+| 属性           | 类型      | 说明                                       |
+| -------------- | --------- | ------------------------------------------ |
+| `disabled`     | boolean   | 设为 `true` 可禁用该 LSP 服务器            |
+| `command`      | string[]  | 启动 LSP 服务器的命令                       |
+| `extensions`   | string[]  | 该 LSP 服务器处理的文件扩展名               |
+| `env`          | object    | 启动服务器时设置的环境变量                  |
+| `initialization`| object   | 发送给 LSP 服务器的初始化选项               |
+
+下面来看一些示例。
 
 ### 禁用 LSP 服务器
 
@@ -42,7 +67,7 @@ opencode 内置了多种主流语言的 LSP 服务器：
 
 ### 自定义 LSP 服务器
 
-你可以通过指定命令和文件扩展名来添加自定义 LSP 服务器：
+你可以通过指定命令和文件扩展名来添加自定义 LSP 服务器，步骤如下：
 
 ```json title="opencode.json"
 {
@@ -56,24 +81,10 @@ opencode 内置了多种主流语言的 LSP 服务器：
 }
 ```
 
-### 配置项说明
 
-每个 LSP 服务器配置支持以下属性：
 
-| 属性           | 类型      | 说明                                       |
-| -------------- | --------- | ------------------------------------------ |
-| `disabled`     | boolean   | 设为 `true` 可禁用该 LSP 服务器            |
-| `command`      | string[]  | 启动 LSP 服务器的命令                       |
-| `extensions`   | string[]  | 该 LSP 服务器处理的文件扩展名               |
-| `env`          | object    | 启动服务器时设置的环境变量                  |
-| `initialization`| object   | 发送给 LSP 服务器的初始化选项               |
 
-## 工作原理
 
-当 opencode 打开文件时，会：
 
-1. 根据文件扩展名匹配所有已启用的 LSP 服务器
-2. 如果相应的 LSP 服务器未运行，则启动它
-3. 提供智能代码分析和编辑功能
 
-这种集成使 LLM 能够通过诊断、跳转到定义、查找引用等功能更好地理解你的代码库。
+
