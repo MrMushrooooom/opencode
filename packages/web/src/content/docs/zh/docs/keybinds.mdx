@@ -1,9 +1,9 @@
 ---
-title: 快捷键绑定（Keybinds）
-description: 自定义你的快捷键绑定
+title: 快捷键绑定
+description: 自定义你的快捷键绑定。
 ---
 
-opencode 提供了一套可自定义的快捷键绑定（keybinds），你可以通过 opencode 配置文件进行个性化设置。
+opencode 有一个快捷键列表，你可以通过 opencode 配置进行自定义。
 
 ```json title="opencode.json"
 {
@@ -11,27 +11,22 @@ opencode 提供了一套可自定义的快捷键绑定（keybinds），你可以
   "keybinds": {
     "leader": "ctrl+x",
     "app_help": "<leader>h",
-    "switch_mode": "tab",
-
+    "app_exit": "ctrl+c,<leader>q",
     "editor_open": "<leader>e",
-
-    "session_new": "<leader>n",
-    "session_list": "<leader>l",
-    "session_share": "<leader>s",
-    "session_unshare": "<leader>u",
-    "session_interrupt": "esc",
-    "session_compact": "<leader>c",
-
-    "tool_details": "<leader>d",
-    "model_list": "<leader>m",
     "theme_list": "<leader>t",
     "project_init": "<leader>i",
-
-    "input_clear": "ctrl+c",
-    "input_paste": "ctrl+v",
-    "input_submit": "enter",
-    "input_newline": "shift+enter,ctrl+j",
-
+    "tool_details": "<leader>d",
+    "thinking_blocks": "<leader>b",
+    "session_export": "<leader>x",
+    "session_new": "<leader>n",
+    "session_list": "<leader>l",
+    "session_navigation": "<leader>g",
+    "session_share": "<leader>s",
+    "session_unshare": "none",
+    "session_interrupt": "esc",
+    "session_compact": "<leader>c",
+    "session_child_cycle": "ctrl+right",
+    "session_child_cycle_reverse": "ctrl+left",
     "messages_page_up": "pgup",
     "messages_page_down": "pgdown",
     "messages_half_page_up": "ctrl+alt+u",
@@ -39,23 +34,37 @@ opencode 提供了一套可自定义的快捷键绑定（keybinds），你可以
     "messages_first": "ctrl+g",
     "messages_last": "ctrl+alt+g",
     "messages_copy": "<leader>y",
-
-    "app_exit": "ctrl+c,<leader>q"
+    "messages_undo": "<leader>u",
+    "messages_redo": "<leader>r",
+    "model_list": "<leader>m",
+    "model_cycle_recent": "f2",
+    "model_cycle_recent_reverse": "shift+f2",
+    "agent_list": "<leader>a",
+    "agent_cycle": "tab",
+    "agent_cycle_reverse": "shift+tab",
+    "input_clear": "ctrl+c",
+    "input_paste": "ctrl+v",
+    "input_submit": "enter",
+    "input_newline": "shift+enter,ctrl+j"
   }
 }
 ```
 
-## Leader key
+---
 
-opencode 大多数快捷键都基于 `leader` 键设计，这样可以有效避免与终端自身快捷键的冲突。
+## Leader 键
 
-默认情况下，`ctrl+x` 是 leader 键，大多数操作都需要先按下 leader 键再按对应的快捷键。例如，启动新会话时，你需要先按 `ctrl+x`，再按 `n`。
+opencode 使用 `leader` 键作为大多数快捷键的基础。这避免了终端中的冲突。
 
-你也可以不用 leader 键，但我们推荐使用 leader 键以获得更好的兼容性。
+默认情况下，`ctrl+x` 是 leader 键，大多数操作需要你先按 leader 键，然后按快捷键。例如，要启动新会话，你先按 `ctrl+x`，然后按 `n`。
 
-## 禁用某个快捷键
+你不需要为快捷键使用 leader 键，但我们建议这样做。
 
-如需禁用某个快捷键，只需在配置中将其值设置为 "none" 即可。
+---
+
+## 禁用快捷键
+
+你可以通过在配置中添加值为 "none" 的键来禁用快捷键。
 
 ```json title="opencode.json"
 {

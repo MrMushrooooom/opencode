@@ -537,7 +537,7 @@ $ opencode auth login
 
 1. 前往 [Moonshot AI 控制台](https://platform.moonshot.ai/console)，创建账户并点击 **Create API key**。
 
-2. 运行 `opencode auth login` 并选择 **Other**。
+2. 运行 `opencode auth login` 并选择 **Moonshot AI**。
 
    ```bash
    $ opencode auth login
@@ -546,11 +546,11 @@ $ opencode auth login
    │
    ◆  Select provider
    │  ...
-   │  ● Other
+   │  ● Moonshot AI
    └
    ```
 
-3. 输入 `moonshot` 作为提供商 ID。
+3. 输入你的 Moonshot API 密钥。
 
    ```bash
    $ opencode auth login
@@ -558,48 +558,14 @@ $ opencode auth login
    ┌  Add credential
    │
    ◇  Select provider
-   │  Other
-   │
-   ◇  Enter provider id
-   │  moonshot
-   └
-   ```
-
-4. 输入你的 Moonshot API 密钥。
-
-   ```bash
-   $ opencode auth login
-
-   ┌  Add credential
+   │  Moonshot AI
    │
    ◇  Enter your API key
-   │  sk-...
+   │  _
    └
    ```
 
-5. 在 opencode 配置中配置 Moonshot。
-
-   ```json title="opencode.json" "\"moonshot\"" {5-15}
-   {
-     "$schema": "https://opencode.ai/config.json",
-     "provider": {
-       "moonshot": {
-         "npm": "@ai-sdk/openai-compatible",
-         "name": "Moonshot AI",
-         "options": {
-           "baseURL": "https://api.moonshot.ai/v1"
-         },
-         "models": {
-           "kimi-k2-0711-preview": {
-             "name": "Kimi K2"
-           }
-         }
-       }
-     }
-   }
-   ```
-
-6. 运行 `/models` 命令选择 _Kimi K2_。
+4. 运行 `/models` 命令选择 _Kimi K2_。
 
 ---
 
@@ -638,8 +604,6 @@ $ opencode auth login
 ---
 
 ### OpenAI
-
-https://platform.openai.com/api-keys
 
 1. 前往 [OpenAI Platform 控制台](https://platform.openai.com/api-keys)，点击 **Create new secret key** 并复制密钥。
 
@@ -783,6 +747,42 @@ https://platform.openai.com/api-keys
    ```
 
 4. 运行 `/models` 命令选择像 _Kimi K2 Instruct_ 这样的模型。
+
+---
+
+### Z.AI
+
+1. 前往 [Z.AI API 控制台](https://z.ai/manage-apikey/apikey-list)，创建账户并点击 **Create a new API key**。
+
+2. 运行 `opencode auth login` 并选择 **Z.AI**。
+
+   ```bash
+   $ opencode auth login
+
+   ┌  Add credential
+   │
+   ◆  Select provider
+   │  ● Z.AI
+   │  ...
+   └
+   ```
+
+3. 输入你的 Z.AI API 密钥。
+
+   ```bash
+   $ opencode auth login
+
+   ┌  Add credential
+   │
+   ◇  Select provider
+   │  Z.AI
+   │
+   ◇  Enter your API key
+   │  _
+   └
+   ```
+
+4. 运行 `/models` 命令选择像 _GLM-4.5_ 这样的模型。
 
 ---
 

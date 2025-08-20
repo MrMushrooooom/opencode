@@ -63,11 +63,43 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
 ---
 
+## 配置模型
+
+你可以通过配置全局配置模型的选项。
+
+```jsonc title="opencode.jsonc" {7-11}
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "openai": {
+      "models": {
+        "gpt-5": {
+          "options": {
+            "reasoningEffort": "high",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto",
+            "include": ["reasoning.encrypted_content"]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+这里我们为通过 `openai` 提供商使用的 `gpt-5` 模型设置全局选项。
+
+你也可以为你使用的任何代理配置这些选项。代理配置会覆盖这里的任何全局选项。[了解更多](/zh/docs/agents/#additional)。
+
+---
+
 ## 加载模型
 
-当 opencode 启动时，它会检查以下内容：
+当 opencode 启动时，它会按以下优先级顺序检查模型：
 
-1. opencode 配置中的模型列表。
+1. `--model` 或 `-m` 命令行标志。格式与配置文件中的格式相同：`provider_id/model_id`。
+
+2. opencode 配置中的模型列表。
 
    ```json title="opencode.json"
    {
@@ -78,6 +110,6 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
    这里的格式是 `provider/model`。
 
-2. 最后使用的模型。
+3. 最后使用的模型。
 
-3. 使用内部优先级的第一模型。
+4. 使用内部优先级的第一模型。

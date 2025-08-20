@@ -227,13 +227,47 @@ How is authentication handled in @packages/functions/src/api/index.ts
 
 对于更直接的更改，你可以让 opencode 直接构建，而不必先审查计划。
 
-```txt frame="none"
+```txt frame="none" "@packages/functions/src/settings.ts" "@packages/functions/src/notes.ts"
 We need to add authentication to the /settings route. Take a look at how this is
 handled in the /notes route in @packages/functions/src/notes.ts and implement
 the same logic in @packages/functions/src/settings.ts
 ```
 
 你想确保提供足够的细节，这样 opencode 就能做出正确的更改。
+
+---
+
+### 撤销更改
+
+假设你让 opencode 进行一些更改。
+
+```txt frame="none" "@packages/functions/src/api/index.ts"
+Can you refactor the function in @packages/functions/src/api/index.ts?
+```
+
+但你意识到这不是你想要的。你可以使用 `/undo` 命令**撤销**更改。
+
+```bash frame="none"
+/undo
+```
+
+opencode 现在将撤销你所做的更改并再次显示你的原始消息。
+
+```txt frame="none" "@packages/functions/src/api/index.ts"
+Can you refactor the function in @packages/functions/src/api/index.ts?
+```
+
+从这里你可以调整提示并要求 opencode 再试一次。
+
+:::tip
+你可以多次运行 `/undo` 来撤销多次更改。
+:::
+
+或者你可以使用 `/redo` 命令**重做**更改。
+
+```bash frame="none"
+/redo
+```
 
 ---
 

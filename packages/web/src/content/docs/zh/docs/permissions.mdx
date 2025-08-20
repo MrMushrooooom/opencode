@@ -13,6 +13,16 @@ description: 控制 AI 代理在你的代码库中可以执行的操作
 
 权限在 `opencode.json` 文件的 `permission` 键下配置。以下是可用的选项。
 
+### 工具权限支持
+
+| 工具       | 描述                     |
+| ---------- | ------------------------------- |
+| `edit`     | 控制文件编辑操作 |
+| `bash`     | 控制 bash 命令执行  |
+| `webfetch` | 控制网络内容获取    |
+
+它们也可以按代理配置，有关更多详细信息，请参阅[代理配置](/zh/docs/agents#agent-configuration)。
+
 ---
 
 ### edit
@@ -21,6 +31,7 @@ description: 控制 AI 代理在你的代码库中可以执行的操作
 
 - `"ask"` - 编辑文件前提示批准
 - `"allow"` - 允许所有文件编辑操作，无需批准
+- `"deny"` - 禁用所有文件编辑工具并使其不可用
 
 ```json title="opencode.json" {4}
 {
@@ -41,7 +52,8 @@ description: 控制 AI 代理在你的代码库中可以执行的操作
 你可以指定哪些命令无需批准即可运行。
 :::
 
-这可以全局配置或使用特定模式配置。将此设置为 `"ask"` 是最严格的模式，要求所有 bash 命令都需要批准。
+这可以全局配置或使用特定模式配置。将此设置为 `"ask"` 要求所有 bash 命令都需要批准。
+将此设置为 `"deny"` 是最严格的选项，阻止 LLM 运行该命令或命令模式。
 
 例如：
 
@@ -52,6 +64,19 @@ description: 控制 AI 代理在你的代码库中可以执行的操作
     "$schema": "https://opencode.ai/config.json",
     "permission": {
       "bash": "ask"
+    }
+  }
+  ```
+
+- **禁用所有 Terraform 命令**
+
+  ```json title="opencode.json"
+  {
+    "$schema": "https://opencode.ai/config.json",
+    "permission": {
+      "bash": {
+        "terraform *": "deny"
+      }
     }
   }
   ```

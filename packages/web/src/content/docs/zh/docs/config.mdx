@@ -5,9 +5,11 @@ description: 使用 opencode JSON 配置文件。
 
 你可以使用 JSON 配置文件来配置 opencode。
 
+---
+
 ## 格式
 
-opencode 支持 JSON 和 JSONC（带注释的 JSON）格式。你可以在配置文件中使用注释：
+opencode 支持 **JSON** 和 **JSONC**（带注释的 JSON）格式。
 
 ```jsonc title="opencode.jsonc"
 {
@@ -19,7 +21,13 @@ opencode 支持 JSON 和 JSONC（带注释的 JSON）格式。你可以在配置
 }
 ```
 
-这可以用于全局配置 opencode 或为特定项目配置。
+使用 JSONC，你可以在配置文件中使用注释：
+
+---
+
+## 位置
+
+你可以将配置放在几个不同的位置，它们有不同的优先级顺序。
 
 ---
 
@@ -31,7 +39,11 @@ opencode 支持 JSON 和 JSONC（带注释的 JSON）格式。你可以在配置
 
 ### 项目级配置
 
-你也可以在项目中添加 `opencode.json`。这对于配置特定于你项目的提供商或模式很有用。
+你也可以在项目中添加 `opencode.json`。它优先于全局配置。这对于配置特定于你项目的提供商或模式很有用。
+
+:::tip
+将项目特定配置放在项目的根目录中。
+:::
 
 当 opencode 启动时，它会在当前目录中查找配置文件，或者向上遍历到最近的 Git 目录。
 
@@ -39,7 +51,7 @@ opencode 支持 JSON 和 JSONC（带注释的 JSON）格式。你可以在配置
 
 ---
 
-### 自定义配置文件
+### 自定义路径
 
 你可以使用 `OPENCODE_CONFIG` 环境变量指定自定义配置文件。这会优先于全局和项目配置。
 
@@ -58,22 +70,7 @@ opencode run "Hello world"
 
 ---
 
-### 模式
-
-opencode 带有两个内置模式：_build_，默认启用所有工具。和 _plan_，限制模式，禁用文件修改工具。你可以覆盖这些内置模式或使用 `mode` 选项定义自己的自定义模式。
-
-```json title="opencode.json"
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mode": {
-    "build": {},
-    "plan": {},
-    "my-custom-mode": {}
-  }
-}
-```
-
-[了解更多](/zh/docs/modes)。
+### 模型
 
 ---
 
@@ -90,7 +87,7 @@ opencode 带有两个内置模式：_build_，默认启用所有工具。和 _pl
 }
 ```
 
-`small_model` 选项配置一个单独的模型用于轻量级任务，如摘要和标题生成。默认情况下，opencode 会尝试使用更便宜的模型（如果提供商有的话），否则会回退到你的主模型。
+`small_model` 选项配置一个单独的模型用于轻量级任务，如标题生成。默认情况下，opencode 会尝试使用更便宜的模型（如果提供商有的话），否则会回退到你的主模型。
 
 你也可以配置[本地模型](/zh/docs/models#local)。[了解更多](/zh/docs/models)。
 
@@ -108,15 +105,6 @@ opencode 带有两个内置模式：_build_，默认启用所有工具。和 _pl
 ```
 
 [了解更多](/zh/docs/themes)。
-
----
-
-### 日志
-
-日志写入到：
-
-- **macOS/Linux**：`~/.local/share/opencode/log/`
-- **Windows**：`%APPDATA%\opencode\log\`
 
 ---
 
@@ -233,20 +221,29 @@ opencode 会在启动时自动下载任何新更新。你可以使用 `autoupdat
 
 ### 格式化器
 
-你可以通过 `formatter` 选项配置代码格式化器。查看[格式化器文档](/zh/docs/formatters)了解更多详情。
+你可以通过 `formatter` 选项配置代码格式化器。
 
 ```json title="opencode.json"
 {
   "$schema": "https://opencode.ai/config.json",
-  "disabled_providers": ["openai", "gemini"]
+  "formatter": {
+    "prettier": {
+      "disabled": true
+    },
+    "custom-prettier": {
+      "command": ["npx", "prettier", "--write", "$FILE"],
+      "environment": {
+        "NODE_ENV": "development"
+      },
+      "extensions": [".js", ".ts", ".jsx", ".tsx"]
+    }
+  }
 }
 ```
 
-`disabled_providers` 选项接受提供商 ID 数组。当提供商被禁用时：
+[了解更多关于格式化器](/zh/docs/formatters)。
 
-- 即使设置了环境变量也不会被加载
-- 即使通过 `opencode auth login` 配置了 API 密钥也不会被加载
-- 提供商的模型不会出现在模型选择列表中
+---
 
 ---
 
@@ -270,6 +267,25 @@ opencode 会在启动时自动下载任何新更新。你可以使用 `autoupdat
 - `bash` - 控制 bash 命令是否需要用户批准（可以是 `"ask"`/`"allow"` 或模式映射）
 
 [了解更多关于权限](/zh/docs/permissions)。
+
+---
+
+### 禁用的提供商
+
+你可以通过 `disabled_providers` 选项禁用自动加载的提供商。当你想要防止某些提供商被加载，即使它们的凭据可用时，这很有用。
+
+`disabled_providers` 选项接受提供商 ID 数组。当提供商被禁用时：
+
+- 即使设置了环境变量也不会被加载
+- 即使通过 `opencode auth login` 配置了 API 密钥也不会被加载
+- 提供商的模型不会出现在模型选择列表中
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "disabled_providers": ["openai", "gemini"]
+}
+```
 
 ---
 
@@ -308,7 +324,7 @@ opencode 会在启动时自动下载任何新更新。你可以使用 `autoupdat
 ```json title="opencode.json"
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["{file:./custom-instructions.md}"],
+  "instructions": ["./custom-instructions.md"],
   "provider": {
     "openai": {
       "options": {

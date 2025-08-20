@@ -77,8 +77,21 @@ opencode github install
 
 ## 配置
 
-- `model`：opencode 使用的模型。采用 `provider/model` 格式。这是**必需的**。
-- `share`：分享会话。对于公共仓库，会话默认共享。
+- `model`: opencode 使用的模型。采用 `provider/model` 格式。这是**必需的**。
+- `share`: 是否分享 opencode 会话。对于公共仓库，默认为 **true**。
+- `token`: 可选的 GitHub 访问令牌，用于执行创建评论、提交更改和打开拉取请求等操作。默认情况下，opencode 使用 opencode GitHub 应用的安装访问令牌，因此提交、评论和拉取请求显示为来自应用。
+
+  或者，你可以使用 GitHub Action runner 的[内置 `GITHUB_TOKEN`](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token)，而无需安装 opencode GitHub 应用。只需确保在你的工作流程中授予所需权限：
+
+  ```yaml
+  permissions:
+    id-token: write
+    contents: write
+    pull-requests: write
+    issues: write
+  ```
+
+  你也可以使用[个人访问令牌](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)(PAT)（如果首选）。
 
 ---
 
@@ -106,7 +119,7 @@ opencode github install
 
   opencode 将创建一个新分支，实现更改，并打开包含更改的 PR。
 
-- 审查 PR 并进行更改
+- **审查 PR 并进行更改**
 
   在 GitHub PR 上留下以下评论。
 
