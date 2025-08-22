@@ -9,10 +9,10 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@actions/core": "^1.10.0",
-    "@actions/github": "^6.0.0",
-    "@octokit/rest": "^20.0.0",
-    "@opencode-ai/sdk": "^0.1.0"
+    "@actions/core": "1.11.1",
+    "@actions/github": "6.0.1",
+    "@octokit/rest": "22.0.0",
+    "@opencode-ai/sdk": "0.5.4"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
