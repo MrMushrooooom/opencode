@@ -1,0 +1,31 @@
+name: Auto Translate
+
+on:
+  push:
+    branches: [feature/multilingual-docs]
+    paths:
+      - 'packages/web/src/content/docs/docs/*.mdx'
+      - 'packages/web/src/content/docs/docs/*.md'
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # Only need read permission, will use JWT token for operations
+      id-token: write     # Generate JWT token for GitHub API calls
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: feature/multilingual-docs
+          fetch-depth: 0  # Need full history to detect changes
+          
+      - name: Run translation
+        uses: ./auto-translate
+        with:
+          model: anthropic/claude-sonnet-4-20250514
+          source_lang: 'en'
+          target_lang: 'zh'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -1,0 +1,46 @@
+name: "Auto Translate Action"
+description: "Automatically translate English documentation to Chinese using AI"
+branding:
+  icon: "globe"
+  color: "blue"
+
+inputs:
+  model:
+    description: "The AI model to use for translation. Takes the format of `provider/model`."
+    required: true
+    default: "anthropic/claude-sonnet-4-20250514"
+
+  source_lang:
+    description: "Source language for translation."
+    required: true
+    default: "en"
+
+  target_lang:
+    description: "Target language for translation."
+    required: true
+    default: "zh"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install opencode
+      shell: bash
+      run: curl -fsSL https://opencode.ai/install | bash
+
+    - name: Install bun
+      shell: bash
+      run: npm install -g bun
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cd ${GITHUB_ACTION_PATH}
+        bun install
+
+    - name: Run translation
+      shell: bash
+      run: bun ${GITHUB_ACTION_PATH}/index.ts
+      env:
+        MODEL: ${{ inputs.model }}
+        SOURCE_LANG: ${{ inputs.source_lang }}
+        TARGET_LANG: ${{ inputs.target_lang }}
