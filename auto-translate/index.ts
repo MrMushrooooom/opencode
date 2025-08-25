@@ -18,10 +18,35 @@ const DOCS_PATH = "packages/web/src/content/docs"
 const SOURCE_DOCS_PATH = path.join(DOCS_PATH, "docs")
 const TARGET_DOCS_PATH = path.join(DOCS_PATH, TARGET_LANG, "docs")
 
-// GitHub API client (using JWT token)
-const octokit = new Octokit({
-  auth: process.env.TOKEN,
-})
+// GitHub API client (will use GitHub App token)
+let octokit: Octokit
+
+// Function to get GitHub App token (similar to opencode implementation)
+async function getGitHubAppToken(): Promise<string> {
+  try {
+    // Get OIDC token from GitHub Actions
+    const oidcToken = await core.getIDToken("opencode-github-action")
+    
+    // Exchange OIDC token for GitHub App token
+    const response = await fetch("https://api.opencode.ai/exchange_github_app_token", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${oidcToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`GitHub App token exchange failed: ${response.status}`)
+    }
+
+    const { token } = await response.json()
+    return token
+  } catch (error) {
+    console.error("❌ Failed to get GitHub App token:", error)
+    // Fallback to workflow token if GitHub App token fails
+    return process.env.TOKEN || ""
+  }
+}
 
 // Opencode client
 const opencode = createOpencodeClient({
@@ -41,12 +66,17 @@ async function main() {
     console.log(`📚 Source language: ${SOURCE_LANG}`)
     console.log(`🌏 Target language: ${TARGET_LANG}`)
     console.log(`🤖 AI Model: ${MODEL}`)
-                    console.log(`🔑 GitHub Token available: ${!!process.env.TOKEN}`)
+    console.log(`🔑 GitHub Token available: ${!!process.env.TOKEN}`)
     console.log(`🔑 Anthropic API Key available: ${!!process.env.ANTHROPIC_API_KEY}`)
     console.log(`📁 Current working directory: ${process.cwd()}`)
     console.log(`📁 Auto-translate path: ${__dirname}`)
     console.log(`📁 SOURCE_DOCS_PATH: ${SOURCE_DOCS_PATH}`)
     console.log(`📁 TARGET_DOCS_PATH: ${TARGET_DOCS_PATH}`)
+
+    // Initialize GitHub API client with GitHub App token
+    const githubToken = await getGitHubAppToken()
+    octokit = new Octokit({ auth: githubToken })
+    console.log(`🔑 GitHub App token obtained: ${!!githubToken}`)
 
     // 1. Detect document changes
     const changes = await detectDocChanges()
