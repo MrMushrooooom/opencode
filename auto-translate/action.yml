@@ -44,3 +44,4 @@ runs:
         MODEL: ${{ inputs.model }}
         SOURCE_LANG: ${{ inputs.source_lang }}
         TARGET_LANG: ${{ inputs.target_lang }}
+        TOKEN: ${{ github.token }}

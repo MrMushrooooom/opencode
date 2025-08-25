@@ -41,7 +41,7 @@ async function main() {
     console.log(`📚 Source language: ${SOURCE_LANG}`)
     console.log(`🌏 Target language: ${TARGET_LANG}`)
     console.log(`🤖 AI Model: ${MODEL}`)
-    console.log(`🔑 GitHub Token available: ${!!process.env.GITHUB_TOKEN}`)
+                    console.log(`🔑 GitHub Token available: ${!!process.env.TOKEN}`)
     console.log(`🔑 Anthropic API Key available: ${!!process.env.ANTHROPIC_API_KEY}`)
     console.log(`📁 Current working directory: ${process.cwd()}`)
     console.log(`📁 Auto-translate path: ${__dirname}`)
