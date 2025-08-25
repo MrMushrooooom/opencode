@@ -93,6 +93,13 @@ async function detectDocChanges(): Promise<DocChange[]> {
   
   const changes: DocChange[] = []
   
+  // 打印 GitHub Context 信息
+  console.log(`🔍 GitHub Context:`)
+  console.log(`  - Event: ${github.context.eventName}`)
+  console.log(`  - Ref: ${github.context.ref}`)
+  console.log(`  - Sha: ${github.context.sha}`)
+  console.log(`  - Branch: ${github.context.ref.replace('refs/heads/', '')}`)
+  
   // 获取当前commit和上一个commit的差异
   const { data: commits } = await octokit.rest.repos.listCommits({
     ...github.context.repo,
@@ -109,6 +116,27 @@ async function detectDocChanges(): Promise<DocChange[]> {
 
   console.log(`📝 Current commit: ${currentCommit}`)
   console.log(`📝 Previous commit: ${previousCommit}`)
+  
+  // 获取每个 commit 的详细信息，包括分支信息
+  console.log(`🔍 Commit details:`)
+  for (let i = 0; i < Math.min(commits.length, 2); i++) {
+    const commit = commits[i]
+    console.log(`  ${i + 1}. SHA: ${commit.sha}`)
+    console.log(`     Message: ${commit.commit.message}`)
+    console.log(`     Author: ${commit.commit.author?.name || 'Unknown'}`)
+    console.log(`     Date: ${commit.commit.author?.date || 'Unknown'}`)
+    
+    // 获取这个 commit 属于哪些分支
+    try {
+      const { data: branches } = await octokit.rest.repos.listBranchesForHeadCommit({
+        ...github.context.repo,
+        commit_sha: commit.sha,
+      })
+      console.log(`     Branches: ${branches.map(b => b.name).join(', ')}`)
+    } catch (error) {
+      console.log(`     Branches: Error getting branch info`)
+    }
+  }
 
   // 获取文件差异
   const { data: diff } = await octokit.rest.repos.compareCommits({
@@ -118,6 +146,16 @@ async function detectDocChanges(): Promise<DocChange[]> {
   })
 
   console.log(`📊 Total files changed: ${diff.files?.length || 0}`)
+  
+  // 添加更多调试信息
+  console.log(`🔍 Repository: ${github.context.repo.owner}/${github.context.repo.repo}`)
+  console.log(`🔍 Working directory: ${process.cwd()}`)
+  console.log(`🔍 All changed files:`)
+  if (diff.files) {
+    diff.files.forEach((file, index) => {
+      console.log(`  ${index + 1}. ${file.filename} (${file.status})`)
+    })
+  }
 
   // 分析变更的文件
   for (const file of diff.files || []) {
