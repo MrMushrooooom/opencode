@@ -20,7 +20,7 @@ const TARGET_DOCS_PATH = path.join(DOCS_PATH, TARGET_LANG, "docs")
 
 // GitHub API客户端（使用JWT token）
 const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN,
+  auth: process.env.TOKEN,
 })
 
 // Opencode客户端
