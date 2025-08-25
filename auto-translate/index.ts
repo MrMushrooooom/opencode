@@ -8,22 +8,22 @@ import * as github from "@actions/github"
 import { createOpencodeClient } from "@opencode-ai/sdk"
 import fs from "node:fs"
 
-// 环境变量
+// Environment variables
 const MODEL = process.env.MODEL || "anthropic/claude-sonnet-4-20250514"
 const SOURCE_LANG = process.env.SOURCE_LANG || "en"
 const TARGET_LANG = process.env.TARGET_LANG || "zh"
 
-// 路径配置
+// Path configuration
 const DOCS_PATH = "packages/web/src/content/docs"
 const SOURCE_DOCS_PATH = path.join(DOCS_PATH, "docs")
 const TARGET_DOCS_PATH = path.join(DOCS_PATH, TARGET_LANG, "docs")
 
-// GitHub API客户端（使用JWT token）
+// GitHub API client (using JWT token)
 const octokit = new Octokit({
   auth: process.env.TOKEN,
 })
 
-// Opencode客户端
+// Opencode client
 const opencode = createOpencodeClient({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 })
@@ -60,9 +60,7 @@ async function main() {
       console.log(`  - ${change.changeType}: ${change.path}`)
     })
 
-    console.log("🧪 TEST MODE: Stopping after document detection - skipping branch creation, file processing, and PR creation")
-    console.log("✅ Document detection test completed successfully!")
-    return
+    // Continue with translation workflow
 
     // 2. Create translation branch
     const branchName = await createTranslationBranch()
@@ -93,20 +91,20 @@ async function detectDocChanges(): Promise<DocChange[]> {
   
   const changes: DocChange[] = []
   
-  // 打印 GitHub Context 信息
+  // Print GitHub Context information
   console.log(`🔍 GitHub Context:`)
   console.log(`  - Event: ${github.context.eventName}`)
   console.log(`  - Ref: ${github.context.ref}`)
   console.log(`  - Sha: ${github.context.sha}`)
   console.log(`  - Branch: ${github.context.ref.replace('refs/heads/', '')}`)
   
-  // 获取当前分支的commits（明确指定分支）
+  // Get commits for current branch (explicitly specify branch)
   const currentBranch = github.context.ref.replace('refs/heads/', '')
   console.log(`🔍 Fetching commits for branch: ${currentBranch}`)
   
   const { data: commits } = await octokit.rest.repos.listCommits({
     ...github.context.repo,
-    sha: currentBranch,  // 明确指定分支
+    sha: currentBranch,  // Explicitly specify branch
     per_page: 2,
   })
 
@@ -121,7 +119,7 @@ async function detectDocChanges(): Promise<DocChange[]> {
   console.log(`📝 Current commit: ${currentCommit}`)
   console.log(`📝 Previous commit: ${previousCommit}`)
   
-  // 获取每个 commit 的详细信息，包括分支信息
+  // Get detailed information for each commit, including branch information
   console.log(`🔍 Commit details:`)
   for (let i = 0; i < Math.min(commits.length, 2); i++) {
     const commit = commits[i]
@@ -130,7 +128,7 @@ async function detectDocChanges(): Promise<DocChange[]> {
     console.log(`     Author: ${commit.commit.author?.name || 'Unknown'}`)
     console.log(`     Date: ${commit.commit.author?.date || 'Unknown'}`)
     
-    // 获取这个 commit 属于哪些分支
+    // Get which branches this commit belongs to
     try {
       const { data: branches } = await octokit.rest.repos.listBranchesForHeadCommit({
         ...github.context.repo,
@@ -142,7 +140,7 @@ async function detectDocChanges(): Promise<DocChange[]> {
     }
   }
 
-  // 获取文件差异
+  // Get file differences
   const { data: diff } = await octokit.rest.repos.compareCommits({
     ...github.context.repo,
     base: previousCommit,
@@ -151,7 +149,7 @@ async function detectDocChanges(): Promise<DocChange[]> {
 
   console.log(`📊 Total files changed: ${diff.files?.length || 0}`)
   
-  // 添加更多调试信息
+  // Add more debug information
   console.log(`🔍 Repository: ${github.context.repo.owner}/${github.context.repo.repo}`)
   console.log(`🔍 Working directory: ${process.cwd()}`)
   console.log(`🔍 All changed files:`)
@@ -161,7 +159,7 @@ async function detectDocChanges(): Promise<DocChange[]> {
     })
   }
 
-  // 分析变更的文件
+  // Analyze changed files
   for (const file of diff.files || []) {
     console.log(`📄 File: ${file.filename} (${file.status})`)
     console.log(`🔍 Checking if file is documentation: ${file.filename}`)
