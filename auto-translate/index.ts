@@ -45,6 +45,8 @@ async function main() {
     console.log(`🔑 Anthropic API Key available: ${!!process.env.ANTHROPIC_API_KEY}`)
     console.log(`📁 Current working directory: ${process.cwd()}`)
     console.log(`📁 Auto-translate path: ${__dirname}`)
+    console.log(`📁 SOURCE_DOCS_PATH: ${SOURCE_DOCS_PATH}`)
+    console.log(`📁 TARGET_DOCS_PATH: ${TARGET_DOCS_PATH}`)
 
     // 1. Detect document changes
     const changes = await detectDocChanges()
@@ -120,6 +122,11 @@ async function detectDocChanges(): Promise<DocChange[]> {
   // 分析变更的文件
   for (const file of diff.files || []) {
     console.log(`📄 File: ${file.filename} (${file.status})`)
+    console.log(`🔍 Checking if file is documentation: ${file.filename}`)
+    console.log(`🔍 SOURCE_DOCS_PATH: ${SOURCE_DOCS_PATH}`)
+    console.log(`🔍 File starts with SOURCE_DOCS_PATH: ${file.filename.startsWith(SOURCE_DOCS_PATH)}`)
+    console.log(`🔍 File ends with .mdx or .md: ${file.filename.endsWith('.mdx') || file.filename.endsWith('.md')}`)
+    
     if (isDocFile(file.filename)) {
       const change: DocChange = {
         path: file.filename,
@@ -129,6 +136,8 @@ async function detectDocChanges(): Promise<DocChange[]> {
       }
       changes.push(change)
       console.log(`✅ Added to translation queue: ${file.filename}`)
+    } else {
+      console.log(`❌ File filtered out: ${file.filename}`)
     }
   }
 
@@ -136,8 +145,15 @@ async function detectDocChanges(): Promise<DocChange[]> {
 }
 
 function isDocFile(filename: string): boolean {
-  return filename.startsWith(SOURCE_DOCS_PATH) && 
-         (filename.endsWith('.mdx') || filename.endsWith('.md'))
+  const startsWithPath = filename.startsWith(SOURCE_DOCS_PATH)
+  const endsWithExt = filename.endsWith('.mdx') || filename.endsWith('.md')
+  
+  console.log(`🔍 isDocFile(${filename}):`)
+  console.log(`  - startsWithPath: ${startsWithPath} (${SOURCE_DOCS_PATH})`)
+  console.log(`  - endsWithExt: ${endsWithExt}`)
+  console.log(`  - result: ${startsWithPath && endsWithExt}`)
+  
+  return startsWithPath && endsWithExt
 }
 
 function getChangeType(status: string): "added" | "modified" | "deleted" {
