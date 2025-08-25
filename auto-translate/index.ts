@@ -100,9 +100,13 @@ async function detectDocChanges(): Promise<DocChange[]> {
   console.log(`  - Sha: ${github.context.sha}`)
   console.log(`  - Branch: ${github.context.ref.replace('refs/heads/', '')}`)
   
-  // 获取当前commit和上一个commit的差异
+  // 获取当前分支的commits（明确指定分支）
+  const currentBranch = github.context.ref.replace('refs/heads/', '')
+  console.log(`🔍 Fetching commits for branch: ${currentBranch}`)
+  
   const { data: commits } = await octokit.rest.repos.listCommits({
     ...github.context.repo,
+    sha: currentBranch,  // 明确指定分支
     per_page: 2,
   })
 
