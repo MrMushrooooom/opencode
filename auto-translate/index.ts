@@ -264,7 +264,8 @@ function getChangeType(status: string): "added" | "modified" | "deleted" {
   switch (status) {
     case 'added': return 'added'
     case 'modified': return 'modified'
-    case 'deleted': return 'deleted'
+    case 'deleted': 
+    case 'removed': return 'deleted'
     default: return 'modified'
   }
 }
@@ -292,7 +293,15 @@ async function processDocChange(change: DocChange) {
     if (fs.existsSync(change.targetPath)) {
       fs.unlinkSync(change.targetPath)
       console.log(`Deleted: ${change.targetPath}`)
+    } else {
+      console.log(`Target file already deleted: ${change.targetPath}`)
     }
+    return
+  }
+  
+  // For added/modified files, ensure source file exists
+  if (!fs.existsSync(change.sourcePath)) {
+    console.log(`Warning: Source file not found: ${change.sourcePath}`)
     return
   }
   
