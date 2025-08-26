@@ -267,6 +267,11 @@ async function createTranslationBranch(): Promise<string> {
   await $`git checkout -b ${branchName}`
   console.log(`✅ Switched to local branch: ${branchName}`)
 
+  // Configure Git user for commits
+  await $`git config --global user.name "opencode-agent[bot]"`
+  await $`git config --global user.email "opencode-agent[bot]@users.noreply.github.com"`
+  console.log(`✅ Git user configured for commits`)
+
   return branchName
 }
 
