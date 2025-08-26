@@ -11,7 +11,7 @@ jobs:
   translate:
     runs-on: ubuntu-latest
     permissions:
-      contents: read       # Only need read permission, will use JWT token for operations
+      contents: write      # Need write permission for creating branches, commits, etc.
       id-token: write     # Generate JWT token for GitHub API calls
     
     steps:
