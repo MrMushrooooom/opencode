@@ -351,8 +351,8 @@ async function commitAndPushTranslations(branchName: string): Promise<void> {
   // Switch to translation branch
   await $`git checkout ${branchName}`
   
-  // Add all changes
-  await $`git add .`
+  // Add only translation files, not all changes
+  await $`git add packages/web/src/content/docs/zh/docs/`
   
   // Commit
   await $`git commit -m "test: auto-translate workflow test run

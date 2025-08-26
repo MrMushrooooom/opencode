@@ -13,6 +13,7 @@ jobs:
     permissions:
       contents: write      # Need write permission for creating branches, commits, etc.
       id-token: write     # Generate JWT token for GitHub API calls
+      pull-requests: write # Need write permission for creating pull requests
     
     steps:
       - name: Checkout code
