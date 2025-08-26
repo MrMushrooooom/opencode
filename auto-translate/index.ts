@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 
 import { $ } from "bun"
-import * as path from "node:path"
+import path from "node:path"
 import { Octokit } from "@octokit/rest"
 import * as core from "@actions/core"
 import * as github from "@actions/github"
-import * as fs from "fs"
 import { createOpencodeClient } from "@opencode-ai/sdk"
 import { spawn } from "node:child_process"
+import fs from "node:fs"
 
 // Environment variables
 const MODEL = process.env.MODEL || "anthropic/claude-sonnet-4-20250514"
@@ -25,6 +25,67 @@ let octokit: Octokit
 // Opencode client and server (exactly like opencode implementation)
 const { client, server } = createOpencode()
 let session: { id: string; title: string; version: string }
+let gitConfig: string
+let exitCode = 0
+
+// Document change interface
+interface DocChange {
+  path: string
+  changeType: "added" | "modified" | "deleted"
+  sourcePath: string
+  targetPath: string
+}
+
+try {
+  await assertOpencodeConnected()
+  
+  // Initialize GitHub API client
+  octokit = new Octokit({ auth: process.env.TOKEN })
+  
+  // Configure git
+  await configureGit(process.env.TOKEN!)
+  
+  // Setup opencode session
+  session = await client.session.create<true>().then((r: any) => r.data)
+  console.log("opencode session", session.id)
+  
+  // Detect document changes
+  const changes = await detectDocChanges()
+  if (changes.length === 0) {
+    console.log("No documentation changes detected, skipping translation")
+    process.exit(0)
+  }
+  
+  // Create translation branch
+  const branchName = await createTranslationBranch()
+  
+  // Process each document change
+  for (const change of changes) {
+    await processDocChange(change)
+  }
+  
+  // Check if branch is dirty and commit changes
+  if (await branchIsDirty()) {
+    const summary = await summarize("Documentation translation completed")
+    await commitAndPushTranslations(branchName, summary)
+    await createTranslationPR(branchName, summary)
+  }
+  
+} catch (e: any) {
+  exitCode = 1
+  console.error(e)
+  let msg = e
+  if (e instanceof $.ShellError) {
+    msg = e.stderr.toString()
+  } else if (e instanceof Error) {
+    msg = e.message
+  }
+  core.setFailed(msg)
+} finally {
+  server.close()
+  await restoreGitConfig()
+}
+process.exit(exitCode)
 
 function createOpencode() {
   const host = "127.0.0.1"
@@ -39,470 +100,273 @@ function createOpencode() {
   }
 }
 
-interface DocChange {
-  path: string
-  changeType: "added" | "modified" | "deleted"
-  sourcePath: string
-  targetPath: string
-}
+async function assertOpencodeConnected() {
+  let retry = 0
+  let connected = false
+  do {
+    try {
+      await client.app.get<true>()
+      connected = true
+      break
+    } catch (e) {}
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  } while (retry++ < 30)
 
-async function main() {
-  try {
-    console.log("🚀 Starting auto-translation workflow...")
-    console.log(`📚 Source language: ${SOURCE_LANG}`)
-    console.log(`🌏 Target language: ${TARGET_LANG}`)
-    console.log(`🤖 AI Model: ${MODEL}`)
-    console.log(`🔑 GitHub Token available: ${!!process.env.TOKEN}`)
-    console.log(`🔑 Anthropic API Key available: ${!!process.env.ANTHROPIC_API_KEY}`)
-    console.log(`📁 Current working directory: ${process.cwd()}`)
-    console.log(`📁 Auto-translate path: ${__dirname}`)
-    console.log(`📁 SOURCE_DOCS_PATH: ${SOURCE_DOCS_PATH}`)
-    console.log(`📁 TARGET_DOCS_PATH: ${TARGET_DOCS_PATH}`)
-
-    // Initialize GitHub API client with workflow token
-    octokit = new Octokit({ auth: process.env.TOKEN })
-    console.log(`🔑 GitHub token initialized`)
-
-    // Setup opencode session (exactly like opencode implementation)
-    console.log("📝 Setting up opencode session...")
-    session = await client.session.create<true>().then((r: any) => r.data)
-    console.log(`✅ Opencode session created: ${session.id}`)
-    console.log(`📝 Session title: ${session.title}`)
-    console.log(`📝 Session version: ${session.version}`)
-
-    // 1. Detect document changes
-    console.log("🔍 Step 1: Detecting document changes...")
-    const changes = await detectDocChanges()
-    if (changes.length === 0) {
-      console.log("✅ No documentation changes detected, skipping translation")
-      return
-    }
-
-    console.log(`📝 Detected ${changes.length} document changes:`)
-    changes.forEach((change, index) => {
-      console.log(`  ${index + 1}. ${change.changeType}: ${change.path}`)
-      console.log(`     Source: ${change.sourcePath}`)
-      console.log(`     Target: ${change.targetPath}`)
-    })
-
-    // 2. Create translation branch
-    console.log("🌿 Step 2: Creating translation branch...")
-    const branchName = await createTranslationBranch()
-    console.log(`✅ Created translation branch: ${branchName}`)
-
-    // 3. Process each document change
-    console.log("📝 Step 3: Processing document changes...")
-    for (let i = 0; i < changes.length; i++) {
-      const change = changes[i]
-      console.log(`\n🔄 Processing change ${i + 1}/${changes.length}: ${change.path}`)
-      await processDocChange(change)
-    }
-
-    // 4. Commit and push translation results
-    console.log("\n💾 Step 4: Committing and pushing translation results...")
-    await commitAndPushTranslations(branchName)
-
-    // 5. Create PR
-    console.log("🔗 Step 5: Creating pull request...")
-    const prNumber = await createTranslationPR(branchName)
-    console.log(`✅ Created translation PR: #${prNumber}`)
-
-    console.log("\n🎉 Auto-translation workflow completed successfully!")
-    console.log(`📋 Summary:`)
-    console.log(`   - Documents processed: ${changes.length}`)
-    console.log(`   - Translation branch: ${branchName}`)
-    console.log(`   - Pull request: #${prNumber}`)
-
-  } catch (error) {
-    console.error("❌ Auto-translation workflow failed:", error)
-    core.setFailed(error instanceof Error ? error.message : String(error))
-  } finally {
-    // Close opencode server (exactly like opencode implementation)
-    console.log("🔌 Closing opencode server...")
-    server.close()
-    console.log("✅ Opencode server closed")
+  if (!connected) {
+    throw new Error("Failed to connect to opencode server")
   }
 }
 
+async function configureGit(token: string) {
+  console.log("Configuring git...")
+  const config = "http.https://github.com/.extraheader"
+  const ret = await $`git config --local --get ${config}`
+  gitConfig = ret.stdout.toString().trim()
+
+  const newCredentials = Buffer.from(`x-access-token:${token}`, "utf8").toString("base64")
+
+  await $`git config --local --unset-all ${config}`
+  await $`git config --local ${config} "AUTHORIZATION: basic ${newCredentials}"`
+  await $`git config --global user.name "opencode-agent[bot]"`
+  await $`git config --global user.email "opencode-agent[bot]@users.noreply.github.com"`
+}
+
+async function restoreGitConfig() {
+  if (gitConfig === undefined) return
+  console.log("Restoring git config...")
+  const config = "http.https://github.com/.extraheader"
+  await $`git config --local ${config} "${gitConfig}"`
+}
+
+async function branchIsDirty() {
+  console.log("Checking if branch is dirty...")
+  const ret = await $`git status --porcelain`
+  return ret.stdout.toString().trim().length > 0
+}
+
+async function chat(text: string, files: any[] = []) {
+  console.log("Sending message to opencode...")
+  const [providerID, ...rest] = MODEL.split("/")
+  const modelID = rest.join("/")
+
+  const chat = await client.session.chat<true>({
+    path: session,
+    body: {
+      providerID,
+      modelID,
+      agent: "build",
+      parts: [
+        {
+          type: "text",
+          text,
+        },
+        ...files.flatMap((f) => [
+          {
+            type: "file" as const,
+            mime: f.mime,
+            url: `data:${f.mime};base64,${f.content}`,
+            filename: f.filename,
+            source: {
+              type: "file" as const,
+              text: {
+                value: f.replacement,
+                start: f.start,
+                end: f.end,
+              },
+              path: f.filename,
+            },
+          },
+        ]),
+      ],
+    },
+  })
+
+  // @ts-ignore
+  const match = chat.data.parts.findLast((p) => p.type === "text")
+  if (!match) throw new Error("Failed to parse the text response")
+
+  return match.text
+}
+
+async function summarize(response: string) {
+  try {
+    return await chat(`Summarize the following in less than 40 characters:\n\n${response}`)
+  } catch (e) {
+    return `Documentation translation completed`
+  }
+}
+
+// Custom functions for document translation
 async function detectDocChanges(): Promise<DocChange[]> {
-  console.log("🔍 Detecting document changes...")
-  console.log(`📁 Current branch: ${github.context.ref}`)
-  console.log(`📁 Current SHA: ${github.context.sha}`)
+  console.log("Detecting document changes...")
+  
+  const currentBranch = github.context.ref.replace('refs/heads/', '')
+  console.log(`Current branch: ${currentBranch}`)
   
   try {
-    // Get current branch name
-    const currentBranch = github.context.ref.replace('refs/heads/', '')
-    console.log(`📁 Working on branch: ${currentBranch}`)
-    
-    // Get commits for the current branch
     const commits = await octokit.rest.repos.listCommits({
-      ...github.context.repo,
+      owner: github.context.repo.owner,
+      repo: github.context.repo.repo,
       sha: currentBranch,
-      per_page: 10,
+      per_page: 10
     })
     
-    console.log(`📝 Found ${commits.data.length} commits on branch ${currentBranch}`)
-    
-    if (commits.data.length === 0) {
-      console.log("⚠️ No commits found, skipping change detection")
+    if (commits.data.length < 2) {
+      console.log("No previous commits to compare")
       return []
     }
     
-    // Get the latest commit SHA
     const latestCommit = commits.data[0]
-    console.log(`📝 Latest commit: ${latestCommit.sha} - ${latestCommit.commit.message}`)
-    
-    // Get the previous commit SHA (if available)
     const previousCommit = commits.data[1]
-    if (previousCommit) {
-      console.log(`📝 Previous commit: ${previousCommit.sha} - ${previousCommit.commit.message}`)
-    }
     
-    // Get file changes between the latest and previous commit
-    const comparison = await octokit.rest.repos.compareCommits({
-      ...github.context.repo,
-      base: previousCommit?.sha || latestCommit.sha,
-      head: latestCommit.sha,
+    console.log(`Latest commit: ${latestCommit.sha}`)
+    console.log(`Previous commit: ${previousCommit.sha}`)
+    
+    const diff = await octokit.rest.repos.compareCommits({
+      owner: github.context.repo.owner,
+      repo: github.context.repo.repo,
+      base: previousCommit.sha,
+      head: latestCommit.sha
     })
-    
-    console.log(`📝 File comparison result:`)
-    console.log(`   - Status: ${comparison.data.status}`)
-    console.log(`   - Files changed: ${comparison.data.files?.length || 0}`)
     
     const changes: DocChange[] = []
     
-    if (comparison.data.files) {
-      for (const file of comparison.data.files) {
-        console.log(`   📄 File: ${file.filename} (${file.status})`)
+    for (const file of diff.data.files || []) {
+      if (isDocFile(file.filename)) {
+        const changeType = getChangeType(file.status)
+        const sourcePath = file.filename
+        const targetPath = getTargetPath(file.filename)
         
-        if (isDocFile(file.filename)) {
-          const changeType = getChangeType(file.status)
-          const sourcePath = path.join(process.cwd(), file.filename)
-          const targetPath = getTargetPath(file.filename)
-          
-          console.log(`     ✅ Document file detected:`)
-          console.log(`        Change type: ${changeType}`)
-          console.log(`        Source path: ${sourcePath}`)
-          console.log(`        Target path: ${targetPath}`)
-          
-          changes.push({
-            path: file.filename,
-            changeType,
-            sourcePath,
-            targetPath,
-          })
-        }
+        changes.push({
+          path: file.filename,
+          changeType,
+          sourcePath,
+          targetPath
+        })
+        
+        console.log(`Detected ${changeType}: ${file.filename}`)
       }
     }
     
-    console.log(`📝 Total document changes detected: ${changes.length}`)
     return changes
-    
   } catch (error) {
-    console.error("❌ Error detecting document changes:", error)
-    throw error
+    console.error("Error detecting changes:", error)
+    return []
   }
 }
 
 function isDocFile(filename: string): boolean {
-  const isDoc = filename.startsWith(SOURCE_DOCS_PATH) && 
-                (filename.endsWith('.mdx') || filename.endsWith('.md'))
-  
-  if (isDoc) {
-    console.log(`     ✅ Document file: ${filename}`)
-  } else {
-    console.log(`     ❌ Not a document file: ${filename}`)
-  }
-  
-  return isDoc
+  return filename.startsWith(SOURCE_DOCS_PATH) && 
+         (filename.endsWith('.mdx') || filename.endsWith('.md'))
 }
 
 function getChangeType(status: string): "added" | "modified" | "deleted" {
-  let changeType: "added" | "modified" | "deleted"
-  
   switch (status) {
-    case "added":
-      changeType = "added"
-      break
-    case "modified":
-      changeType = "modified"
-      break
-    case "removed":
-      changeType = "deleted"
-      break
-    default:
-      changeType = "modified"
-      console.log(`⚠️ Unknown file status '${status}', defaulting to 'modified'`)
+    case 'added': return 'added'
+    case 'modified': return 'modified'
+    case 'deleted': return 'deleted'
+    default: return 'modified'
   }
-  
-  console.log(`     📝 Change type: ${status} -> ${changeType}`)
-  return changeType
 }
 
 function getTargetPath(sourcePath: string): string {
-  // Replace the source docs path with target docs path
   const relativePath = sourcePath.replace(SOURCE_DOCS_PATH, '')
-  const targetPath = path.join(TARGET_DOCS_PATH, relativePath)
-  
-  console.log(`     🔄 Path mapping:`)
-  console.log(`        Source: ${sourcePath}`)
-  console.log(`        Target: ${targetPath}`)
-  
-  return targetPath
+  return path.join(TARGET_DOCS_PATH, relativePath)
 }
 
 async function createTranslationBranch(): Promise<string> {
-  console.log("🌿 Creating translation branch...")
+  console.log("Creating translation branch...")
+  const branchName = `auto-translate/${Date.now()}`
   
-  const timestamp = new Date().toISOString().replace(/[:-]/g, "").replace(/\.\d{3}Z/, "")
-  const branchName = `auto-translate/${timestamp}`
+  await $`git checkout -b ${branchName}`
+  console.log(`Created branch: ${branchName}`)
   
-  console.log(`📝 Branch name: ${branchName}`)
-  
-  try {
-    // Create branch using GitHub API
-    const { data: ref } = await octokit.rest.git.createRef({
-      ...github.context.repo,
-      ref: `refs/heads/${branchName}`,
-      sha: github.context.sha,
-    })
-    
-    console.log(`✅ Branch created via GitHub API: ${ref.ref}`)
-    
-    // Checkout the branch locally
-    await $`git checkout -b ${branchName}`
-    console.log(`✅ Switched to local branch: ${branchName}`)
-    
-    // Configure git user for commits
-    await $`git config --global user.name "opencode-agent[bot]"`
-    await $`git config --global user.email "opencode-agent[bot]@users.noreply.github.com"`
-    console.log(`✅ Git user configured for commits`)
-    
-    return branchName
-    
-  } catch (error) {
-    console.error("❌ Error creating translation branch:", error)
-    throw error
-  }
+  return branchName
 }
 
-async function processDocChange(change: DocChange): Promise<void> {
-  console.log(`📝 Processing ${change.changeType} document: ${change.path}`)
+async function processDocChange(change: DocChange) {
+  console.log(`Processing ${change.changeType}: ${change.path}`)
   
-  if (change.changeType === "deleted") {
-    console.log(`🗑️ Handling deleted file: ${change.targetPath}`)
-    // Delete corresponding target file
+  if (change.changeType === 'deleted') {
+    // Remove target file if source was deleted
     if (fs.existsSync(change.targetPath)) {
       fs.unlinkSync(change.targetPath)
-      console.log(`✅ Deleted target file: ${change.targetPath}`)
-    } else {
-      console.log(`ℹ️ Target file already deleted: ${change.targetPath}`)
+      console.log(`Deleted: ${change.targetPath}`)
     }
     return
   }
-
-  // Ensure target directory exists
-  const targetDir = path.dirname(change.targetPath)
-  if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true })
-    console.log(`📁 Created target directory: ${targetDir}`)
-  } else {
-    console.log(`📁 Target directory already exists: ${targetDir}`)
-  }
-
-  // Read source document
+  
+  // Read source content
   const sourceContent = fs.readFileSync(change.sourcePath, 'utf-8')
-  console.log(`📖 Read source file: ${change.sourcePath} (${sourceContent.length} characters)`)
   
-  // Call AI for translation (AI will directly modify files using build agent)
-  console.log(`🤖 Starting AI translation for: ${change.path}`)
-  await translateContent(sourceContent, change.sourcePath, change.targetPath)
+  // Build translation prompt
+  const prompt = buildTranslationPrompt(sourceContent, change.path)
   
-  console.log(`✅ AI translation completed for: ${change.targetPath}`)
-}
-
-async function translateContent(sourceContent: string, sourcePath: string, targetPath: string): Promise<void> {
-  console.log("🤖 Calling AI for translation...")
-  console.log(`📝 Source file: ${sourcePath}`)
-  console.log(`📝 Target file: ${targetPath}`)
-  console.log(`📝 Content length: ${sourceContent.length} characters`)
+  // Call AI for translation
+  const response = await chat(prompt)
+  console.log(`Translation completed for: ${change.path}`)
   
-  try {
-    // Build translation prompt
-    const prompt = buildTranslationPrompt(sourceContent, sourcePath, targetPath)
-    console.log(`📝 Translation prompt built (${prompt.length} characters)`)
-    
-    // Call opencode for translation (completely following opencode's chat method)
-    console.log("🤖 Calling opencode session.chat...")
-    const chat = await client.session.chat<true>({
-      path: session,
-      body: {
-        providerID: "anthropic",
-        modelID: MODEL.replace("anthropic/", ""),
-        agent: "build",
-        parts: [
-          {
-            type: "text",
-            text: prompt,
-          },
-        ],
-      },
-    })
-
-    console.log("✅ AI Response received from opencode")
-    console.log(`📝 Chat response details:`)
-    console.log(`   - Response type: ${typeof chat}`)
-    console.log(`   - Has data: ${!!chat.data}`)
-    
-    // With build agent, AI should have already modified the files
-    // We just need to verify the file was created/updated
-    console.log("🔍 Verifying file modification...")
-    if (!fs.existsSync(targetPath)) {
-      throw new Error(`Target file was not created by AI: ${targetPath}`)
-    }
-    
-    const stats = fs.statSync(targetPath)
-    console.log(`✅ Target file verified:`)
-    console.log(`   - Path: ${targetPath}`)
-    console.log(`   - Size: ${stats.size} bytes`)
-    console.log(`   - Modified: ${stats.mtime}`)
-    
-    console.log(`✅ AI translation completed for: ${targetPath}`)
-    
-  } catch (error) {
-    console.error("❌ Translation failed:", error)
-    throw new Error(`Translation failed for ${sourcePath}: ${error}`)
+  // AI should have modified the file directly via agent: "build"
+  // Verify file was created/modified
+  if (!fs.existsSync(change.targetPath)) {
+    console.log(`Warning: Target file not created: ${change.targetPath}`)
   }
 }
 
-function buildTranslationPrompt(sourceContent: string, sourcePath: string, targetPath: string): string {
-  return `You are a professional technical translator specializing in software documentation.
+function buildTranslationPrompt(content: string, filename: string): string {
+  return `You are a professional technical translator. Please translate the following English documentation to Chinese (Simplified Chinese).
 
-TASK: Translate the following English documentation to Chinese (Simplified).
+File: ${filename}
+Source language: English
+Target language: Chinese (Simplified Chinese)
 
-SOURCE: ${sourcePath}
-TARGET: ${targetPath}
+Requirements:
+1. Maintain the exact same structure and formatting (Markdown syntax, code blocks, tables, etc.)
+2. Preserve all technical terms accurately
+3. Use professional and natural Chinese expressions
+4. Keep all links, file paths, and technical references unchanged
+5. Maintain the same heading hierarchy and organization
 
-INSTRUCTIONS:
-1. Use the 'write' tool to create/update the Chinese file at ${targetPath}
-2. Maintain exact structure, formatting, and markdown syntax
-3. Translate all English text to professional, accurate Chinese
-4. Keep technical terms consistent with industry standards
-5. Preserve all markdown syntax, code examples, and file paths
-6. Ensure the translation reads naturally in Chinese
+Please translate the following content:
 
-SOURCE CONTENT:
-${sourceContent}
+${content}
 
-Please proceed with the translation using your tools. After completing the translation, provide a brief summary of what was done.`
+Please use the write tool to create/update the Chinese translation file. The target path should be: ${getTargetPath(filename)}
+
+After translation, provide a brief summary of what was translated.`
 }
 
-async function commitAndPushTranslations(branchName: string): Promise<void> {
-  console.log("📝 Committing translation changes...")
+async function commitAndPushTranslations(branchName: string, summary: string) {
+  console.log("Committing and pushing translations...")
   
-  // Check if there are any changes to commit
-  console.log("🔍 Checking if branch is dirty...")
-  const isDirty = await branchIsDirty()
-  if (!isDirty) {
-    console.log("✅ No changes to commit")
-    return
-  }
+  await $`git add ${TARGET_DOCS_PATH}`
+  await $`git commit -m "${summary}"`
+  await $`git push -u origin ${branchName}`
   
-  console.log("📝 Changes detected, preparing to commit...")
-  
-  // Add only translation files
-  console.log("📁 Adding translation files to git...")
-  await $`git add packages/web/src/content/docs/zh/docs/`
-  console.log("✅ Translation files added to git")
-  
-  // Use fixed commit message (similar to opencode's approach)
-  const commitMessage = `docs: Auto-translate documentation to Chinese
-
-- Translated English documentation to Chinese (Simplified)
-- Maintained original structure and formatting
-- Updated Chinese documentation files automatically
-- This commit was generated by the auto-translate workflow`
-  
-  console.log("📝 Committing with message:")
-  console.log(commitMessage)
-  
-  await $`git commit -m "${commitMessage}"`
-  console.log("✅ Changes committed locally")
-  
-  // Push to remote branch
-  console.log(`📤 Pushing to remote branch: ${branchName}`)
-  await $`git push origin ${branchName}`
-  console.log("✅ Translation changes committed and pushed")
+  console.log(`Pushed branch: ${branchName}`)
 }
 
-// Add branchIsDirty function (copied from opencode implementation)
-async function branchIsDirty(): Promise<boolean> {
-  console.log("🔍 Checking if branch is dirty...")
-  const ret = await $`git status --porcelain`
-  const isDirty = ret.stdout.toString().trim().length > 0
-  console.log(`📝 Branch dirty status: ${isDirty}`)
-  if (isDirty) {
-    console.log("📝 Git status output:")
-    console.log(ret.stdout.toString())
-  }
-  return isDirty
-}
-
-async function createTranslationPR(branchName: string): Promise<number> {
-  console.log("🔗 Creating translation pull request...")
+async function createTranslationPR(branchName: string, summary: string) {
+  console.log("Creating translation PR...")
   
-  const { repo } = github.context
-  console.log(`📝 Repository: ${repo.owner}/${repo.repo}`)
-  console.log(`📝 Base branch: dev`)
-  console.log(`📝 Head branch: ${branchName}`)
-  
-  const prTitle = "docs: Auto-translate documentation to Chinese"
-  const prBody = `## Auto-translation of Documentation
+  const pr = await octokit.rest.pulls.create({
+    owner: github.context.repo.owner,
+    repo: github.context.repo.repo,
+    head: branchName,
+    base: github.context.ref.replace('refs/heads/', ''),
+    title: `Auto-translate: ${summary}`,
+    body: `This PR contains automatic translations of documentation changes.
 
-This PR contains automatically translated Chinese documentation files.
-
-### What was done:
-- Translated English documentation to Chinese (Simplified)
-- Maintained original structure and formatting
-- Updated Chinese documentation files automatically
-
-### Technical details:
+**Changes translated:**
+- Source language: ${SOURCE_LANG}
+- Target language: ${TARGET_LANG}
 - AI Model: ${MODEL}
-- Source Language: ${SOURCE_LANG}
-- Target Language: ${TARGET_LANG}
-- Generated by: auto-translate workflow
 
-### Files changed:
-The following Chinese documentation files have been updated:
-- \`packages/web/src/content/docs/zh/docs/\` - All documentation files
+**Summary:** ${summary}
 
-This PR was automatically generated by the auto-translate workflow. Please review the translations for accuracy and completeness.`
-
-  console.log("📝 PR details:")
-  console.log(`   - Title: ${prTitle}`)
-  console.log(`   - Body length: ${prBody.length} characters`)
-
-  try {
-    const pr = await octokit.rest.pulls.create({
-      owner: repo.owner,
-      repo: repo.repo,
-      head: branchName,
-      base: "dev",
-      title: prTitle,
-      body: prBody,
-    })
-
-    console.log(`✅ Created translation PR: #${pr.data.number}`)
-    console.log(`🔗 PR URL: ${pr.data.html_url}`)
-    return pr.data.number
-    
-  } catch (error) {
-    console.error("❌ Error creating PR:", error)
-    throw error
-  }
-}
-
-// Execute main function
-if (import.meta.main) {
-  main()
+This PR was automatically generated by the auto-translate workflow.`
+  })
+  
+  console.log(`Created PR: #${pr.data.number}`)
+  return pr.data.number
 }
