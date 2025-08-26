@@ -59,9 +59,24 @@ try {
   // Create translation branch
   const branchName = await createTranslationBranch()
   
-  // Process each document change
-  for (const change of changes) {
-    await processDocChange(change)
+  // 3. Process each document change
+  console.log("📝 Step 3: Processing document changes...")
+  console.log(`📝 Total changes to process: ${changes.length}`)
+  
+  for (let i = 0; i < changes.length; i++) {
+    const change = changes[i]
+    console.log(`\n🔄 Processing change ${i + 1}/${changes.length}: ${change.path}`)
+    console.log(`   Change type: ${change.changeType}`)
+    console.log(`   Source path: ${change.sourcePath}`)
+    console.log(`   Target path: ${change.targetPath}`)
+    
+    try {
+      await processDocChange(change)
+      console.log(`✅ Successfully processed: ${change.path}`)
+    } catch (error) {
+      console.error(`❌ Failed to process ${change.path}:`, error)
+      // Continue with next file instead of failing completely
+    }
   }
   
   // Check if branch is dirty and commit changes
