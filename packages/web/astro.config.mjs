@@ -84,6 +84,7 @@ export default defineConfig({
             "docs/agents",
             "docs/models",
             "docs/themes",
+            "docs/test-new",
             "docs/keybinds",
             "docs/formatters",
             "docs/permissions",
