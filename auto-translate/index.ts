@@ -81,9 +81,10 @@ try {
   
   // Check if branch is dirty and commit changes
   if (await branchIsDirty()) {
-    const summary = await summarize("Documentation translation completed")
-    await commitAndPushTranslations(branchName, summary)
-    await createTranslationPR(branchName, summary)
+    const commitMessage = "Documentation translation completed"
+    const prTitle = "Auto-translate: Documentation translation completed"
+    await commitAndPushTranslations(branchName, commitMessage)
+    await createTranslationPR(branchName, commitMessage, prTitle)
   }
   
 } catch (e: any) {
@@ -203,13 +204,7 @@ async function chat(text: string, files: any[] = []) {
   return match.text
 }
 
-async function summarize(response: string) {
-  try {
-    return await chat(`Summarize the following in less than 40 characters:\n\n${response}`)
-  } catch (e) {
-    return `Documentation translation completed`
-  }
-}
+
 
 // Custom functions for document translation
 async function detectDocChanges(): Promise<DocChange[]> {
@@ -370,7 +365,7 @@ async function commitAndPushTranslations(branchName: string, summary: string) {
   console.log(`Pushed branch: ${branchName}`)
 }
 
-async function createTranslationPR(branchName: string, summary: string) {
+async function createTranslationPR(branchName: string, summary: string, prTitle: string) {
   console.log("Creating translation PR...")
   
   const pr = await octokit.rest.pulls.create({
@@ -378,7 +373,7 @@ async function createTranslationPR(branchName: string, summary: string) {
     repo: github.context.repo.repo,
     head: branchName,
     base: github.context.ref.replace('refs/heads/', ''),
-    title: `Auto-translate: ${summary}`,
+    title: prTitle,
     body: `This PR contains automatic translations of documentation changes.
 
 **Changes translated:**
