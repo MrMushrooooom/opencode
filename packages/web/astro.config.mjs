@@ -85,8 +85,6 @@ export default defineConfig({
             "docs/models",
             "docs/themes",
             "docs/keybinds",
-            "docs/test01-multi1",
-            "docs/test01-multi2",
             "docs/formatters",
             "docs/permissions",
             "docs/lsp",
