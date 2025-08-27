@@ -112,7 +112,6 @@ export default defineConfig({
       locales: {
         root: { label: "English", lang: "en" },
         zh:   { label: "简体中文", lang: "zh-CN" },
-        "zh-pro": { label: "人工翻译", lang: "zh-CN" },
       },
       defaultLocale: "root",
     }),
