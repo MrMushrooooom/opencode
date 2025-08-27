@@ -59,16 +59,14 @@ try {
   // Create translation branch
   const branchName = await createTranslationBranch()
   
-  // 3. Process each document change
-  console.log("📝 Step 3: Processing document changes...")
-  console.log(`📝 Total changes to process: ${changes.length}`)
+  // Process each document change
+  console.log(`📝 Processing ${changes.length} document changes...`)
   
   for (let i = 0; i < changes.length; i++) {
     const change = changes[i]
-    console.log(`\n🔄 Processing change ${i + 1}/${changes.length}: ${change.path}`)
-    console.log(`   Change type: ${change.changeType}`)
-    console.log(`   Source path: ${change.sourcePath}`)
-    console.log(`   Target path: ${change.targetPath}`)
+    console.log(`\n🔄 Processing ${change.changeType}: ${change.path}`)
+    console.log(`   Source: ${change.sourcePath}`)
+    console.log(`   Target: ${change.targetPath}`)
     
     try {
       await processDocChange(change)
