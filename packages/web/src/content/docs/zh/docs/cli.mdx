@@ -11,10 +11,23 @@ import { Tabs, TabItem } from "@astrojs/starlight/components"
 opencode
 ```
 
-但它也接受本页面记录的命令。这使您可以以编程方式与 opencode 交互。
+但它也接受本页面记录的命令。这允许您以编程方式与 opencode 交互。
+
+> **🧪 工作流程测试**: 此 CLI 文档已被修改以测试 AI 翻译工作流程。此修改包括此测试部分，以验证工作流程是否能够检测和翻译文档更改。
+
+---
+
+## 🧪 CLI 测试部分
+
+此部分添加用于测试自动翻译工作流程：
+
+- **测试目标**: 验证 CLI 文档修改处理
+- **预期行为**: 中文版本应反映这些更改
+- **测试类别**: 命令行界面文档测试
+- **修改类型**: 为工作流程验证添加内容
 
 ```bash
-opencode run "解释 JavaScript 中闭包是如何工作的"
+opencode run "Explain how closures work in JavaScript"
 ```
 
 ---
@@ -43,13 +56,13 @@ opencode agent [command]
 opencode agent create
 ```
 
-此命令将引导您创建一个具有自定义系统提示和工具配置的新代理。
+此命令将指导您创建具有自定义系统提示和工具配置的新代理。
 
 ---
 
 ### auth
 
-管理提供商的凭据和登录的命令。
+管理提供商凭据和登录的命令。
 
 ```bash
 opencode auth [command]
@@ -59,13 +72,13 @@ opencode auth [command]
 
 #### login
 
-opencode 由 [Models.dev](https://models.dev) 的提供商列表提供支持，因此您可以使用 `opencode auth login` 为任何您想要使用的提供商配置 API 密钥。这存储在 `~/.local/share/opencode/auth.json` 中。
+opencode 由 [Models.dev](https://models.dev) 上的提供商列表驱动，因此您可以使用 `opencode auth login` 为要使用的任何提供商配置 API 密钥。这些信息存储在 `~/.local/share/opencode/auth.json` 中。
 
 ```bash
 opencode auth login
 ```
 
-当 opencode 启动时，它从凭据文件加载提供商。如果在您的环境或项目中的 `.env` 文件中定义了任何密钥，也会加载这些密钥。
+当 opencode 启动时，它会从凭据文件中加载提供商。如果您的环境或项目中的 `.env` 文件中定义了任何密钥，也会被加载。
 
 ---
 
@@ -87,7 +100,7 @@ opencode auth ls
 
 #### logout
 
-通过从凭据文件中清除提供商来注销。
+通过从凭据文件中清除提供商来注销该提供商。
 
 ```bash
 opencode auth logout
@@ -113,7 +126,7 @@ opencode github [command]
 opencode github install
 ```
 
-这会设置必要的 GitHub Actions 工作流程并引导您完成配置过程。[了解更多](/docs/github)。
+这会设置必要的 GitHub Actions 工作流程并指导您完成配置过程。[了解更多](/docs/github)。
 
 ---
 
@@ -127,10 +140,10 @@ opencode github run
 
 ##### 标志
 
-| 标志      | 描述                       |
-| --------- | -------------------------- |
-| `--event` | 运行代理的 GitHub 模拟事件 |
-| `--token` | GitHub 个人访问令牌        |
+| 标志      | 描述                             |
+| --------- | -------------------------------- |
+| `--event` | 要为其运行代理的 GitHub 模拟事件 |
+| `--token` | GitHub 个人访问令牌              |
 
 ---
 
@@ -157,16 +170,16 @@ opencode run [message..]
 这对于脚本编写、自动化或当您想要快速答案而不启动完整 TUI 时很有用。例如。
 
 ```bash "opencode run"
-opencode run 解释 Go 中上下文的使用
+opencode run Explain the use of context in Go
 ```
 
 #### 标志
 
 | 标志         | 简写 | 描述                             |
 | ------------ | ---- | -------------------------------- |
-| `--continue` | `-c` | 继续上次会话                     |
+| `--continue` | `-c` | 继续上一个会话                   |
 | `--session`  | `-s` | 要继续的会话 ID                  |
-| `--share`    |      | 共享会话                         |
+| `--share`    |      | 分享会话                         |
 | `--model`    | `-m` | 以 provider/model 形式使用的模型 |
 | `--agent`    |      | 要使用的代理                     |
 
@@ -174,13 +187,13 @@ opencode run 解释 Go 中上下文的使用
 
 ### serve
 
-启动无头 opencode 服务器以进行 API 访问。查看 [服务器文档](/docs/server) 了解完整的 HTTP 接口。
+启动无头 opencode 服务器以进行 API 访问。查看 [服务器文档](/docs/server) 获取完整的 HTTP 接口。
 
 ```bash
 opencode serve
 ```
 
-这启动一个 HTTP 服务器，提供对 opencode 功能的 API 访问，而无需 TUI 界面。
+这会启动一个 HTTP 服务器，提供对 opencode 功能的 API 访问，而无需 TUI 界面。
 
 #### 标志
 
@@ -199,13 +212,13 @@ opencode serve
 opencode upgrade [target]
 ```
 
-更新到最新版本。
+升级到最新版本。
 
 ```bash
 opencode upgrade
 ```
 
-更新到特定版本。
+升级到特定版本。
 
 ```bash
 opencode upgrade v0.1.48
@@ -223,14 +236,14 @@ opencode upgrade v0.1.48
 
 opencode CLI 接受以下全局标志。
 
-| 标志           | 简写 | 描述                                 |
-| -------------- | ---- | ------------------------------------ |
-| `--help`       | `-h` | 显示帮助                             |
-| `--version`    |      | 打印版本号                           |
-| `--print-logs` |      | 将日志打印到 stderr                  |
-| `--log-level`  |      | 日志级别（DEBUG、INFO、WARN、ERROR） |
-| `--prompt`     | `-p` | 要使用的提示                         |
-| `--model`      | `-m` | 以 provider/model 形式使用的模型     |
-| `--agent`      |      | 要使用的代理                         |
-| `--port`       |      | 监听端口                             |
-| `--hostname`   |      | 监听主机名                           |
+| 标志           | 简写 | 描述                                |
+| -------------- | ---- | ----------------------------------- |
+| `--help`       | `-h` | 显示帮助                            |
+| `--version`    |      | 打印版本号                          |
+| `--print-logs` |      | 将日志打印到 stderr                 |
+| `--log-level`  |      | 日志级别 (DEBUG、INFO、WARN、ERROR) |
+| `--prompt`     | `-p` | 要使用的提示                        |
+| `--model`      | `-m` | 以 provider/model 形式使用的模型    |
+| `--agent`      |      | 要使用的代理                        |
+| `--port`       |      | 监听端口                            |
+| `--hostname`   |      | 监听主机名                          |

@@ -1,0 +1,139 @@
+---
+title: Test Document 01
+description: 一个综合测试文档，用于测试 AI 翻译工作流程的各种内容类型。
+---
+
+# Test Document 01 - AI 翻译测试
+
+欢迎使用第一个测试文档！此文档旨在测试各种内容类型和格式的 AI 翻译工作流程。
+
+> **注意**: 这是专门为测试自动翻译工作流程功能而创建的测试文档。
+
+---
+
+## 入门指南
+
+要开始使用此文档进行测试，您需要了解基本结构：
+
+```bash title="test-command.sh"
+#!/bin/bash
+echo "Hello from test document 01"
+echo "This is a test script for translation"
+```
+
+---
+
+## 内容类型
+
+### 代码示例
+
+以下是不同语言的一些代码示例：
+
+```python title="test.py"
+def hello_world():
+    """Simple hello world function"""
+    print("Hello, World!")
+    return "success"
+
+# Test the function
+result = hello_world()
+print(f"Result: {result}")
+```
+
+```javascript title="test.js"
+// JavaScript example
+function greet(name) {
+  return `Hello, ${name}!`
+}
+
+const message = greet("Developer")
+console.log(message)
+```
+
+### 配置示例
+
+测试用的示例配置文件：
+
+```json title="test-config.json"
+{
+  "name": "test-document-01",
+  "version": "1.0.0",
+  "description": "Test document for AI translation",
+  "features": ["markdown", "code-blocks", "tables"],
+  "enabled": true
+}
+```
+
+---
+
+## 功能比较
+
+| 功能          | 状态 | 优先级 | 注释                     |
+| ------------- | ---- | ------ | ------------------------ |
+| Markdown 支持 | ✅   | 高     | 完整的 markdown 语法支持 |
+| 代码块        | ✅   | 高     | 可用语法高亮             |
+| 表格          | ✅   | 中     | 响应式表格设计           |
+| 链接          | ✅   | 低     | 内部和外部链接           |
+| 图片          | ⚠️   | 中     | 有限的图片支持           |
+
+---
+
+## 高级功能
+
+### 嵌套列表
+
+1. **一级项目**
+   - 二级项目符号
+   - 另一个二级项目
+     - 三级嵌套
+     - 更多三级内容
+
+2. **另一个一级项目**
+   - 不同内容
+   - 更多示例
+
+### 带注释的代码
+
+```bash title="complex-test.sh"
+#!/bin/bash
+
+# This is a complex test script
+# It includes multiple features
+
+# Function to test translation
+test_translation() {
+    local input="$1"
+    local expected="$2"
+
+    echo "Testing: $input"
+    echo "Expected: $expected"
+
+    # Simulate translation process
+    if [[ "$input" == "$expected" ]]; then
+        echo "✅ Test passed"
+        return 0
+    else
+        echo "❌ Test failed"
+        return 1
+    fi
+}
+
+# Run tests
+test_translation "Hello" "Hello"
+test_translation "World" "World"
+```
+
+---
+
+## 结论
+
+此测试文档包括：
+
+- **Markdown 格式化**，带有标题和章节
+- **多种编程语言的代码块**
+- **结构化数据表格**
+- **嵌套项目列表**
+- **JSON 格式的配置示例**
+- **带注释的 Bash 脚本**
+
+非常适合测试 AI 翻译质量和格式保持！
