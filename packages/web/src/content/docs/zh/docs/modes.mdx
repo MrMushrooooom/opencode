@@ -1,0 +1,99 @@
+---
+title: 模式
+description: 不同用例的不同模式。
+---
+
+:::caution
+模式现在通过 opencode 配置中的 `agent` 选项进行配置。`mode` 选项现在已弃用。[了解更多](/docs/agents)。
+:::
+
+opencode 中的模式允许您为不同用例自定义行为、工具和提示。
+
+它带有两个内置模式：**build** 和 **plan**。您可以通过 opencode 配置自定义这些模式或配置自己的模式。
+
+您可以在会话期间在模式之间切换，或在配置文件中配置它们。
+
+---
+
+## 内置
+
+opencode 带有两个内置模式。
+
+---
+
+### Build
+
+Build 是**默认**模式，启用所有工具。这是开发工作的标准模式，您需要完全访问文件操作和系统命令。
+
+---
+
+### Plan
+
+一个为规划和分析设计的受限模式。在 plan 模式下，以下工具默认被禁用：
+
+- `write` - 无法创建新文件
+- `edit` - 无法修改现有文件
+- `patch` - 无法应用补丁
+- `bash` - 无法执行 shell 命令
+
+当您希望 AI 分析代码、建议更改或创建计划而不对代码库进行任何实际修改时，此模式很有用。
+
+---
+
+## 切换
+
+您可以使用 _Tab_ 键在会话期间在模式之间切换。或者您配置的 `switch_mode` 快捷键。
+
+另请参阅：[格式化器](/docs/formatters) 了解代码格式化配置信息。
+
+---
+
+## 配置
+
+您可以通过配置自定义内置模式或创建自己的模式。模式可以通过两种方式配置：
+
+### JSON 配置
+
+在您的 `opencode.json` 配置文件中配置模式：
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mode": {
+    "build": {
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "{file:./prompts/build.txt}",
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "plan": {
+      "model": "anthropic/claude-haiku-4-20250514",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      }
+    }
+  }
+}
+```
+
+### Markdown 配置
+
+您也可以使用 markdown 文件定义模式。将它们放在：
+
+- 全局：`~/.config/opencode/mode/`
+- 项目：`.opencode/mode/`
+
+```markdown title="~/.config/opencode/mode/review.md"
+---
+model: anthropic/claude-sonnet-4-20250514
+temperature: 0.1
+tools:
+  write: false
+  edit: false
+  bash: false
+```

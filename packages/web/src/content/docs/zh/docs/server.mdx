@@ -1,0 +1,97 @@
+---
+title: 服务器
+description: 通过 HTTP 与 opencode 服务器交互。
+---
+
+import config from "../../../../config.mjs"
+export const typesUrl = `${config.github}/blob/dev/packages/sdk/js/src/gen/types.gen.ts`
+
+`opencode serve` 命令运行一个无头 HTTP 服务器，该服务器公开一个 opencode 客户端可以使用的 OpenAPI 端点。
+
+---
+
+### 用法
+
+```bash
+opencode serve [--port <number>] [--hostname <string>]
+```
+
+#### 选项
+
+| 标志         | 短标志 | 描述               | 默认值      |
+| ------------ | ------ | ------------------ | ----------- |
+| `--port`     | `-p`   | 监听的端口         | `4096`      |
+| `--hostname` | `-h`   | 监听的主机名       | `127.0.0.1` |
+
+---
+
+### 工作原理
+
+当您运行 `opencode` 时，它会启动一个 TUI 和一个服务器。其中 TUI 是与服务器通信的客户端。服务器公开一个 OpenAPI 3.1 规范端点。此端点也用于生成 [SDK](/docs/sdk)。
+
+:::tip
+使用 opencode 服务器以编程方式与 opencode 交互。
+:::
+
+这种架构让 opencode 支持多个客户端，并允许您以编程方式与 opencode 交互。
+
+您可以运行 `opencode serve` 来启动一个独立的服务器。如果您有 opencode TUI 在运行，`opencode serve` 将启动一个新服务器。
+
+---
+
+#### 连接到现有服务器
+
+当您启动 TUI 时，它会随机分配一个端口和主机名。您可以改为传入 `--hostname` 和 `--port` [标志](/docs/cli)。然后使用它来连接到其服务器。
+
+[`/tui`](#tui) 端点可用于通过服务器驱动 TUI。例如，您可以预填充或运行提示。此设置由 opencode [IDE](/docs/ide) 插件使用。
+
+---
+
+## 规范
+
+服务器发布一个 OpenAPI 3.1 规范，可以在以下位置查看：
+
+```
+http://<hostname>:<port>/doc
+```
+
+例如，`http://localhost:4096/doc`。使用规范生成客户端或检查请求和响应类型。或在 Swagger 浏览器中查看它。
+
+---
+
+## API
+
+opencode 服务器公开以下 API。
+
+---
+
+### 应用
+
+| 方法   | 路径        | 描述         | 响应                                    |
+| ------ | ----------- | ------------ | --------------------------------------- |
+| `GET`  | `/app`      | 获取应用信息 | <a href={typesUrl}><code>App</code></a> |
+| `POST` | `/app/init` | 初始化应用   | `boolean`                               |
+
+---
+
+### 配置
+
+| 方法   | 路径                | 描述                       | 响应                                                                                              |
+| ------ | ------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET`  | `/config`           | 获取配置信息               | <a href={typesUrl}><code>Config</code></a>                                                        |
+| `GET`  | `/config/providers` | 列出提供商和默认模型       | `{ providers: `<a href={typesUrl}>Provider[]</a>`, default: { [key: string]: string } }` |
+
+---
+
+### 会话
+
+| 方法   | 路径                                     | 描述                        | 备注                                                                                                                                                                      |
+| ------ | ---------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/session`                               | 列出会话                    | 返回 <a href={typesUrl}><code>Session[]</code></a>                                                                                                                        |
+| `GET`  | `/session/:id`                           | 获取会话                    | 返回 <a href={typesUrl}><code>Session</code></a>                                                                                                                          |
+| `GET`  | `/session/:id/children`                  | 列出子会话                  | 返回 <a href={typesUrl}><code>Session[]</code></a>                                                                                                                        |
+| `POST` | `/session`                               | 创建会话                    | body: `{ parentID?, title? }`, 返回 <a href={typesUrl}><code>Session</code></a>                                                                                           |
+| `DELETE` | `/session/:id`                           | 删除会话                    |                                                                                                                                                                            |
+| `PATCH`  | `/session/:id`                           | 更新会话属性                | body: `{ title? }`, 返回 <a href={typesUrl}><code>Session</code></a>                                                                                                      |
+| `POST`   | `/session/:id/init`                      | 分析应用并创建 `AGENTS.md`  | body: `{ messageID, providerID, modelID }`                                                                                                                                |
+| `POST`   | `/session/:id/abort`                     | 中止正在运行的会话          |                                                                                                                                                                            |
