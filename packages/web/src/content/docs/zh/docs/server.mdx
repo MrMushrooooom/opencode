@@ -3,10 +3,10 @@ title: 服务器
 description: 通过 HTTP 与 opencode 服务器交互。
 ---
 
-import config from "../../../../config.mjs"
+import config from "/config.mjs"
 export const typesUrl = `${config.github}/blob/dev/packages/sdk/js/src/gen/types.gen.ts`
 
-`opencode serve` 命令运行一个无头 HTTP 服务器，该服务器公开一个 opencode 客户端可以使用的 OpenAPI 端点。
+`opencode serve` 命令运行一个无头 HTTP 服务器，它公开一个 opencode 客户端可以使用的 OpenAPI 端点。
 
 ---
 
@@ -18,10 +18,10 @@ opencode serve [--port <number>] [--hostname <string>]
 
 #### 选项
 
-| 标志         | 短标志 | 描述               | 默认值      |
-| ------------ | ------ | ------------------ | ----------- |
-| `--port`     | `-p`   | 监听的端口         | `4096`      |
-| `--hostname` | `-h`   | 监听的主机名       | `127.0.0.1` |
+| 标志         | 短标志 | 描述           | 默认值     |
+| ------------ | ----- | --------------------- | ----------- |
+| `--port`     | `-p`  | 监听的端口     | `4096`      |
+| `--hostname` | `-h`  | 监听的主机名 | `127.0.0.1` |
 
 ---
 
@@ -35,13 +35,13 @@ opencode serve [--port <number>] [--hostname <string>]
 
 这种架构让 opencode 支持多个客户端，并允许您以编程方式与 opencode 交互。
 
-您可以运行 `opencode serve` 来启动一个独立的服务器。如果您有 opencode TUI 在运行，`opencode serve` 将启动一个新服务器。
+您可以运行 `opencode serve` 来启动独立服务器。如果您有 opencode TUI 正在运行，`opencode serve` 将启动一个新服务器。
 
 ---
 
 #### 连接到现有服务器
 
-当您启动 TUI 时，它会随机分配一个端口和主机名。您可以改为传入 `--hostname` 和 `--port` [标志](/docs/cli)。然后使用它来连接到其服务器。
+当您启动 TUI 时，它会随机分配端口和主机名。您可以改为传入 `--hostname` 和 `--port` [标志](/docs/cli)。然后使用它连接到其服务器。
 
 [`/tui`](#tui) 端点可用于通过服务器驱动 TUI。例如，您可以预填充或运行提示。此设置由 opencode [IDE](/docs/ide) 插件使用。
 
@@ -65,33 +65,113 @@ opencode 服务器公开以下 API。
 
 ---
 
-### 应用
+### App
 
-| 方法   | 路径        | 描述         | 响应                                    |
-| ------ | ----------- | ------------ | --------------------------------------- |
-| `GET`  | `/app`      | 获取应用信息 | <a href={typesUrl}><code>App</code></a> |
-| `POST` | `/app/init` | 初始化应用   | `boolean`                               |
-
----
-
-### 配置
-
-| 方法   | 路径                | 描述                       | 响应                                                                                              |
-| ------ | ------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
-| `GET`  | `/config`           | 获取配置信息               | <a href={typesUrl}><code>Config</code></a>                                                        |
-| `GET`  | `/config/providers` | 列出提供商和默认模型       | `{ providers: `<a href={typesUrl}>Provider[]</a>`, default: { [key: string]: string } }` |
+| 方法 | 路径        | 描述        | 响应                                |
+| ------ | ----------- | ------------------ | --------------------------------------- |
+| `GET`  | `/app`      | 获取应用信息       | <a href={typesUrl}><code>App</code></a> |
+| `POST` | `/app/init` | 初始化应用 | `boolean`                               |
 
 ---
 
-### 会话
+### Config
+
+| 方法 | 路径                | 描述                       | 响应                                                                                              |
+| ------ | ------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `GET`  | `/config`           | 获取配置信息                   | <a href={typesUrl}><code>Config</code></a>                                                            |
+| `GET`  | `/config/providers` | 列出提供商和默认模型 | `{ providers: `<a href={typesUrl}>Provider[]</a>`, default: { [key: string]: string } }` |
+
+---
+
+### Sessions
 
 | 方法   | 路径                                     | 描述                        | 备注                                                                                                                                                                      |
-| ------ | ---------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET`  | `/session`                               | 列出会话                    | 返回 <a href={typesUrl}><code>Session[]</code></a>                                                                                                                        |
-| `GET`  | `/session/:id`                           | 获取会话                    | 返回 <a href={typesUrl}><code>Session</code></a>                                                                                                                          |
-| `GET`  | `/session/:id/children`                  | 列出子会话                  | 返回 <a href={typesUrl}><code>Session[]</code></a>                                                                                                                        |
-| `POST` | `/session`                               | 创建会话                    | body: `{ parentID?, title? }`, 返回 <a href={typesUrl}><code>Session</code></a>                                                                                           |
-| `DELETE` | `/session/:id`                           | 删除会话                    |                                                                                                                                                                            |
-| `PATCH`  | `/session/:id`                           | 更新会话属性                | body: `{ title? }`, 返回 <a href={typesUrl}><code>Session</code></a>                                                                                                      |
-| `POST`   | `/session/:id/init`                      | 分析应用并创建 `AGENTS.md`  | body: `{ messageID, providerID, modelID }`                                                                                                                                |
-| `POST`   | `/session/:id/abort`                     | 中止正在运行的会话          |                                                                                                                                                                            |
+| -------- | ---------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/session`                               | 列出会话                      | 返回 <a href={typesUrl}><code>Session[]</code></a>                                                                                                                      |
+| `GET`    | `/session/:id`                           | 获取会话                        | 返回 <a href={typesUrl}><code>Session</code></a>                                                                                                                        |
+| `GET`    | `/session/:id/children`                  | 列出子会话                | 返回 <a href={typesUrl}><code>Session[]</code></a>                                                                                                                      |
+| `POST`   | `/session`                               | 创建会话                     | body: `{ parentID?, title? }`, 返回 <a href={typesUrl}><code>Session</code></a>                                                                                         |
+| `DELETE` | `/session/:id`                           | 删除会话                     |                                                                                                                                                                            |
+| `PATCH`  | `/session/:id`                           | 更新会话属性          | body: `{ title? }`, 返回 <a href={typesUrl}><code>Session</code></a>                                                                                                    |
+| `POST`   | `/session/:id/init`                      | 分析应用并创建 `AGENTS.md` | body: `{ messageID, providerID, modelID }`                                                                                                                                 |
+| `POST`   | `/session/:id/abort`                     | 中止正在运行的会话            |                                                                                                                                                                            |
+| `POST`   | `/session/:id/share`                     | 分享会话                      | 返回 <a href={typesUrl}><code>Session</code></a>                                                                                                                        |
+| `DELETE` | `/session/:id/share`                     | 取消分享会话                    | 返回 <a href={typesUrl}><code>Session</code></a>                                                                                                                        |
+| `POST`   | `/session/:id/summarize`                 | 总结会话                  |                                                                                                                                                                            |
+| `GET`    | `/session/:id/message`                   | 列出会话中的消息         | 返回 `{ info: `<a href={typesUrl}>Message</a>`, parts: `<a href={typesUrl}>Part[]</a>`}[]`                                                    |
+| `GET`    | `/session/:id/message/:messageID`        | 获取消息详情                | 返回 `{ info: `<a href={typesUrl}>Message</a>`, parts: `<a href={typesUrl}>Part[]</a>`}`                                                      |
+| `POST`   | `/session/:id/message`                   | 发送聊天消息                  | body 匹配 [`ChatInput`](https://github.com/sst/opencode/blob/main/packages/opencode/src/session/index.ts#L358), 返回 <a href={typesUrl}><code>Message</code></a>     |
+| `POST`   | `/session/:id/shell`                     | 运行 shell 命令                | body 匹配 [`CommandInput`](https://github.com/sst/opencode/blob/main/packages/opencode/src/session/index.ts#L1007), 返回 <a href={typesUrl}><code>Message</code></a> |
+| `POST`   | `/session/:id/revert`                    | 撤销消息                   | body: `{ messageID }`                                                                                                                                                      |
+| `POST`   | `/session/:id/unrevert`                  | 恢复已撤销的消息          |                                                                                                                                                                            |
+| `POST`   | `/session/:id/permissions/:permissionID` | 响应权限请求    | body: `{ response }`                                                                                                                                                       |
+
+---
+
+### Files
+
+| 方法 | 路径                     | 描述                  | 响应                                                                                    |
+| ------ | ------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `GET`  | `/find?pattern=<pat>`    | 在文件中搜索文本     | 匹配对象数组，包含 `path`、`lines`、`line_number`、`absolute_offset`、`submatches` |
+| `GET`  | `/find/file?query=<q>`   | 按名称查找文件           | `string[]`（文件路径）                                                                     |
+| `GET`  | `/find/symbol?query=<q>` | 查找工作区符号       | <a href={typesUrl}><code>Symbol[]</code></a>                                                |
+| `GET`  | `/file?path=<path>`      | 读取文件                  | `{ type: "raw" \| "patch", content: string }`                                               |
+| `GET`  | `/file/status`           | 获取跟踪文件的状态 | <a href={typesUrl}><code>File[]</code></a>                                                  |
+
+---
+
+### Logging
+
+| 方法 | 路径   | 描述                                                  | 响应  |
+| ------ | ------ | ------------------------------------------------------------ | --------- |
+| `POST` | `/log` | 写入日志条目。Body: `{ service, level, message, extra? }` | `boolean` |
+
+---
+
+### Agents
+
+| 方法 | 路径     | 描述               | 响应                                    |
+| ------ | -------- | ------------------------- | ------------------------------------------- |
+| `GET`  | `/agent` | 列出所有可用代理 | <a href={typesUrl}><code>Agent[]</code></a> |
+
+---
+
+### TUI
+
+| 方法 | 路径                    | 描述                                 | 响应               |
+| ------ | ----------------------- | ------------------------------------------- | ---------------------- |
+| `POST` | `/tui/append-prompt`    | 将文本附加到提示                   | `boolean`              |
+| `POST` | `/tui/open-help`        | 打开帮助对话框                        | `boolean`              |
+| `POST` | `/tui/open-sessions`    | 打开会话选择器                   | `boolean`              |
+| `POST` | `/tui/open-themes`      | 打开主题选择器                     | `boolean`              |
+| `POST` | `/tui/open-models`      | 打开模型选择器                     | `boolean`              |
+| `POST` | `/tui/submit-prompt`    | 提交当前提示                   | `boolean`              |
+| `POST` | `/tui/clear-prompt`     | 清除提示                            | `boolean`              |
+| `POST` | `/tui/execute-command`  | 执行命令（`{ command }`）           | `boolean`              |
+| `POST` | `/tui/show-toast`       | 显示 toast（`{ title?, message, variant }`） | `boolean`              |
+| `GET`  | `/tui/control/next`     | 等待下一个控制请求           | 控制请求对象 |
+| `POST` | `/tui/control/response` | 响应控制请求（`{ body }`）   | `boolean`              |
+
+---
+
+### Auth
+
+| 方法 | 路径        | 描述                                                     | 响应  |
+| ------ | ----------- | --------------------------------------------------------------- | --------- |
+| `PUT`  | `/auth/:id` | 设置身份验证凭据。Body 必须匹配提供商架构 | `boolean` |
+
+---
+
+### Events
+
+| 方法 | 路径     | 描述                                                                   | 响应                  |
+| ------ | -------- | ----------------------------------------------------------------------------- | ------------------------- |
+| `GET`  | `/event` | 服务器发送的事件流。第一个事件是 `server.connected`，然后是总线事件 | 服务器发送的事件流 |
+
+---
+
+### Docs
+
+| 方法 | 路径   | 描述                            | 响应                                   |
+| ------ | ------ | -------------------------------------- | ------------------------------------------ |
+| `GET`  | `/doc` | OpenAPI 3.1 规范 | 带有 OpenAPI 规范的 HTML 页面 |

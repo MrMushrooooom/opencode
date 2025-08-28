@@ -1,6 +1,6 @@
 ---
 title: GitLab
-description: 在 GitLab 问题和合并请求中使用 opencode。
+description: 在 GitLab issues 和 merge requests 中使用 opencode。
 ---
 
 opencode 与您的 GitLab 工作流程集成。
@@ -10,19 +10,19 @@ opencode 与您的 GitLab 工作流程集成。
 
 ## 功能
 
-- **分类问题**：要求 opencode 查看问题并向您解释。
-- **修复和实现**：要求 opencode 修复问题或实现功能。
-  它将创建一个新分支并提交包含更改的合并请求。
+- **分类问题**：让 opencode 查看问题并向您解释。
+- **修复和实现**：让 opencode 修复问题或实现功能。
+  它将创建一个新分支并提交包含更改的 merge request。
 - **安全**：opencode 在您的 GitLab runners 上运行。
 
 ---
 
 ## 设置
 
-opencode 在您的 GitLab CI/CD 管道中运行，以下是设置所需的内容：
+opencode 在您的 GitLab CI/CD 管道中运行，以下是设置它所需的内容：
 
 :::tip
-查看 [**GitLab 文档**](https://docs.gitlab.com/user/duo_agent_platform/agent_assistant/) 获取最新说明。
+查看 [**GitLab 文档**](https://docs.gitlab.com/user/duo_agent_platform/agent_assistant/) 以获取最新说明。
 :::
 
 1. 配置您的 GitLab 环境
@@ -98,3 +98,54 @@ opencode 在您的 GitLab CI/CD 管道中运行，以下是设置所需的内容
            echo "Changes successfully pushed"
          fi
        else
+         echo "No git changes detected, skipping push"
+       fi
+   variables:
+     - ANTHROPIC_API_KEY
+     - GITLAB_TOKEN_OPENCODE
+     - GITLAB_HOST
+   ```
+
+   </details>
+
+您可以参考 [GitLab CLI agents 文档](https://docs.gitlab.com/user/duo_agent_platform/agent_assistant/) 以获取详细说明。
+
+---
+
+## 示例
+
+以下是一些如何在 GitLab 中使用 opencode 的示例。
+
+:::tip
+您可以配置使用不同于 `@opencode` 的触发短语。
+:::
+
+- **解释问题**
+
+  在 GitLab issue 中添加此评论。
+
+  ```
+  @opencode explain this issue
+  ```
+
+  opencode 将读取问题并回复清晰的解释。
+
+- **修复问题**
+
+  在 GitLab issue 中，说：
+
+  ```
+  @opencode fix this
+  ```
+
+  opencode 将创建一个新分支，实现更改，并打开包含更改的 merge request。
+
+- **审查 merge requests**
+
+  在 GitLab merge request 上留下以下评论。
+
+  ```
+  @opencode review this merge request
+  ```
+
+  opencode 将审查 merge request 并提供反馈。

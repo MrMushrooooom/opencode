@@ -1,24 +1,26 @@
 ---
 title: MCP 服务器
-description: 添加本地和远程 MCP 工具
+description: 添加本地和远程 MCP 工具。
 ---
 
-你可以使用 _Model Context Protocol_（MCP）向 opencode 添加外部工具。opencode 支持两种类型：
+您可以使用 _模型上下文协议_（Model Context Protocol，MCP）向 opencode 添加外部工具。opencode 支持：
 
 - 本地服务器
-- 远程服务器
+- 和远程服务器
 
-一旦添加，MCP 工具会自动与内置工具一起提供给 LLM 使用。
+添加后，MCP 工具会自动与内置工具一起提供给 LLM。
 
 ---
 
 ## 配置
 
-你可以在 opencode 配置的 `mcp` 部分定义 MCP 服务器。
+您可以在 opencode 配置中的 `mcp` 下定义 MCP 服务器。
 
-### 本地服务器
+---
 
-在 MCP 对象中使用 `"type": "local"` 添加本地 MCP 服务器。可以添加多个 MCP 服务器。每个服务器的键名可以是任意名称。
+### 本地
+
+在 MCP 对象中使用 `"type": "local"` 添加本地 MCP 服务器。可以添加多个 MCP 服务器。每个服务器的键字符串可以是任意名称。
 
 ```json title="opencode.json"
 {
@@ -41,9 +43,11 @@ description: 添加本地和远程 MCP 工具
 }
 ```
 
-你也可以通过将 `enabled` 设为 `false` 来禁用服务器。这在你想临时禁用服务器而不从配置中删除它时很有用。
+您也可以通过将 `enabled` 设置为 `false` 来禁用服务器。如果您想临时禁用服务器而不从配置中删除它，这会很有用。
 
-### 远程服务器
+---
+
+### 远程
 
 在 `mcp` 下使用 `"type": "remote"` 添加远程 MCP 服务器。
 
@@ -83,6 +87,39 @@ description: 添加本地和远程 MCP 工具
       "enabled": true,
       "headers": {
         "Authorization": "Bearer MY_API_KEY"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 按代理
+
+如果您有大量 MCP 服务器，您可能希望只在每个代理中启用它们并在全局禁用它们。要做到这一点：
+
+1. 配置 MCP 服务器。
+2. 在全局将其作为工具禁用。
+3. 在您的[代理配置](/docs/agents#tools)中将 MCP 服务器作为工具启用。
+
+```json title="opencode.json" {11, 14-17}
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "my-mcp": {
+      "type": "local",
+      "command": ["bun", "x", "my-mcp-command"],
+      "enabled": true
+    }
+  },
+  "tools": {
+    "my-mcp*": false
+  },
+  "agent": {
+    "my-agent": {
+      "tools": {
+        "my-mcp*": true
       }
     }
   }

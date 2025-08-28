@@ -3,21 +3,21 @@ title: 模型
 description: 配置 LLM 提供商和模型。
 ---
 
-opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.dev) 来支持 **75+ 个 LLM 提供商**，并且支持运行本地模型。
+opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.dev) 来支持 **75+ LLM 提供商**，并且支持运行本地模型。
 
 ---
 
 ## 提供商
 
-最受欢迎的提供商默认预加载。如果你通过 `opencode auth login` 添加了提供商的凭据，当你启动 opencode 时它们将可用。
+最受欢迎的提供商默认预加载。如果您通过 `opencode auth login` 添加了提供商的凭据，它们在您启动 opencode 时将可用。
 
-了解更多关于[提供商](/zh/docs/providers)。
+了解更多关于[提供商](/docs/providers)。
 
 ---
 
 ## 选择模型
 
-一旦你配置了提供商，你可以通过输入以下命令选择你想要的模型：
+配置提供商后，您可以通过输入以下内容来选择您想要的模型：
 
 ```bash frame="none"
 /models
@@ -33,7 +33,7 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 考虑使用我们推荐的模型之一。
 :::
 
-然而，只有少数几个模型在生成代码和工具调用方面都很出色。
+然而，只有少数几个在生成代码和工具调用方面都很好。
 
 以下是我们推荐与 opencode 一起使用的模型：
 
@@ -46,9 +46,9 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
 ---
 
-## 设置默认模型
+## 设置默认值
 
-要将其中一个设置为默认模型，你可以在 opencode 配置中设置 `model` 键。
+要将其中一个设置为默认模型，您可以在 opencode 配置中设置 `model` 键。
 
 ```json title="opencode.json" {3}
 {
@@ -59,15 +59,15 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
 这里的完整 ID 是 `provider_id/model_id`。
 
-如果你配置了[自定义提供商](/zh/docs/providers#custom)，`provider_id` 是配置 `provider` 部分中的键，`model_id` 是 `provider.models` 中的键。
+如果您配置了[自定义提供商](/docs/providers#custom)，`provider_id` 是配置的 `provider` 部分中的键，`model_id` 是 `provider.models` 中的键。
 
 ---
 
 ## 配置模型
 
-你可以通过配置全局配置模型的选项。
+您可以通过配置全局配置模型的选项。
 
-```jsonc title="opencode.jsonc" {7-11}
+```jsonc title="opencode.jsonc" {7-12,19-24}
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
@@ -78,18 +78,30 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
             "reasoningEffort": "high",
             "textVerbosity": "low",
             "reasoningSummary": "auto",
-            "include": ["reasoning.encrypted_content"]
-          }
-        }
-      }
-    }
-  }
+            "include": ["reasoning.encrypted_content"],
+          },
+        },
+      },
+    },
+    "anthropic": {
+      "models": {
+        "claude-sonnet-4-20250514": {
+          "options": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16000,
+            },
+          },
+        },
+      },
+    },
+  },
 }
 ```
 
-这里我们为通过 `openai` 提供商使用的 `gpt-5` 模型设置全局选项。
+这里我们为两个模型配置全局设置：通过 `openai` 提供商访问时的 `gpt-5`，以及通过 `anthropic` 提供商访问时的 `claude-sonnet-4-20250514`。
 
-你也可以为你使用的任何代理配置这些选项。代理配置会覆盖这里的任何全局选项。[了解更多](/zh/docs/agents/#additional)。
+您也可以为正在使用的任何代理配置这些选项。代理配置会覆盖这里的任何全局选项。[了解更多](/docs/agents/#additional)。
 
 ---
 
@@ -97,7 +109,7 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
 当 opencode 启动时，它会按以下优先级顺序检查模型：
 
-1. `--model` 或 `-m` 命令行标志。格式与配置文件中的格式相同：`provider_id/model_id`。
+1. `--model` 或 `-m` 命令行标志。格式与配置文件中的相同：`provider_id/model_id`。
 
 2. opencode 配置中的模型列表。
 
@@ -112,4 +124,4 @@ opencode 使用 [AI SDK](https://ai-sdk.dev/) 和 [Models.dev](https://models.de
 
 3. 最后使用的模型。
 
-4. 使用内部优先级的第一模型。
+4. 使用内部优先级的第一个模型。

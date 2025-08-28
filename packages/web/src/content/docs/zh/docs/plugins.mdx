@@ -1,9 +1,9 @@
 ---
 title: 插件
-description: 编写你自己的插件来扩展 opencode。
+description: 编写您自己的插件来扩展 opencode。
 ---
 
-插件允许你通过钩入各种事件和自定义行为来扩展 opencode。你可以创建插件来添加新功能、与外部服务集成或修改 opencode 的默认行为。
+插件允许您通过钩入各种事件和自定义行为来扩展 opencode。您可以创建插件来添加新功能、与外部服务集成或修改 opencode 的默认行为。
 
 ---
 
@@ -17,7 +17,7 @@ description: 编写你自己的插件来扩展 opencode。
 
 插件从以下位置加载：
 
-1. 你项目中的 `.opencode/plugin` 目录
+1. 您项目中的 `.opencode/plugin` 目录
 2. 或者，全局在 `~/.config/opencode/plugin`
 
 ---
@@ -29,7 +29,7 @@ export const MyPlugin = async ({ app, client, $ }) => {
   console.log("Plugin initialized!")
 
   return {
-    // Hook implementations go here
+    // 钩子实现放在这里
   }
 }
 ```
@@ -38,20 +38,20 @@ export const MyPlugin = async ({ app, client, $ }) => {
 
 - `app`：opencode 应用程序实例。
 - `client`：用于与 AI 交互的 opencode SDK 客户端。
-- `$`：Bun 的 [shell API](https://bun.com/docs/runtime/shell)，用于执行命令。
+- `$`：Bun 的 [shell API](https://bun.com/docs/runtime/shell) 用于执行命令。
 
 ---
 
 ### TypeScript 支持
 
-对于 TypeScript 插件，你可以从插件包导入类型：
+对于 TypeScript 插件，您可以从插件包导入类型：
 
 ```ts title="my-plugin.ts" {1}
 import type { Plugin } from "@opencode-ai/plugin"
 
 export const MyPlugin: Plugin = async ({ app, client, $ }) => {
   return {
-    // Type-safe hook implementations
+    // 类型安全的钩子实现
   }
 }
 ```
@@ -60,13 +60,13 @@ export const MyPlugin: Plugin = async ({ app, client, $ }) => {
 
 ## 示例
 
-以下是一些你可以用来扩展 opencode 的插件示例。
+以下是一些您可以使用来扩展 opencode 的插件示例。
 
 ---
 
 ### 发送通知
 
-在特定事件发生时发送通知：
+在发生某些事件时发送通知：
 
 ```js title=".opencode/plugin/notification.js"
 export const NotificationPlugin = async ({ client, $ }) => {
@@ -81,7 +81,7 @@ export const NotificationPlugin = async ({ client, $ }) => {
 }
 ```
 
-我们使用 `osascript` 在 macOS 上运行 AppleScript。这里我们用它来发送通知。
+我们使用 `osascript` 在 macOS 上运行 AppleScript。这里我们使用它来发送通知。
 
 ---
 
