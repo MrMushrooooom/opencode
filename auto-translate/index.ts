@@ -331,24 +331,48 @@ async function processDocChange(change: DocChange) {
 }
 
 function buildTranslationPrompt(content: string, filename: string): string {
-  return `You are a professional technical translator. Please translate the following English documentation to Chinese (Simplified Chinese).
+  return `You are a professional technical translator specializing in software engineering documentation. Please translate the following English documentation to Chinese (Simplified Chinese).
 
 File: ${filename}
 Source language: English
 Target language: Chinese (Simplified Chinese)
 
-Requirements:
-1. Maintain the exact same structure and formatting (Markdown syntax, code blocks, tables, etc.)
-2. Preserve all technical terms accurately
-3. Use professional and natural Chinese expressions
-4. Keep all links, file paths, and technical references unchanged
-5. Maintain the same heading hierarchy and organization
+## Translation Requirements
+
+### Core Principles
+1. **High Quality Translation**: This is documentation for programmers, so use professional terminology and domain-specific vocabulary
+2. **Natural Expression**: Avoid mechanical AI translation - make it sound like human translation
+3. **Technical Accuracy**: Preserve all technical terms, code snippets, configuration parameters, and technical references exactly
+4. **Formal Tone**: Use formal "您" (you) instead of informal "你" when addressing users
+
+### Formatting & Structure
+1. **Exact Structure**: Maintain the exact same structure and formatting (Markdown syntax, code blocks, tables, etc.)
+2. **Code Preservation**: Keep all code blocks, commands, file paths, and technical references unchanged
+3. **Link Preservation**: Keep all links, URLs, and file references exactly as they are
+4. **Heading Hierarchy**: Maintain the same heading hierarchy and organization
+5. **Table Structure**: Preserve table formatting and alignment exactly
+
+### Content Guidelines
+1. **Technical Terms**: Use established Chinese technical terminology for software engineering concepts
+2. **Professional Language**: Use formal, professional Chinese expressions appropriate for technical documentation
+3. **Consistency**: Maintain consistent terminology throughout the translation
+4. **Clarity**: Ensure the translated text is clear and easy to understand for Chinese developers
+
+### What NOT to Change
+- Code blocks, commands, and technical parameters
+- File paths, URLs, and links
+- Configuration values and settings
+- Table structures and formatting
+- Markdown syntax and special characters
+- Technical abbreviations and acronyms
 
 Please translate the following content:
 
 ${content}
 
-Please use the write tool to create/update the Chinese translation file. The target path should be: ${getTargetPath(filename)}`
+Please use the write tool to create/update the Chinese translation file. The target path should be: ${getTargetPath(filename)}
+
+Remember: This is professional technical documentation for developers, so prioritize accuracy, clarity, and natural Chinese expression.`
 }
 
 async function commitAndPushTranslations(branchName: string, commitMessage: string) {
