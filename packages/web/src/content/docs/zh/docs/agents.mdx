@@ -1,0 +1,628 @@
+---
+title: 代理
+description: 配置和使用专门的代理。
+---
+
+代理是专门的 AI 助手，可以为特定任务和工作流程进行配置。它们允许您创建具有自定义提示、模型和工具访问权限的专注工具。
+
+:::tip
+使用 plan 代理来分析代码和审查建议，而无需进行任何代码更改。
+:::
+
+您可以在会话期间在代理之间切换，或使用 `@` 提及来调用它们。
+
+---
+
+## 类型
+
+opencode 中有两种类型的代理：主要代理和子代理。
+
+---
+
+### 主要代理
+
+主要代理是您直接交互的主要助手。您可以使用 **Tab** 键或配置的 `switch_agent` 快捷键在它们之间循环切换。这些代理处理您的主要对话，可以访问所有配置的工具。
+
+:::tip
+您可以在会话期间使用 **Tab** 键在主要代理之间切换。
+:::
+
+opencode 带有两个内置的主要代理：**Build** 和 **Plan**。我们将在下面查看这些。
+
+---
+
+### 子代理
+
+子代理是主要代理可以为特定任务调用的专门助手。您也可以通过在消息中 **@ 提及** 它们来手动调用它们。
+
+opencode 带有一个内置的子代理：**General**。我们将在下面查看这个。
+
+---
+
+## 内置代理
+
+opencode 带有两个内置的主要代理和一个内置的子代理。
+
+---
+
+### Build
+
+_模式_：`primary`
+
+Build 是**默认**的主要代理，启用了所有工具。这是开发工作的标准代理，您需要完全访问文件操作和系统命令。
+
+---
+
+### Plan
+
+_模式_：`primary`
+
+一个为规划和分析而设计的受限代理。我们使用权限系统来给您更多控制权并防止意外更改。
+默认情况下，以下所有内容都设置为 `ask`：
+
+- `file edits`：所有写入、补丁和编辑
+- `bash`：所有 bash 命令
+
+当您希望 LLM 分析代码、建议更改或创建计划而不对您的代码库进行任何实际修改时，这个代理很有用。
+
+---
+
+### General
+
+_模式_：`subagent`
+
+一个用于研究复杂问题、搜索代码和执行多步骤任务的通用代理。当搜索关键词或文件并且您不确定在前几次尝试中能找到正确匹配时使用此代理。
+
+---
+
+## 使用方法
+
+1. 对于主要代理，在会话期间使用 **Tab** 键在它们之间循环切换。您也可以使用配置的 `switch_agent` 快捷键。
+
+2. 子代理可以通过以下方式调用：
+
+   - **自动**：由主要代理根据其描述为专门任务调用。
+   - 手动：通过在消息中 **@ 提及** 子代理。例如：
+
+     ```txt frame="none"
+     @general help me search for this function
+     ```
+
+3. **会话间导航**：当子代理创建自己的子会话时，您可以使用以下方式在父会话和所有子会话之间导航：
+
+   - **Ctrl+Right**（或您配置的 `session_child_cycle` 快捷键）向前循环：父会话 → 子会话1 → 子会话2 → ... → 父会话
+   - **Ctrl+Left**（或您配置的 `session_child_cycle_reverse` 快捷键）向后循环：父会话 ← 子会话1 ← 子会话2 ← ... ← 父会话
+
+   这允许您在主要对话和专门的子代理工作之间无缝切换。
+
+---
+
+## 配置
+
+您可以通过配置自定义内置代理或创建自己的代理。代理可以通过两种方式配置：
+
+---
+
+### JSON
+
+在您的 `opencode.json` 配置文件中配置代理：
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "build": {
+      "mode": "primary",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "{file:./prompts/build.txt}",
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "plan": {
+      "mode": "primary",
+      "model": "anthropic/claude-haiku-4-20250514",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      }
+    },
+    "code-reviewer": {
+      "description": "审查代码的最佳实践和潜在问题",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "您是一个代码审查员。专注于安全性、性能和可维护性。",
+      "tools": {
+        "write": false,
+        "edit": false
+      }
+    }
+  }
+}
+```
+
+---
+
+### Markdown
+
+您也可以使用 markdown 文件定义代理。将它们放在：
+
+- 全局：`~/.config/opencode/agent/`
+- 每个项目：`.opencode/agent/`
+
+```markdown title="~/.config/opencode/agent/review.md"
+---
+description: 审查代码质量和最佳实践
+mode: subagent
+model: anthropic/claude-sonnet-4-20250514
+temperature: 0.1
+tools:
+  write: false
+  edit: false
+  bash: false
+---
+
+您处于代码审查模式。专注于：
+
+- 代码质量和最佳实践
+- 潜在的 bug 和边缘情况
+- 性能影响
+- 安全考虑
+
+提供建设性反馈而不进行直接更改。
+```
+
+markdown 文件名成为代理名称。例如，`review.md` 创建一个 `review` 代理。
+
+---
+
+## 选项
+
+让我们详细查看这些配置选项。
+
+---
+
+### 描述
+
+使用 `description` 选项提供代理功能的简要描述以及何时使用它。
+
+```json title="opencode.json"
+{
+  "agent": {
+    "review": {
+      "description": "审查代码的最佳实践和潜在问题"
+    }
+  }
+}
+```
+
+这是一个**必需的**配置选项。
+
+---
+
+### 温度
+
+使用 `temperature` 配置控制 LLM 响应的随机性和创造性。
+
+较低的值使响应更加专注和确定性，而较高的值增加创造性和可变性。
+
+```json title="opencode.json"
+{
+  "agent": {
+    "plan": {
+      "temperature": 0.1
+    },
+    "creative": {
+      "temperature": 0.8
+    }
+  }
+}
+```
+
+温度值通常在 0.0 到 1.0 之间：
+
+- **0.0-0.2**：非常专注和确定性的响应，适合代码分析和规划
+- **0.3-0.5**：平衡的响应，具有一定的创造性，适合一般开发任务
+- **0.6-1.0**：更具创造性和多样化的响应，适用于头脑风暴和探索
+
+```json title="opencode.json"
+{
+  "agent": {
+    "analyze": {
+      "temperature": 0.1,
+      "prompt": "{file:./prompts/analysis.txt}"
+    },
+    "build": {
+      "temperature": 0.3
+    },
+    "brainstorm": {
+      "temperature": 0.7,
+      "prompt": "{file:./prompts/creative.txt}"
+    }
+  }
+}
+```
+
+如果未指定温度，opencode 使用模型特定的默认值；大多数模型通常为 0，Qwen 模型为 0.55。
+
+---
+
+### 禁用
+
+设置为 `true` 以禁用代理。
+
+```json title="opencode.json"
+{
+  "agent": {
+    "review": {
+      "disable": true
+    }
+  }
+}
+```
+
+---
+
+### 提示
+
+使用 `prompt` 配置为此代理指定自定义系统提示文件。提示文件应包含特定于代理目的的指令。
+
+```json title="opencode.json"
+{
+  "agent": {
+    "review": {
+      "prompt": "{file:./prompts/code-review.txt}"
+    }
+  }
+}
+```
+
+此路径相对于配置文件所在的位置。因此这适用于全局 opencode 配置和项目特定配置。
+
+---
+
+### 模型
+
+使用 `model` 配置为此代理覆盖默认模型。对于使用针对不同任务优化的不同模型很有用。例如，规划使用更快的模型，实现使用更强大的模型。
+
+```json title="opencode.json"
+{
+  "agent": {
+    "plan": {
+      "model": "anthropic/claude-haiku-4-20250514"
+    }
+  }
+}
+```
+
+---
+
+### 工具
+
+使用 `tools` 配置控制此代理中可用的工具。您可以通过将它们设置为 `true` 或 `false` 来启用或禁用特定工具。
+
+```json title="opencode.json"
+{
+  "agent": {
+    "readonly": {
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false,
+        "read": true,
+        "grep": true,
+        "glob": true
+      }
+    }
+  }
+}
+```
+
+您也可以使用通配符一次控制多个工具。例如，禁用 MCP 服务器的所有工具：
+
+```json title="opencode.json"
+{
+  "agent": {
+    "readonly": {
+      "tools": {
+        "mymcp_*": false,
+        "write": false,
+        "edit": false
+      }
+    }
+  }
+}
+```
+
+如果未指定工具，默认情况下所有工具都启用。
+
+---
+
+#### 可用工具
+
+以下是可以通过代理配置控制的所有工具。
+
+| 工具        | 描述             |
+| ----------- | ----------------------- |
+| `bash`      | 执行 shell 命令  |
+| `edit`      | 修改现有文件   |
+| `write`     | 创建新文件        |
+| `read`      | 读取文件内容      |
+| `grep`      | 搜索文件内容    |
+| `glob`      | 按模式查找文件   |
+| `list`      | 列出目录内容 |
+| `patch`     | 将补丁应用到文件  |
+| `todowrite` | 管理待办事项列表       |
+| `todoread`  | 读取待办事项列表         |
+| `webfetch`  | 获取网络内容       |
+
+---
+
+### 权限
+
+权限控制代理可以执行的操作。
+
+- edit, bash, webfetch
+
+每个权限可以设置为 allow、ask 或 deny。
+
+- allow, ask, deny
+
+在 opencode.json 中全局配置权限。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "edit": "ask",
+    "bash": "allow",
+    "webfetch": "deny"
+  }
+}
+```
+
+您可以在 JSON 中按代理覆盖权限。
+
+```json title="opencode.json" {7-18}
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "build": {
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "allow",
+          "git push": "ask",
+          "terraform *": "deny"
+        },
+        "webfetch": "ask"
+      }
+    }
+  }
+}
+```
+
+您也可以在 Markdown 代理中设置权限。
+
+```markdown title="~/.config/opencode/agent/review.md"
+---
+description: 无编辑的代码审查
+mode: subagent
+permission:
+  edit: deny
+  bash: ask
+  webfetch: deny
+---
+
+只分析代码并建议更改。
+```
+
+Bash 权限支持细粒度模式以进行精细控制。
+
+```json title="允许大多数，询问风险，拒绝 terraform"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "git push": "ask",
+      "terraform *": "deny"
+    }
+  }
+}
+```
+
+如果您提供细粒度的 bash 映射，默认值变为 ask，除非您明确设置 \*。
+
+```json title="细粒度默认为 ask"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "git status": "allow"
+    }
+  }
+}
+```
+
+代理级权限覆盖全局设置。
+
+- 全局设置默认值；代理在指定时覆盖
+
+特定的 bash 规则可以覆盖全局默认值。
+
+```json title="全局 ask，代理允许安全命令"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": { "bash": "ask" },
+  "agent": {
+    "build": {
+      "permission": {
+        "bash": { "git status": "allow", "*": "ask" }
+      }
+    }
+  }
+}
+```
+
+权限以不同方式影响工具可用性和提示。
+
+- deny 隐藏工具（edit 也隐藏 write/patch）；ask 提示；allow 运行
+
+为了快速参考，这里是一些常见设置。
+
+```json title="只读审查员"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "review": {
+      "permission": { "edit": "deny", "bash": "deny", "webfetch": "allow" }
+    }
+  }
+}
+```
+
+```json title="可以浏览但不能更改代码的规划代理"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "plan": {
+      "permission": { "edit": "deny", "bash": "deny", "webfetch": "ask" }
+    }
+  }
+}
+```
+
+查看完整的权限指南以获取更多模式。
+
+- /docs/permissions
+
+---
+
+### 模式
+
+使用 `mode` 配置控制代理的模式。`mode` 选项用于确定如何使用代理。
+
+```json title="opencode.json"
+{
+  "agent": {
+    "review": {
+      "mode": "subagent"
+    }
+  }
+}
+```
+
+`mode` 选项可以设置为 `primary`、`subagent` 或 `all`。如果未指定 `mode`，它默认为 `all`。
+
+---
+
+### 附加
+
+您在代理配置中指定的任何其他选项将**直接传递**给提供商作为模型选项。这允许您使用提供商特定的功能和参数。
+
+例如，使用 OpenAI 的推理模型，您可以控制推理努力：
+
+```json title="opencode.json" {6,7}
+{
+  "agent": {
+    "deep-thinker": {
+      "description": "使用高推理努力解决复杂问题的代理",
+      "model": "openai/gpt-5",
+      "reasoningEffort": "high",
+      "textVerbosity": "low"
+    }
+  }
+}
+```
+
+这些附加选项是模型和提供商特定的。查看您的提供商文档以获取可用参数。
+
+---
+
+## 创建代理
+
+您可以使用以下命令创建新代理：
+
+```bash
+opencode agent create
+```
+
+这个交互式命令将：
+
+1. 询问在哪里保存代理；全局或项目特定。
+2. 描述代理应该做什么。
+3. 生成适当的系统提示和标识符。
+4. 让您选择代理可以访问哪些工具。
+5. 最后，创建一个包含代理配置的 markdown 文件。
+
+---
+
+## 使用案例
+
+以下是不同代理的一些常见使用案例。
+
+- **Build 代理**：启用所有工具的完整开发工作
+- **Plan 代理**：分析而不进行更改
+- **Review 代理**：具有只读访问权限的代码审查，加上文档工具
+- **Debug 代理**：专注于调查，启用 bash 和 read 工具
+- **Docs 代理**：文档编写，具有文件操作但没有系统命令
+
+---
+
+## 示例
+
+以下是一些您可能觉得有用的示例代理。
+
+:::tip
+您有想要分享的代理吗？[提交 PR](https://github.com/sst/opencode)。
+:::
+
+---
+
+### 文档代理
+
+```markdown title="~/.config/opencode/agent/docs-writer.md"
+---
+description: 编写和维护项目文档
+mode: subagent
+tools:
+  bash: false
+---
+
+您是一个技术作家。创建清晰、全面的文档。
+
+专注于：
+
+- 清晰的解释
+- 适当的结构
+- 代码示例
+- 用户友好的语言
+```
+
+---
+
+### 安全审计员
+
+```markdown title="~/.config/opencode/agent/security-auditor.md"
+---
+description: 执行安全审计并识别漏洞
+mode: subagent
+tools:
+  write: false
+  edit: false
+---
+
+您是一个安全专家。专注于识别潜在的安全问题。
+
+寻找：
+
+- 输入验证漏洞
+- 身份验证和授权缺陷
+- 数据暴露风险
+- 依赖漏洞
+- 配置安全问题
+```

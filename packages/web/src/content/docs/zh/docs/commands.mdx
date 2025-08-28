@@ -1,0 +1,270 @@
+---
+title: 命令
+description: 为重复性任务创建自定义命令。
+---
+
+自定义命令允许您指定在 TUI 中执行该命令时要运行的提示。
+
+```bash frame="none"
+/my-command
+```
+
+自定义命令是对内置命令（如 `/init`、`/undo`、`/redo`、`/share`、`/help`）的补充。[了解更多](/docs/tui#commands)。
+
+---
+
+## 创建命令文件
+
+在 `command/` 目录中创建 markdown 文件来定义自定义命令。
+
+创建 `.opencode/command/test.md`：
+
+```md title=".opencode/command/test.md"
+---
+description: 运行测试并生成覆盖率报告
+agent: build
+model: anthropic/claude-3-5-sonnet-20241022
+---
+
+运行完整的测试套件并生成覆盖率报告，显示任何失败的测试。
+重点关注失败的测试并建议修复方案。
+```
+
+前置事项定义了命令属性。内容成为模板。
+
+通过键入 `/` 后跟命令名称来使用命令。
+
+```bash frame="none"
+"/test"
+```
+
+---
+
+## 配置
+
+您可以通过 opencode 配置或通过在 `command/` 目录中创建 markdown 文件来添加自定义命令。
+
+---
+
+### JSON
+
+在您的 opencode [配置](/docs/config) 中使用 `command` 选项：
+
+```json title="opencode.jsonc" {4-12}
+{
+  "$schema": "https://opencode.ai/config.json",
+  "command": {
+    // 这成为命令的名称
+    "test": {
+      // 这是将发送给 LLM 的提示
+      "template": "运行完整的测试套件并生成覆盖率报告，显示任何失败的测试。\n重点关注失败的测试并建议修复方案。",
+      // 这在 TUI 中显示为描述
+      "description": "运行测试并生成覆盖率报告",
+      "agent": "build",
+      "model": "anthropic/claude-3-5-sonnet-20241022"
+    },
+  }
+}
+```
+
+现在您可以在 TUI 中运行此命令：
+
+```bash frame="none"
+/test
+```
+
+---
+
+### Markdown
+
+您也可以使用 markdown 文件定义命令。将它们放在：
+
+- 全局：`~/.config/opencode/command/`
+- 每个项目：`.opencode/command/`
+
+```markdown title="~/.config/opencode/command/test.md"
+---
+description: 运行测试并生成覆盖率报告
+agent: build
+model: anthropic/claude-3-5-sonnet-20241022
+---
+
+运行完整的测试套件并生成覆盖率报告，显示任何失败的测试。
+重点关注失败的测试并建议修复方案。
+```
+
+markdown 文件名成为命令名称。例如，`test.md` 让您可以运行：
+
+```bash frame="none"
+/test
+```
+
+---
+
+## 提示配置
+
+自定义命令的提示支持几个特殊的占位符和语法。
+
+---
+
+### 参数
+
+使用 `$ARGUMENTS` 占位符向命令传递参数。
+
+```md title=".opencode/command/component.md"
+---
+description: 创建新组件
+---
+
+创建一个名为 $ARGUMENTS 的新 React 组件，支持 TypeScript。
+包含适当的类型和基本结构。
+```
+
+使用参数运行命令：
+
+```bash frame="none"
+/component Button
+```
+
+`$ARGUMENTS` 将被替换为 `Button`。
+
+---
+
+### Shell 输出
+
+使用 _!`command`_ 将 [bash 命令](/docs/tui#bash-commands) 输出注入到您的提示中。
+
+例如，创建一个分析测试覆盖率的自定义命令：
+
+```md title=".opencode/command/analyze-coverage.md"
+---
+description: 分析测试覆盖率
+---
+
+以下是当前的测试结果：
+!`npm test`
+
+基于这些结果，建议改进以提高覆盖率。
+```
+
+或审查最近的更改：
+
+```md title=".opencode/command/review-changes.md"
+---
+description: 审查最近的更改
+---
+
+最近的 git 提交：
+!`git log --oneline -10`
+
+审查这些更改并建议任何改进。
+```
+
+命令在您项目的根目录中运行，它们的输出成为提示的一部分。
+
+---
+
+### 文件引用
+
+使用 `@` 后跟文件名在命令中包含文件。
+
+```md title=".opencode/command/review-component.md"
+---
+description: 审查组件
+---
+
+审查 @src/components/Button.tsx 中的组件。
+检查性能问题并建议改进。
+```
+
+文件内容会自动包含在提示中。
+
+---
+
+## 选项
+
+让我们详细查看配置选项。
+
+---
+
+### 模板
+
+`template` 选项定义了执行命令时将发送给 LLM 的提示。
+
+```json title="opencode.json"
+{
+  "command": {
+    "test": {
+      "template": "运行完整的测试套件并生成覆盖率报告，显示任何失败的测试。\n重点关注失败的测试并建议修复方案。"
+    }
+  }
+}
+```
+
+这是一个**必需的**配置选项。
+
+---
+
+### 描述
+
+使用 `description` 选项提供命令功能的简要描述。
+
+```json title="opencode.json"
+{
+  "command": {
+    "test": {
+      "description": "运行测试并生成覆盖率报告"
+    }
+  }
+}
+```
+
+这在您在 TUI 中键入命令时显示为描述。
+
+---
+
+### 代理
+
+使用 `agent` 配置可选地指定哪个 [代理](/docs/agents) 应该执行此命令。
+
+```json title="opencode.json"
+{
+  "command": {
+    "review": {
+      "agent": "plan"
+    }
+  }
+}
+```
+
+这是一个**可选的**配置选项。如果未指定，默认为 "build"。
+
+---
+
+### 模型
+
+使用 `model` 配置为此命令覆盖默认模型。
+
+```json title="opencode.json"
+{
+  "command": {
+    "analyze": {
+      "model": "anthropic/claude-3-5-sonnet-20241022"
+    }
+  }
+}
+```
+
+这是一个**可选的**配置选项。
+
+---
+
+## 内置命令
+
+opencode 包含几个内置命令，如 `/init`、`/undo`、`/redo`、`/share`、`/help`；[了解更多](/docs/tui#commands)。
+
+:::note
+自定义命令可以覆盖内置命令。
+:::
+
+如果您定义了一个同名的自定义命令，它将覆盖内置命令。

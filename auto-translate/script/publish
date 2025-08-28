@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Auto-translate Action Publish Script
+# This script publishes the action to GitHub Marketplace
+
+set -e
+
+echo "🚀 Publishing auto-translate action..."
+
+# Check if we're on main branch
+if [[ $(git branch --show-current) != "main" ]]; then
+  echo "❌ Error: Must be on main branch to publish"
+  exit 1
+fi
+
+# Check if there are uncommitted changes
+if [[ -n $(git status --porcelain) ]]; then
+  echo "❌ Error: There are uncommitted changes"
+  git status --porcelain
+  exit 1
+fi
+
+# Get current version
+CURRENT_VERSION=$(node -p "require('../package.json').version")
+echo "📦 Current version: $CURRENT_VERSION"
+
+# Build the action
+echo "🔨 Building action..."
+cd ..
+bun run build
+
+# Create git tag
+echo "🏷️ Creating git tag v$CURRENT_VERSION..."
+git tag -a "v$CURRENT_VERSION" -m "Release version $CURRENT_VERSION"
+git push origin "v$CURRENT_VERSION"
+
+echo "✅ Action published successfully!"
+echo "📋 Next steps:"
+echo "   1. Go to GitHub repository"
+echo "   2. Create a new release from tag v$CURRENT_VERSION"
+echo "   3. The action will be available in GitHub Marketplace"

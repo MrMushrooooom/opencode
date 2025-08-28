@@ -1,0 +1,131 @@
+---
+title: GitHub
+description: 在 GitHub issues 和 pull-requests 中使用 opencode。
+---
+
+opencode 与您的 GitHub 工作流程集成。在评论中提及 `/opencode` 或 `/oc`，opencode 将在您的 GitHub Actions runner 中执行任务。
+
+---
+
+## 功能
+
+- **分类问题**：让 opencode 查看问题并向您解释。
+- **修复和实现**：让 opencode 修复问题或实现功能。它将在新分支中工作并提交包含所有更改的 PR。
+- **安全**：opencode 在您的 GitHub runner 内运行。
+
+---
+
+## 安装
+
+在 GitHub 仓库中的项目中运行以下命令：
+
+```bash
+opencode github install
+```
+
+这将指导您安装 GitHub 应用、创建工作流程和设置密钥。
+
+---
+
+### 手动设置
+
+或者您可以手动设置。
+
+1. **安装 GitHub 应用**
+
+   前往 [**github.com/apps/opencode-agent**](https://github.com/apps/opencode-agent)。确保它安装在目标仓库上。
+
+2. **添加工作流程**
+
+   将以下工作流程文件添加到仓库中的 `.github/workflows/opencode.yml`。确保在 `env` 中设置适当的 `model` 和必需的 API 密钥。
+
+   ```yml title=".github/workflows/opencode.yml" {24,26}
+   name: opencode
+
+   on:
+     issue_comment:
+       types: [created]
+
+   jobs:
+     opencode:
+       if: |
+         contains(github.event.comment.body, '/oc') ||
+         contains(github.event.comment.body, '/opencode')
+       runs-on: ubuntu-latest
+       permissions:
+         id-token: write
+       steps:
+         - name: Checkout repository
+           uses: actions/checkout@v4
+           with:
+             fetch-depth: 1
+
+         - name: Run opencode
+           uses: sst/opencode/github@latest
+           env:
+             ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+           with:
+             model: anthropic/claude-sonnet-4-20250514
+             # share: true
+             # github_token: xxxx
+   ```
+
+3. **在密钥中存储 API 密钥**
+
+   在您的组织或项目**设置**中，展开左侧的**Secrets and variables**并选择**Actions**。然后添加必需的 API 密钥。
+
+---
+
+## 配置
+
+- `model`：与 opencode 一起使用的模型。采用 `provider/model` 格式。这是**必需的**。
+- `share`：是否分享 opencode 会话。对于公共仓库，默认为 **true**。
+- `token`：可选的 GitHub 访问令牌，用于执行创建评论、提交更改和打开 pull requests 等操作。默认情况下，opencode 使用 opencode GitHub 应用的安装访问令牌，因此提交、评论和 pull requests 显示为来自应用。
+
+  或者，您可以使用 GitHub Action runner 的[内置 `GITHUB_TOKEN`](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token) 而无需安装 opencode GitHub 应用。只需确保在工作流程中授予所需的权限：
+
+  ```yaml
+  permissions:
+    id-token: write
+    contents: write
+    pull-requests: write
+    issues: write
+  ```
+
+  如果您愿意，也可以使用[个人访问令牌](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)(PAT)。
+
+---
+
+## 示例
+
+以下是一些如何在 GitHub 中使用 opencode 的示例。
+
+- **解释问题**
+
+  在 GitHub issue 中添加此评论。
+
+  ```
+  /opencode explain this issue
+  ```
+
+  opencode 将读取整个线程，包括所有评论，并回复清晰的解释。
+
+- **修复问题**
+
+  在 GitHub issue 中，说：
+
+  ```
+  /opencode fix this
+  ```
+
+  opencode 将创建一个新分支，实现更改，并打开包含更改的 PR。
+
+- **审查 PR 并进行更改**
+
+  在 GitHub PR 上留下以下评论。
+
+  ```
+  Delete the attachment from S3 when the note is removed /oc
+  ```
+
+  opencode 将实现请求的更改并将其提交到同一个 PR。

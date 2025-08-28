@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Auto-translate Action Release Script
+# This script creates a new release
+
+set -e
+
+echo "🎯 Creating new release for auto-translate action..."
+
+# Check if version is provided
+if [[ -z "$1" ]]; then
+  echo "❌ Error: Please provide a version number"
+  echo "Usage: ./script/release <version>"
+  echo "Example: ./script/release 1.1.0"
+  exit 1
+fi
+
+NEW_VERSION=$1
+
+# Validate version format (semver)
+if [[ ! $NEW_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "❌ Error: Invalid version format. Use semantic versioning (e.g., 1.0.0)"
+  exit 1
+fi
+
+echo "📦 New version: $NEW_VERSION"
+
+# Update package.json version
+echo "🔧 Updating package.json version..."
+cd ..
+npm version $NEW_VERSION --no-git-tag-version
+
+# Update action.yml version if it has a version field
+if grep -q "version:" action.yml; then
+  sed -i.bak "s/version:.*/version: $NEW_VERSION/" action.yml
+  rm action.yml.bak
+fi
+
+# Commit version bump
+echo "💾 Committing version bump..."
+git add package.json action.yml
+git commit -m "chore: bump version to $NEW_VERSION"
+
+# Create and push tag
+echo "🏷️ Creating git tag v$NEW_VERSION..."
+git tag -a "v$NEW_VERSION" -m "Release version $NEW_VERSION"
+git push origin "v$NEW_VERSION"
+
+echo "✅ Release created successfully!"
+echo "📋 Next steps:"
+echo "   1. Go to GitHub repository"
+echo "   2. Create a new release from tag v$NEW_VERSION"
+echo "   3. Add release notes describing changes"
+echo "   4. Publish to GitHub Marketplace if ready"

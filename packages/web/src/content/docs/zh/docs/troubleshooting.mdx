@@ -1,0 +1,155 @@
+---
+title: 故障排除
+description: 常见问题和解决方法。
+---
+
+要调试 opencode 的任何问题，您可以检查日志或它本地存储的会话数据。
+
+---
+
+### 日志
+
+日志文件写入到：
+
+- **macOS/Linux**：`~/.local/share/opencode/log/`
+- **Windows**：`%APPDATA%\opencode\log\`
+
+日志文件以时间戳命名（例如，`2025-01-09T123456.log`），并保留最近的 10 个日志文件。
+
+您可以在[配置文件](/docs/config#logging)中配置日志级别以获得更详细的调试信息。
+
+---
+
+### 存储
+
+opencode 在磁盘上存储会话数据和其他应用程序数据：
+
+- **macOS/Linux**：`~/.local/share/opencode/`
+- **Windows**：`%USERPROFILE%\.local\share\opencode`
+
+此目录包含：
+
+- `auth.json` - 身份验证数据，如 API 密钥、OAuth 令牌
+- `log/` - 应用程序日志
+- `project/` - 项目特定数据，如会话和消息数据
+  - 如果项目在 Git 仓库内，它存储在 `./<project-slug>/storage/` 中
+  - 如果不是 Git 仓库，它存储在 `./global/storage/` 中
+
+---
+
+## 获取帮助
+
+如果您遇到 opencode 问题：
+
+1. **在 GitHub 上报告问题**
+
+   报告 bug 或请求功能的最佳方式是通过我们的 GitHub 仓库：
+
+   [**github.com/sst/opencode/issues**](https://github.com/sst/opencode/issues)
+
+   在创建新问题之前，搜索现有问题以查看您的问题是否已经被报告。
+
+2. **加入我们的 Discord**
+
+   对于实时帮助和社区讨论，加入我们的 Discord 服务器：
+
+   [**opencode.ai/discord**](https://opencode.ai/discord)
+
+---
+
+## 常见问题
+
+以下是一些常见问题及其解决方法。
+
+---
+
+### opencode 无法启动
+
+1. 检查日志中的错误消息
+2. 尝试使用 `--print-logs` 运行以在终端中查看输出
+3. 确保您有最新版本，使用 `opencode upgrade`
+
+---
+
+### 身份验证问题
+
+1. 尝试使用 `opencode auth login <provider>` 重新进行身份验证
+2. 检查您的 API 密钥是否有效
+3. 确保您的网络允许连接到提供商的 API
+
+---
+
+### 模型不可用
+
+1. 检查您是否已与提供商进行身份验证
+2. 验证配置中的模型名称是否正确
+3. 某些模型可能需要特定访问权限或订阅
+
+---
+
+### ProviderInitError
+
+如果您遇到 ProviderInitError，您可能有无效或损坏的配置。
+
+要解决此问题：
+
+1. 首先，按照[提供商指南](/docs/providers)验证您的提供商设置是否正确
+2. 如果问题仍然存在，尝试清除存储的配置：
+
+   ```bash
+   rm -rf ~/.local/share/opencode
+   ```
+
+3. 重新与您的提供商进行身份验证：
+   ```bash
+   opencode auth login <provider>
+   ```
+
+---
+
+### AI_APICallError 和提供商包问题
+
+如果您遇到 API 调用错误，这可能是由于过时的提供商包。opencode 根据需要动态安装提供商包（OpenAI、Anthropic、Google 等）并在本地缓存它们。
+
+要解决提供商包问题：
+
+1. 清除提供商包缓存：
+
+   ```bash
+   rm -rf ~/.cache/opencode
+   ```
+
+2. 重启 opencode 以重新安装最新的提供商包
+
+这将强制 opencode 下载提供商包的最新版本，这通常可以解决与模型参数和 API 更改的兼容性问题。
+
+---
+
+### Linux 上的复制/粘贴不工作
+
+Linux 用户需要安装以下剪贴板实用程序之一才能使复制/粘贴功能工作：
+
+**对于 X11 系统：**
+
+```bash
+apt install -y xclip
+# 或
+apt install -y xsel
+```
+
+**对于 Wayland 系统：**
+
+```bash
+apt install -y wl-clipboard
+```
+
+**对于无头环境：**
+
+```bash
+apt install -y xvfb
+# 并运行：
+Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+export DISPLAY=:99.0
+```
+
+opencode 将检测您是否使用 Wayland 并优先使用 `wl-clipboard`，否则它将尝试按以下顺序查找剪贴板工具：`xclip` 和 `xsel`。

@@ -1,0 +1,75 @@
+---
+title: 快捷键
+description: 自定义您的快捷键。
+---
+
+opencode 有一个快捷键列表，您可以通过 opencode 配置进行自定义。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "keybinds": {
+    "leader": "ctrl+x",
+    "app_help": "<leader>h",
+    "app_exit": "ctrl+c,<leader>q",
+    "editor_open": "<leader>e",
+    "theme_list": "<leader>t",
+    "project_init": "<leader>i",
+    "tool_details": "<leader>d",
+    "thinking_blocks": "<leader>b",
+    "session_export": "<leader>x",
+    "session_new": "<leader>n",
+    "session_list": "<leader>l",
+    "session_share": "<leader>s",
+    "session_unshare": "none",
+    "session_interrupt": "esc",
+    "session_compact": "<leader>c",
+    "session_child_cycle": "ctrl+right",
+    "session_child_cycle_reverse": "ctrl+left",
+    "messages_page_up": "pgup",
+    "messages_page_down": "pgdown",
+    "messages_half_page_up": "ctrl+alt+u",
+    "messages_half_page_down": "ctrl+alt+d",
+    "messages_first": "ctrl+g",
+    "messages_last": "ctrl+alt+g",
+    "messages_copy": "<leader>y",
+    "messages_undo": "<leader>u",
+    "messages_redo": "<leader>r",
+    "model_list": "<leader>m",
+    "model_cycle_recent": "f2",
+    "model_cycle_recent_reverse": "shift+f2",
+    "agent_list": "<leader>a",
+    "agent_cycle": "tab",
+    "agent_cycle_reverse": "shift+tab",
+    "input_clear": "ctrl+c",
+    "input_paste": "ctrl+v",
+    "input_submit": "enter",
+    "input_newline": "shift+enter,ctrl+j"
+  }
+}
+```
+
+---
+
+## Leader 键
+
+opencode 为大多数快捷键使用 `leader` 键。这避免了终端中的冲突。
+
+默认情况下，`ctrl+x` 是 leader 键，大多数操作要求您首先按 leader 键，然后按快捷键。例如，要启动新会话，您首先按 `ctrl+x`，然后按 `n`。
+
+您不需要为快捷键使用 leader 键，但我们建议这样做。
+
+---
+
+## 禁用快捷键
+
+您可以通过在配置中添加值为 "none" 的键来禁用快捷键。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "keybinds": {
+    "session_compact": "none"
+  }
+}
+```

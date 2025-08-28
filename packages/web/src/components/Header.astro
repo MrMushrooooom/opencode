@@ -8,13 +8,19 @@ import SocialIcons from 'virtual:starlight/components/SocialIcons';
 import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
 
 const path = Astro.url.pathname;
-
 const links = astroConfig.social || [];
 const headerLinks = config.headerLinks;
 
+// Generic language detection based on URL path
+const pathSegments = path.split('/');
+const currentLocale = pathSegments[1] !== 'docs' ? pathSegments[1] : 'root';
+
+// Get available locales from Starlight config
+const availableLocales = astroConfig.locales || {};
+
 ---
 
-{ path.startsWith("/s")
+{ path.startsWith("/docs") || path.startsWith("/zh/docs") || path.startsWith("/s")
 ? <div class="header sl-flex">
 	<div class="title-wrapper sl-flex">
 		<SiteTitle {...Astro.props} />
@@ -27,6 +33,16 @@ const headerLinks = config.headerLinks;
 		}
 	</div>
 	<div class="sl-hidden md:sl-flex right-group">
+		<!-- Custom language selector -->
+		<div class="language-selector">
+			<select id="language-select">
+				{Object.entries(availableLocales).map(([locale, lang]) => (
+					<option value={locale} selected={locale === currentLocale}>
+						{lang.label}
+					</option>
+				))}
+			</select>
+		</div>
 		{
 			links.length > 0 && (
 				<div class="sl-flex social-icons">
@@ -42,6 +58,35 @@ const headerLinks = config.headerLinks;
 </div>
   : <Default {...Astro.props}><slot /></Default>
 }
+
+<script>
+	function switchLanguage(targetLocale) {
+		const currentPath = window.location.pathname;
+		
+		// Generic path switching logic
+		let newPath;
+		if (targetLocale === 'root') {
+			// Switch to root locale (English)
+			newPath = currentPath.replace(/^\/[^\/]+\/docs/, '/docs');
+		} else {
+			// Switch to specific locale
+			newPath = currentPath.replace(/^\/docs/, `/${targetLocale}/docs`);
+		}
+		
+		window.location.href = newPath;
+	}
+	
+	// Add event listener when DOM is loaded
+	document.addEventListener('DOMContentLoaded', function() {
+		const select = document.getElementById('language-select');
+		if (select) {
+			select.addEventListener('change', function(e) {
+				switchLanguage(e.target.value);
+			});
+		}
+	});
+</script>
+
 <style>
 	.header {
 		gap: var(--sl-nav-gap);
@@ -54,7 +99,7 @@ const headerLinks = config.headerLinks;
 		/* Prevent long titles overflowing and covering the search and menu buttons on narrow viewports. */
 		overflow: clip;
 		/* Avoid clipping focus ring around link inside title wrapper. */
-    padding: calc(0.25rem + 2px) 0.25rem calc(0.25rem - 2px);
+		padding: calc(0.25rem + 2px) 0.25rem calc(0.25rem - 2px);
 		margin: -0.25rem;
 	}
 
@@ -80,19 +125,59 @@ const headerLinks = config.headerLinks;
 		gap: 1rem;
 		align-items: center;
 
-    a {
-          line-height: 1;
+		a {
+			line-height: 1;
 
-          svg {
-              color: var(--sl-color-text-dimmed);
-          }
-      }
-  a.links {
+			svg {
+				color: var(--sl-color-text-dimmed);
+			}
+		}
+		a.links {
+			text-transform: uppercase;
+			font-size: var(--sl-text-sm);
+			color: var(--sl-color-text-secondary);
+			line-height: normal;
+		}
+	}
+
+	.language-selector {
+		position: relative;
+	}
+
+	.language-selector select {
+		appearance: none;
+		background: var(--sl-color-background);
+		border: 1px solid var(--sl-color-border);
+		border-radius: 0.375rem;
+		padding: 0.5rem 2rem 0.5rem 0.75rem;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-text-secondary);
+		cursor: pointer;
 		text-transform: uppercase;
-    font-size: var(--sl-text-sm);
-    color: var(--sl-color-text-secondary);
-    line-height: normal;
-  }
+		transition: all 0.2s ease;
+		min-width: 120px;
+	}
+
+	.language-selector select:hover {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent-low);
+	}
+
+	.language-selector select:focus {
+		outline: none;
+		border-color: var(--sl-color-accent);
+		box-shadow: 0 0 0 2px var(--sl-color-accent-low);
+	}
+
+	.language-selector::after {
+		content: "▼";
+		position: absolute;
+		right: 0.75rem;
+		top: 50%;
+		transform: translateY(-50%);
+		pointer-events: none;
+		font-size: 0.75rem;
+		color: var(--sl-color-text-dimmed);
 	}
 
 	@media (min-width: 50rem) {
@@ -113,7 +198,7 @@ const headerLinks = config.headerLinks;
 			);
 			display: grid;
 			grid-template-columns:
-        /* 1 (site title): runs up until the main content column’s left edge or the width of the title, whichever is the largest  */
+				/* 1 (site title): runs up until the main content column's left edge or the width of the title, whichever is the largest  */
 				minmax(
 					calc(var(--__sidebar-width) + max(0rem, var(--__main-column-fr) - var(--sl-nav-gap))),
 					auto

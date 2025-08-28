@@ -1,0 +1,238 @@
+---
+title: CLI
+description: opencode CLI 选项和命令。
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components"
+
+opencode CLI 默认情况下在运行时不带任何参数时启动 [TUI](/docs/tui)。
+
+```bash
+opencode
+```
+
+但它也接受本文档中记录的命令。这允许您以编程方式与 opencode 交互。
+
+```bash
+opencode run "解释 JavaScript 中闭包的工作原理"
+```
+
+---
+
+## 命令
+
+opencode CLI 还具有以下命令。
+
+---
+
+### agent
+
+管理 opencode 的代理。
+
+```bash
+opencode agent [command]
+```
+
+---
+
+#### create
+
+创建具有自定义配置的新代理。
+
+```bash
+opencode agent create
+```
+
+此命令将指导您创建一个具有自定义系统提示和工具配置的新代理。
+
+---
+
+### auth
+
+管理提供商凭据和登录的命令。
+
+```bash
+opencode auth [command]
+```
+
+---
+
+#### login
+
+opencode 由 [Models.dev](https://models.dev) 的提供商列表提供支持，因此您可以使用 `opencode auth login` 为您想要使用的任何提供商配置 API 密钥。这存储在 `~/.local/share/opencode/auth.json` 中。
+
+```bash
+opencode auth login
+```
+
+当 opencode 启动时，它会从凭据文件加载提供商。如果您的环境或项目中的 `.env` 文件定义了任何密钥。
+
+---
+
+#### list
+
+列出凭据文件中存储的所有已认证提供商。
+
+```bash
+opencode auth list
+```
+
+或简短版本。
+
+```bash
+opencode auth ls
+```
+
+---
+
+#### logout
+
+通过从凭据文件中清除提供商来注销您。
+
+```bash
+opencode auth logout
+```
+
+---
+
+### github
+
+管理用于仓库自动化的 GitHub 代理。
+
+```bash
+opencode github [command]
+```
+
+---
+
+#### install
+
+在您的仓库中安装 GitHub 代理。
+
+```bash
+opencode github install
+```
+
+这会设置必要的 GitHub Actions 工作流程并指导您完成配置过程。[了解更多](/docs/github)。
+
+---
+
+#### run
+
+运行 GitHub 代理。这通常在 GitHub Actions 中使用。
+
+```bash
+opencode github run
+```
+
+##### 标志
+
+| 标志      | 描述                            |
+| --------- | -------------------------------------- |
+| `--event` | 运行代理的 GitHub 模拟事件 |
+| `--token` | GitHub 个人访问令牌           |
+
+---
+
+### models
+
+列出配置的提供商中所有可用的模型。
+
+```bash
+opencode models
+```
+
+此命令以 `provider/model` 格式显示您配置的提供商中所有可用的模型。
+
+---
+
+### run
+
+通过直接传递提示以非交互模式运行 opencode。
+
+```bash
+opencode run [message..]
+```
+
+这对于脚本编写、自动化或当您想要快速答案而不启动完整 TUI 时很有用。例如。
+
+```bash "opencode run"
+opencode run 解释 Go 中 context 的使用
+```
+
+#### 标志
+
+| 标志         | 简写 | 描述                                |
+| ------------ | ----- | ------------------------------------------ |
+| `--continue` | `-c`  | 继续上一个会话                  |
+| `--session`  | `-s`  | 要继续的会话 ID                     |
+| `--share`    |       | 分享会话                          |
+| `--model`    | `-m`  | 以 provider/model 形式使用的模型 |
+| `--agent`    |       | 要使用的代理                               |
+
+---
+
+### serve
+
+启动无头 opencode 服务器以进行 API 访问。查看 [服务器文档](/docs/server) 以了解完整的 HTTP 接口。
+
+```bash
+opencode serve
+```
+
+这会启动一个 HTTP 服务器，提供对 opencode 功能的 API 访问，而无需 TUI 界面。
+
+#### 标志
+
+| 标志         | 简写 | 描述           |
+| ------------ | ----- | --------------------- |
+| `--port`     | `-p`  | 监听的端口     |
+| `--hostname` | `-h`  | 监听的主机名 |
+
+---
+
+### upgrade
+
+将 opencode 更新到最新版本或特定版本。
+
+```bash
+opencode upgrade [target]
+```
+
+要升级到最新版本。
+
+```bash
+opencode upgrade
+```
+
+要升级到特定版本。
+
+```bash
+opencode upgrade v0.1.48
+```
+
+#### 标志
+
+| 标志       | 简写 | 描述                                             
+          |
+| ---------- | ----- | --------------------------------------------------------
+--------- |
+| `--method` | `-m`  | 使用的安装方法；curl、npm、pnpm、bun、brew |
+
+---
+
+## 标志
+
+opencode CLI 接受以下全局标志。
+
+| 标志           | 简写 | 描述                                |
+| -------------- | ----- | ------------------------------------------ |
+| `--help`       | `-h`  | 显示帮助                               |
+| `--version`    |       | 打印版本号                       |
+| `--print-logs` |       | 将日志打印到 stderr                       |
+| `--log-level`  |       | 日志级别（DEBUG、INFO、WARN、ERROR）       |
+| `--prompt`     | `-p`  | 要使用的提示                              |
+| `--model`      | `-m`  | 以 provider/model 形式使用的模型 |
+| `--agent`      |       | 要使用的代理                               |
+| `--port`       |       | 监听的端口                          |
+| `--hostname`   |       | 监听的主机名                      |

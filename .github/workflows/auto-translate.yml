@@ -1,0 +1,32 @@
+name: Auto Translate
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'packages/web/src/content/docs/docs/*.mdx'
+      - 'packages/web/src/content/docs/docs/*.md'
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # Need write permission for creating branches, commits, etc.
+      id-token: write     # Generate JWT token for GitHub API calls
+      pull-requests: write # Need write permission for creating pull requests
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0  # Need full history to detect changes
+          
+      - name: Run translation
+        uses: ./auto-translate
+        with:
+          model: anthropic/claude-sonnet-4-20250514
+          source_lang: 'en'
+          target_lang: 'zh'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

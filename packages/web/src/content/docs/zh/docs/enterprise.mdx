@@ -1,0 +1,96 @@
+---
+title: 企业版
+description: 在您的组织中使用 opencode。
+---
+
+opencode 不存储您的任何代码或上下文数据。这使得您可以在组织中使用 opencode 变得容易。
+
+要开始使用，我们建议：
+
+1. 与您的团队在内部进行试用。
+2. [**联系我们**](mailto:hello@anoma.ly) 讨论定价和实施选项。
+
+---
+
+## 试用
+
+由于 opencode 是开源的，不存储您的任何代码或上下文数据，您的开发人员可以简单地 [开始使用](/docs/) 并进行试用。
+
+---
+
+### 数据处理
+
+**opencode 不存储您的代码或上下文数据。** 所有处理都在本地进行或通过直接 API 调用到您的 AI 提供商。
+
+这里唯一的注意事项是可选的 `/share` 功能。
+
+---
+
+#### 分享对话
+
+如果用户启用了 `/share` 功能，对话和与之相关的数据会发送到我们用于在 opencode.ai 托管这些分享页面的服务。
+
+数据目前通过我们的 CDN 边缘网络提供服务，并缓存在靠近您用户的边缘。
+
+我们建议您在试用期间禁用此功能。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "share": "disabled"
+}
+```
+
+[了解更多关于分享](/docs/share)。
+
+---
+
+### 代码所有权
+
+**您拥有 opencode 产生的所有代码。** 没有许可限制或所有权声明。
+
+---
+
+## 部署
+
+一旦您完成试用并准备在您的组织中自托管 opencode，您可以 [**联系我们**](mailto:hello@anoma.ly) 讨论定价和实施选项。
+
+---
+
+### SSO
+
+SSO 集成可以在试用后为企业部署实施。
+这将允许您团队的会话数据和共享对话受到您企业认证系统的保护。
+
+---
+
+### 私有 NPM
+
+opencode 通过 Bun 的原生 `.npmrc` 文件支持支持私有 npm 注册表。如果您的组织使用私有注册表，如 JFrog Artifactory、Nexus 或类似产品，请确保开发人员在运行 opencode 之前已通过身份验证。
+
+要设置与私有注册表的身份验证：
+
+```bash
+npm login --registry=https://your-company.jfrog.io/api/npm/npm-virtual/
+```
+
+这会创建带有身份验证详情的 `~/.npmrc`。opencode 会自动获取这些信息。
+
+:::caution
+您必须在运行 opencode 之前登录到私有注册表。
+:::
+
+或者，您可以手动配置 `.npmrc` 文件：
+
+```bash title="~/.npmrc"
+registry=https://your-company.jfrog.io/api/npm/npm-virtual/
+//your-company.jfrog.io/api/npm/npm-virtual/:_authToken=${NPM_AUTH_TOKEN}
+```
+
+开发人员必须在运行 opencode 之前登录到私有注册表，以确保可以从您的企业注册表安装包。
+
+---
+
+### 自托管
+
+分享功能可以自托管，分享页面可以在用户通过身份验证后才可访问。

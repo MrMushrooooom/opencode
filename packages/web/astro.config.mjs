@@ -101,10 +101,16 @@ export default defineConfig({
           headerLinks: config.headerLinks,
         }),
       ],
+      locales: {
+        root: { label: "English", lang: "en" },
+        zh:   { label: "简体中文", lang: "zh-CN" },
+      },
+      defaultLocale: "root",
     }),
   ],
   redirects: {
     "/discord": "https://discord.gg/opencode",
+    "/.well-known/appspecific/com.chrome.devtools.json": "/",
   },
 })
 
