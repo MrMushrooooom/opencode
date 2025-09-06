@@ -2,7 +2,7 @@ name: Auto Translate
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, feature/multilingual-docs]
     paths:
       - 'packages/web/src/content/docs/docs/*.mdx'
       - 'packages/web/src/content/docs/docs/*.md'
