@@ -1,0 +1,89 @@
+import * as vscode from 'vscode'
+import { OpenCodeApp } from './core/app-new'
+import { OpenCodePanel } from './components/webview/panel'
+
+// Global variables
+let outputChannel: vscode.OutputChannel
+let openCodeApp: OpenCodeApp | null = null
+let openCodePanel: OpenCodePanel | null = null
+
+/**
+ * Extension activation function
+ */
+export function activate(context: vscode.ExtensionContext) {
+  console.log('OpenCode extension activated')
+  
+  // Create output channel
+  outputChannel = vscode.window.createOutputChannel('OpenCode Assistant')
+  outputChannel.appendLine('OpenCode extension activated')
+
+  // Register commands
+  const openPanelDisposable = vscode.commands.registerCommand('opencode-new.openPanel', async () => {
+    try {
+      outputChannel.appendLine('Opening OpenCode panel...')
+      
+      // Initialize OpenCode app if not already done
+      if (!openCodeApp) {
+        openCodeApp = new OpenCodeApp(outputChannel)
+        await openCodeApp.initialize()
+      }
+
+      // Create or show panel
+      if (!openCodePanel) {
+        openCodePanel = new OpenCodePanel(openCodeApp, outputChannel)
+      } else {
+        openCodePanel.show()
+      }
+
+      outputChannel.appendLine('✅ OpenCode panel opened successfully')
+    } catch (error: any) {
+      outputChannel.appendLine(`❌ Failed to open OpenCode panel: ${error.message}`)
+      vscode.window.showErrorMessage(`Failed to open OpenCode panel: ${error.message}`)
+    }
+  })
+
+  const refreshPanelDisposable = vscode.commands.registerCommand('opencode-new.refreshPanel', async () => {
+    try {
+      outputChannel.appendLine('Refreshing OpenCode panel...')
+      
+      if (openCodePanel) {
+        // Recreate the panel to refresh it
+        openCodePanel.dispose()
+        if (openCodeApp) {
+          openCodePanel = new OpenCodePanel(openCodeApp, outputChannel)
+        }
+      }
+
+      outputChannel.appendLine('✅ OpenCode panel refreshed successfully')
+    } catch (error: any) {
+      outputChannel.appendLine(`❌ Failed to refresh OpenCode panel: ${error.message}`)
+      vscode.window.showErrorMessage(`Failed to refresh OpenCode panel: ${error.message}`)
+    }
+  })
+
+  // Add disposables to context
+  context.subscriptions.push(openPanelDisposable, refreshPanelDisposable)
+}
+
+/**
+ * Extension deactivation function
+ */
+export function deactivate() {
+  console.log('OpenCode extension deactivated')
+  
+  if (outputChannel) {
+    outputChannel.appendLine('OpenCode extension deactivated')
+  }
+
+  // Dispose of resources
+  if (openCodePanel) {
+    openCodePanel.dispose()
+    openCodePanel = null
+  }
+
+  if (openCodeApp) {
+    openCodeApp.dispose().then(() => {
+      openCodeApp = null
+    })
+  }
+}

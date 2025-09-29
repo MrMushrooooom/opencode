@@ -1,0 +1,116 @@
+{
+  "name": "opencode-new",
+  "displayName": "OpenCode New",
+  "description": "Enhanced OpenCode VSCode extension",
+  "version": "0.1.0",
+  "publisher": "your-publisher",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sst/opencode"
+  },
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#000000",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:opencode-new.openPanel",
+    "onCommand:opencode-new.refreshPanel"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "opencode-new",
+          "title": "OpenCode",
+          "icon": "images/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "opencode-new": [
+        {
+          "id": "opencode-new.panel",
+          "name": "OpenCode",
+          "when": "true"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "opencode-new.openPanel",
+        "title": "Open OpenCode Assistant",
+        "icon": {
+          "light": "images/button-dark.svg",
+          "dark": "images/button-light.svg"
+        }
+      },
+      {
+        "command": "opencode-new.refreshPanel",
+        "title": "Refresh Panel",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "opencode-new.openPanel",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "opencode-new.refreshPanel",
+          "when": "view == opencode-new.panel",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "opencode-new.openPanel",
+        "title": "Open OpenCode Assistant",
+        "key": "cmd+escape",
+        "mac": "cmd+escape",
+        "win": "ctrl+escape",
+        "linux": "ctrl+escape"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "bun run package",
+    "compile": "bun run check-types && bun run lint && node esbuild.js",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "bun run check-types && bun run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "bun run compile-tests && bun run compile && bun run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "^0.6.10"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.94.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "eslint": "^9.25.1",
+    "esbuild": "^0.25.3",
+    "typescript": "^5.8.3",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}

@@ -1,0 +1,1047 @@
+import * as vscode from "vscode"
+
+// Create output channel for logging
+const outputChannel = vscode.window.createOutputChannel('OpenCode Assistant')
+
+// OpenCode extension main entry point
+export function activate(context: vscode.ExtensionContext) {
+  console.log('OpenCode extension activated')
+  outputChannel.appendLine('OpenCode extension activated')
+  outputChannel.show() // Show the output channel
+
+  // Register command: Open OpenCode Assistant panel
+  const openPanelDisposable = vscode.commands.registerCommand('opencode-new.openPanel', () => {
+    outputChannel.appendLine('Opening OpenCode panel...')
+    OpenCodePanel.createOrShow(context.extensionUri)
+  })
+
+  // Register command: Refresh panel
+  const refreshPanelDisposable = vscode.commands.registerCommand('opencode-new.refreshPanel', () => {
+    outputChannel.appendLine('Refreshing OpenCode panel...')
+    OpenCodePanel.currentPanel?.refresh()
+  })
+
+  context.subscriptions.push(openPanelDisposable, refreshPanelDisposable, outputChannel)
+}
+
+export function deactivate() {
+  // Clean up global API instance
+  if (globalOpenCodeAPI) {
+    globalOpenCodeAPI.dispose()
+    globalOpenCodeAPI = null
+  }
+}
+
+// Global OpenCode API instance (shared across all panels)
+let globalOpenCodeAPI: OpenCodeAPI | null = null
+
+// OpenCode API communication class (using OpenCode SDK like TUI)
+class OpenCodeAPI {
+  private client: any = null
+  private isConnected: boolean = false
+  private static instance: OpenCodeAPI | null = null
+
+  constructor() {
+    // Only initialize if this is the first instance
+    if (!OpenCodeAPI.instance) {
+      OpenCodeAPI.instance = this
+      // Initialize asynchronously
+      this.initializeClient().catch(error => {
+        console.log('❌ Failed to initialize OpenCode API:', error)
+        outputChannel.appendLine(`❌ Failed to initialize OpenCode API: ${error}`)
+      })
+    } else {
+      // Reuse existing instance
+      this.client = OpenCodeAPI.instance.client
+      this.isConnected = OpenCodeAPI.instance.isConnected
+    }
+  }
+
+  // Get singleton instance
+  static getInstance(): OpenCodeAPI {
+    if (!OpenCodeAPI.instance) {
+      OpenCodeAPI.instance = new OpenCodeAPI()
+    }
+    return OpenCodeAPI.instance
+  }
+
+  // Initialize OpenCode server and client (like TUI does)
+  private async initializeClient() {
+    console.log('🚀 Initializing OpenCode server and client...')
+    outputChannel.appendLine('🚀 Initializing OpenCode server and client...')
+    console.log('📁 Current working directory:', process.cwd())
+    outputChannel.appendLine(`📁 Current working directory: ${process.cwd()}`)
+    
+    try {
+      // Step 1: Bootstrap environment (like TUI does)
+      console.log('🔧 Bootstrapping OpenCode environment...')
+      await this.bootstrapEnvironment()
+
+      // Step 2: Start OpenCode server (like TUI does)
+      console.log('🌐 Starting OpenCode server...')
+      const server = await this.startOpenCodeServer()
+      
+      // Step 3: Create client connected to server
+      console.log('🔗 Creating OpenCode client...')
+      await this.createOpenCodeClient(server)
+      
+      this.isConnected = true
+      console.log('✅ OpenCode server and client initialized successfully')
+      
+    } catch (error) {
+      console.log('❌ Failed to initialize OpenCode:', error)
+      this.isConnected = false
+    }
+  }
+
+  // Bootstrap environment (like TUI bootstrap function)
+  private async bootstrapEnvironment(): Promise<void> {
+    try {
+      console.log('📦 Bootstrapping OpenCode environment...')
+      outputChannel.appendLine('📦 Bootstrapping OpenCode environment...')
+      
+      // Import required modules
+      const projectRoot = this.findProjectRoot()
+      if (!projectRoot) {
+        throw new Error('OpenCode project not found')
+      }
+
+      // Change to project directory
+      process.chdir(projectRoot)
+      console.log('📁 Changed to project directory:', projectRoot)
+      outputChannel.appendLine(`📁 Changed to project directory: ${projectRoot}`)
+
+      // For now, we'll skip the bootstrap since we can't run Bun from Node.js
+      // TODO: Implement proper Bun integration or use transpiled JS
+      console.log('⚠️ Skipping TypeScript bootstrap (requires Bun runtime)')
+      outputChannel.appendLine('⚠️ Skipping TypeScript bootstrap (requires Bun runtime)')
+
+      console.log('✅ Environment bootstrapped successfully')
+      outputChannel.appendLine('✅ Environment bootstrapped successfully')
+      
+    } catch (error: any) {
+      console.log('❌ Failed to bootstrap environment:', error)
+      outputChannel.appendLine(`❌ Failed to bootstrap environment: ${error.message || error}`)
+      throw error
+    }
+  }
+
+  // Start OpenCode server via Bun process
+  private async startOpenCodeServer(): Promise<any> {
+    try {
+      console.log('🌐 Starting OpenCode server via Bun process...')
+      outputChannel.appendLine('🌐 Starting OpenCode server via Bun process...')
+      
+      const projectRoot = this.findProjectRoot()
+      if (!projectRoot) {
+        throw new Error('OpenCode project not found for server start')
+      }
+
+      // Use child_process to start Bun with OpenCode
+      const { spawn } = require('child_process')
+      
+      console.log('🚀 Starting Bun process for OpenCode server...')
+      outputChannel.appendLine('🚀 Starting Bun process for OpenCode server...')
+      
+      // Start OpenCode server command
+      const opencodeProcess = spawn('opencode', ['serve', '--port', '0'], {
+        cwd: projectRoot,
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+
+      // Store process for cleanup
+      this.serverInstance = opencodeProcess
+
+      // Wait for server to start and detect port
+      console.log('⏳ Waiting for OpenCode server to start...')
+      outputChannel.appendLine('⏳ Waiting for OpenCode server to start...')
+      
+      const port = await this.detectOpenCodePort(opencodeProcess)
+      
+      const serverInfo = {
+        hostname: '127.0.0.1',
+        port: port,
+        process: opencodeProcess,
+        stop: () => {
+          console.log('🛑 Stopping OpenCode process...')
+          outputChannel.appendLine('🛑 Stopping OpenCode process...')
+          opencodeProcess.kill()
+        }
+      }
+
+      console.log(`✅ OpenCode server started via Bun on http://${serverInfo.hostname}:${serverInfo.port}`)
+      outputChannel.appendLine(`✅ OpenCode server started via Bun on http://${serverInfo.hostname}:${serverInfo.port}`)
+      return serverInfo
+      
+    } catch (error: any) {
+      console.log('❌ Failed to start OpenCode server via Bun:', error)
+      outputChannel.appendLine(`❌ Failed to start OpenCode server via Bun: ${error.message || error}`)
+      throw error
+    }
+  }
+
+  // Detect OpenCode server port from process output
+  private async detectOpenCodePort(opencodeProcess: any): Promise<number> {
+    return new Promise((resolve, reject) => {
+      console.log('🔍 Detecting OpenCode server port from process output...')
+      outputChannel.appendLine('🔍 Detecting OpenCode server port from process output...')
+      
+      let portFound = false
+      
+      // Listen to stdout for port information
+      opencodeProcess.stdout.on('data', (data: Buffer) => {
+        const output = data.toString()
+        console.log('📤 OpenCode output:', output)
+        outputChannel.appendLine(`📤 OpenCode output: ${output}`)
+        
+        // Parse port from output: "opencode server listening on http://127.0.0.1:XXXX"
+        const match = output.match(/opencode server listening on http:\/\/[\d.]+:(\d+)/)
+        if (match && !portFound) {
+          const port = parseInt(match[1])
+          console.log(`✅ Found OpenCode server on port ${port}`)
+          outputChannel.appendLine(`✅ Found OpenCode server on port ${port}`)
+          portFound = true
+          resolve(port)
+        }
+      })
+      
+      // Listen to stderr for errors
+      opencodeProcess.stderr.on('data', (data: Buffer) => {
+        const error = data.toString()
+        console.log('❌ OpenCode error:', error)
+        outputChannel.appendLine(`❌ OpenCode error: ${error}`)
+      })
+      
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        if (!portFound) {
+          console.log('⚠️ Timeout waiting for port, using default 3000')
+          outputChannel.appendLine('⚠️ Timeout waiting for port, using default 3000')
+          resolve(3000)
+        }
+      }, 10000)
+    })
+  }
+
+  // Create OpenCode client (HTTP-based)
+  private async createOpenCodeClient(server: any): Promise<void> {
+    try {
+      console.log('🔗 Creating HTTP-based OpenCode client...')
+      outputChannel.appendLine('🔗 Creating HTTP-based OpenCode client...')
+      
+      // Create simple HTTP client for OpenCode server
+      this.client = {
+        baseURL: `http://${server.hostname}:${server.port}`,
+        Session: {
+          Create: async () => {
+            console.log('📤 HTTP Session Create request to:', `${this.client.baseURL}/session`)
+            outputChannel.appendLine(`📤 HTTP Session Create request to: ${this.client.baseURL}/session`)
+            
+            const response = await fetch(`${this.client.baseURL}/session`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({}) // Send empty JSON object as request body
+            })
+            
+            console.log('📥 HTTP Session Create response status:', response.status)
+            outputChannel.appendLine(`📥 HTTP Session Create response status: ${response.status}`)
+            
+            const result = await response.json()
+            console.log('📥 HTTP Session Create response body:', JSON.stringify(result, null, 2))
+            outputChannel.appendLine(`📥 HTTP Session Create response body: ${JSON.stringify(result, null, 2)}`)
+            
+            return result
+          },
+          Prompt: async (sessionId: string, data: any) => {
+            console.log('📤 HTTP Prompt request - sessionId:', sessionId)
+            console.log('📤 HTTP Prompt request - data:', JSON.stringify(data, null, 2))
+            outputChannel.appendLine(`📤 HTTP Prompt request - sessionId: ${sessionId}`)
+            outputChannel.appendLine(`📤 HTTP Prompt request - data: ${JSON.stringify(data, null, 2)}`)
+            
+            const response = await fetch(`${this.client.baseURL}/session/${sessionId}/message`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            })
+            
+            console.log('📥 HTTP Prompt response status:', response.status)
+            outputChannel.appendLine(`📥 HTTP Prompt response status: ${response.status}`)
+            
+            const result = await response.json()
+            console.log('📥 HTTP Prompt response body:', JSON.stringify(result, null, 2))
+            outputChannel.appendLine(`📥 HTTP Prompt response body: ${JSON.stringify(result, null, 2)}`)
+            
+            return result
+          }
+        },
+        Config: {
+          Get: async () => {
+            const response = await fetch(`${this.client.baseURL}/config`)
+            return await response.json()
+          }
+        }
+      }
+
+      // Test connection
+      console.log('🔍 Testing HTTP client connection...')
+      outputChannel.appendLine('🔍 Testing HTTP client connection...')
+      const config = await this.client.Config.Get()
+      console.log('✅ HTTP client connected successfully')
+      outputChannel.appendLine('✅ HTTP client connected successfully')
+      
+    } catch (error: any) {
+      console.log('❌ Failed to create HTTP OpenCode client:', error)
+      outputChannel.appendLine(`❌ Failed to create HTTP OpenCode client: ${error.message || error}`)
+      throw error
+    }
+  }
+
+  // Import OpenCode SDK
+  private async importOpenCodeSDK(): Promise<any> {
+    try {
+      console.log('📦 Importing OpenCode SDK...')
+      
+      // Try to import from the project directory
+      const projectRoot = this.findProjectRoot()
+      if (projectRoot) {
+        console.log('🎯 Found OpenCode project, importing SDK from:', projectRoot)
+        
+        // Import the SDK
+        const sdkPath = require('path').join(projectRoot, 'packages/sdk/js/src/index.ts')
+        console.log('📁 SDK path:', sdkPath)
+        
+        // Use require to import the module
+        const sdkModule = require(sdkPath)
+        console.log('✅ Successfully imported OpenCode SDK')
+        return sdkModule
+      }
+      
+      throw new Error('OpenCode project not found')
+    } catch (error) {
+      console.log('❌ Failed to import OpenCode SDK:', error)
+      return null
+    }
+  }
+
+  // Test connection to OpenCode server
+  private async testConnection(): Promise<void> {
+    try {
+      console.log('🔍 Testing connection to OpenCode server...')
+      
+      // Try to get config (like TUI does)
+      const config = await this.client.Config.Get({})
+      console.log('✅ Connection successful, config retrieved')
+      
+    } catch (error) {
+      console.log('❌ Connection test failed:', error)
+      throw error
+    }
+  }
+
+  // Import OpenCode Server module
+  private async importOpenCodeServer(): Promise<any> {
+    try {
+      console.log('📦 Importing OpenCode Server module...')
+      
+      // Try to import from the project directory
+      const projectRoot = this.findProjectRoot()
+      if (projectRoot) {
+        console.log('🎯 Found OpenCode project, importing from:', projectRoot)
+        
+        // Dynamic import of the server module
+        const serverPath = require('path').join(projectRoot, 'packages/opencode/src/server/server.ts')
+        console.log('📁 Server path:', serverPath)
+        
+        // Use require to import the module
+        const serverModule = require(serverPath)
+        console.log('✅ Successfully imported OpenCode Server module')
+        return serverModule
+      }
+      
+      throw new Error('OpenCode project not found')
+    } catch (error) {
+      console.log('❌ Failed to import OpenCode Server:', error)
+      return null
+    }
+  }
+
+  // Get OpenCode command (similar to TUI's implementation)
+  private getOpencodeCommand(): string[] {
+    console.log('🔧 Determining OpenCode command...')
+    
+    // Check if we're in the OpenCode project directory
+    const projectRoot = this.findProjectRoot()
+    console.log('📁 Project root:', projectRoot)
+    
+    if (projectRoot) {
+      // We're in the OpenCode project, use bun to run the TypeScript entry point
+      console.log('✅ Running in development mode (OpenCode project detected)')
+      return ['bun', 'run', 'packages/opencode/src/index.ts']
+    }
+    
+    // Try to find opencode binary in PATH
+    console.log('🔍 Looking for opencode binary in PATH...')
+    return ['opencode']
+  }
+
+  // Find the OpenCode project root directory
+  private findProjectRoot(): string | null {
+    const path = require('path')
+    const fs = require('fs')
+    
+    // Try multiple possible locations for OpenCode project
+    const possiblePaths = [
+      process.cwd(), // Current working directory
+      path.join(process.cwd(), 'opencode'), // If we're in a parent directory
+      path.join(__dirname, '../../..'), // Relative to extension directory
+      '/Users/jack/Development/cursor/opencode', // Hardcoded path for development
+    ]
+    
+    console.log('🔍 Searching for OpenCode project in:', possiblePaths)
+    outputChannel.appendLine(`🔍 Searching for OpenCode project in: ${possiblePaths.join(', ')}`)
+    
+    for (const currentDir of possiblePaths) {
+      console.log(`🔍 Checking directory: ${currentDir}`)
+      outputChannel.appendLine(`🔍 Checking directory: ${currentDir}`)
+      
+      // Walk up the directory tree looking for package.json with opencode
+      let searchDir = currentDir
+      while (searchDir !== path.dirname(searchDir)) {
+        const packageJsonPath = path.join(searchDir, 'package.json')
+        
+        try {
+          if (fs.existsSync(packageJsonPath)) {
+            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
+            console.log(`📦 Found package.json in ${searchDir}, name: ${packageJson.name}`)
+            outputChannel.appendLine(`📦 Found package.json in ${searchDir}, name: ${packageJson.name}`)
+            
+            if (packageJson.name === 'opencode' || packageJson.name?.includes('opencode')) {
+              console.log('🎯 Found OpenCode project at:', searchDir)
+              outputChannel.appendLine(`🎯 Found OpenCode project at: ${searchDir}`)
+              return searchDir
+            }
+          } else {
+            console.log(`📁 No package.json found in ${searchDir}`)
+            outputChannel.appendLine(`📁 No package.json found in ${searchDir}`)
+          }
+        } catch (error: any) {
+          console.log(`⚠️ Error reading package.json in ${searchDir}: ${error.message}`)
+          outputChannel.appendLine(`⚠️ Error reading package.json in ${searchDir}: ${error.message}`)
+          // Continue searching
+        }
+        
+        searchDir = path.dirname(searchDir)
+      }
+    }
+    
+    console.log('❌ OpenCode project not found in any searched location')
+    outputChannel.appendLine('❌ OpenCode project not found in any searched location')
+    return null
+  }
+
+  // Wait for server to start and detect port
+  private async waitForServerStart(): Promise<void> {
+    console.log('⏳ Waiting for OpenCode server to start...')
+    
+    // Try to detect port for up to 15 seconds (30 attempts * 500ms)
+    for (let i = 0; i < 30; i++) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      console.log(`🔍 Attempt ${i + 1}/30: Checking for server...`)
+      const port = await this.detectPort()
+      if (port) {
+        console.log('✅ OpenCode server started successfully on port', port)
+        this.baseUrl = `http://localhost:${port}`
+        this.isConnected = true
+        return
+      }
+      
+      // Log progress every 5 attempts
+      if ((i + 1) % 5 === 0) {
+        console.log(`⏰ Still waiting... ${i + 1}/30 attempts completed`)
+      }
+    }
+    
+    console.log('❌ OpenCode server failed to start within 15 seconds')
+    throw new Error('OpenCode server failed to start within 15 seconds')
+  }
+
+  // Detect OpenCode server port automatically
+  async detectPort(): Promise<number | null> {
+    console.log('🔍 Detecting OpenCode server port...')
+    
+    // OpenCode uses random ports (default: 0), so we need to scan a wider range
+    // Based on TUI code analysis, we'll check common development ports
+    const commonPorts = [3000, 3001, 4000, 5000, 6000, 7000, 8000, 9000, 8080, 8081, 30000, 30001, 30002, 30003, 30004, 30005]
+    
+    console.log(`🔢 Scanning ${commonPorts.length} common ports...`)
+    
+    for (const port of commonPorts) {
+      try {
+        console.log(`🔍 Trying port ${port}...`)
+        
+        // Check if OpenCode server is running by testing the /app endpoint
+        const response = await fetch(`http://localhost:${port}/app`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(1000) // 1 second timeout
+        })
+        
+        console.log(`📡 Port ${port} response: ${response.status} ${response.statusText}`)
+        
+        if (response.ok || response.status === 404) {
+          console.log(`✅ OpenCode server found on port ${port}`)
+          this.baseUrl = `http://localhost:${port}`
+          this.isConnected = true
+          return port
+        }
+      } catch (error) {
+        console.log(`❌ Port ${port} failed:`, error.message)
+        // Continue to next port
+        continue
+      }
+    }
+    
+    console.log('❌ OpenCode server not found on any common port')
+    this.isConnected = false
+    return null
+  }
+
+  // Send message to OpenCode server (using SDK like TUI)
+  async sendMessage(text: string, mode: 'plan' | 'build' = 'plan'): Promise<string | null> {
+    if (!this.isConnected || !this.client) {
+      console.log('❌ Not connected to OpenCode server')
+      return null
+    }
+
+    try {
+      console.log('📤 Sending message using OpenCode SDK...')
+      
+      // Create session if needed (like TUI does)
+      const session = await this.createSession()
+      if (!session) {
+        return '❌ Failed to create session'
+      }
+
+      // Send message using SDK (like TUI does)
+      const messageId = this.generateMessageId()
+      console.log('📝 Generated messageID:', messageId)
+      outputChannel.appendLine(`📝 Generated messageID: ${messageId}`)
+      
+      const requestData = {
+        model: {
+          providerID: 'anthropic', // Correct field name
+          modelID: 'claude-3-5-sonnet-20241022' // Correct field name
+        },
+        agent: mode, // Use mode as agent (plan/build)
+        messageID: messageId, // Correct field name
+        parts: [{
+          type: 'text',
+          text: text
+        }]
+      }
+      
+      console.log('📤 Sending request data:', JSON.stringify(requestData, null, 2))
+      outputChannel.appendLine(`📤 Sending request data: ${JSON.stringify(requestData, null, 2)}`)
+      
+      const response = await this.client.Session.Prompt(session.id, requestData)
+
+      console.log('✅ Message sent successfully via SDK')
+      console.log('📥 OpenCode response:', response)
+      outputChannel.appendLine(`📥 OpenCode response: ${JSON.stringify(response)}`)
+      
+      // Extract the actual response content from OpenCode
+      if (response && response.content) {
+        return response.content
+      } else if (response && response.text) {
+        return response.text
+      } else if (response && typeof response === 'string') {
+        return response
+      } else {
+        return JSON.stringify(response)
+      }
+      
+    } catch (error) {
+      console.log(`❌ Failed to send message via SDK: ${error}`)
+      return `SDK error: ${error}`
+    }
+  }
+
+  // Create a new session (using SDK like TUI)
+  private async createSession(): Promise<any> {
+    try {
+      console.log('📝 Creating session using OpenCode SDK...')
+      outputChannel.appendLine('📝 Creating session using OpenCode SDK...')
+      
+      const session = await this.client.Session.Create({})
+      console.log('📥 Session creation response:', JSON.stringify(session, null, 2))
+      outputChannel.appendLine(`📥 Session creation response: ${JSON.stringify(session, null, 2)}`)
+      
+      if (!session || !session.id) {
+        console.log('❌ Session creation failed: no session ID returned')
+        outputChannel.appendLine('❌ Session creation failed: no session ID returned')
+        return null
+      }
+      
+      console.log('✅ Session created via SDK:', session.id)
+      outputChannel.appendLine(`✅ Session created via SDK: ${session.id}`)
+      return session
+      
+    } catch (error) {
+      console.log(`❌ Failed to create session via SDK: ${error}`)
+      outputChannel.appendLine(`❌ Failed to create session via SDK: ${error}`)
+      return null
+    }
+  }
+
+  // Generate a unique message ID (following OpenCode Identifier format)
+  private generateMessageId(): string {
+    // Follow OpenCode's Identifier.ascending("message") format: msg_ + 12 hex + 14 base62
+    const timestamp = Date.now()
+    const timeHex = timestamp.toString(16).padStart(12, '0')
+    const randomBase62 = this.generateRandomBase62(14)
+    return `msg_${timeHex}${randomBase62}`
+  }
+
+  // Generate random base62 string (like OpenCode's randomBase62 function)
+  private generateRandomBase62(length: number): string {
+    const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    let result = ""
+    for (let i = 0; i < length; i++) {
+      result += chars[Math.floor(Math.random() * 62)]
+    }
+    return result
+  }
+
+  // Check connection status
+  getConnectionStatus(): { connected: boolean; client: any } {
+    return {
+      connected: this.isConnected,
+      client: this.client
+    }
+  }
+
+  // Reconnect to server
+  async reconnect(): Promise<boolean> {
+    try {
+      await this.initializeClient()
+      return this.isConnected
+    } catch (error) {
+      console.log('❌ Failed to reconnect:', error)
+      return false
+    }
+  }
+
+  // Cleanup: dispose client when plugin is deactivated
+  dispose() {
+    if (this.client) {
+      console.log('🛑 Disposing OpenCode client...')
+      this.client = null
+      this.isConnected = false
+    }
+  }
+}
+
+// OpenCode panel management class
+class OpenCodePanel {
+  public static currentPanel: OpenCodePanel | undefined
+  private readonly _panel: vscode.WebviewPanel
+  private readonly _extensionUri: vscode.Uri
+  private readonly _api: OpenCodeAPI
+  private _disposables: vscode.Disposable[] = []
+
+  public static createOrShow(extensionUri: vscode.Uri) {
+    const column = vscode.window.activeTextEditor
+      ? vscode.window.activeTextEditor.viewColumn
+      : undefined
+
+    // If panel already exists, show it
+    if (OpenCodePanel.currentPanel) {
+      OpenCodePanel.currentPanel._panel.reveal(column)
+      return
+    }
+
+    // Otherwise create new panel
+    const panel = vscode.window.createWebviewPanel(
+      'opencode-assistant',
+      'OpenCode Assistant',
+      column || vscode.ViewColumn.One,
+      {
+        enableScripts: true,
+        localResourceRoots: [
+          vscode.Uri.joinPath(extensionUri, 'webview')
+        ]
+      }
+    )
+
+    OpenCodePanel.currentPanel = new OpenCodePanel(panel, extensionUri)
+  }
+
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+    this._panel = panel
+    this._extensionUri = extensionUri
+    this._api = OpenCodeAPI.getInstance()
+
+    // Set initial HTML content
+    this._update()
+
+    // Listen for panel dispose event
+    this._panel.onDidDispose(() => this.dispose(), null, this._disposables)
+
+    // Listen for webview messages
+    this._panel.webview.onDidReceiveMessage(
+      message => {
+        switch (message.command) {
+          case 'sendMessage':
+            this._handleSendMessage(message.text)
+            return
+          case 'setMode':
+            this._handleSetMode(message.mode)
+            return
+        }
+      },
+      null,
+      this._disposables
+    )
+  }
+
+  public refresh() {
+    this._update()
+  }
+
+  private _update() {
+    const webview = this._panel.webview
+    this._panel.webview.html = this._getHtmlForWebview(webview)
+  }
+
+  private _getHtmlForWebview(webview: vscode.Webview) {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCode Assistant</title>
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background-color: var(--vscode-panel-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .header-status {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .conversation-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: var(--vscode-editor-background);
+        }
+
+        .conversation-area.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .message.user {
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+        }
+
+        .message.assistant {
+            background-color: var(--vscode-panel-background);
+            border: 1px solid var(--vscode-panel-border);
+        }
+
+        .message-header {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 5px;
+        }
+
+        .message-content {
+            line-height: 1.5;
+        }
+
+        .input-area {
+            background-color: var(--vscode-panel-background);
+            border-top: 1px solid var(--vscode-panel-border);
+            padding: 15px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .input-field {
+            flex: 1;
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            color: var(--vscode-input-foreground);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: inherit;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder);
+        }
+
+        .btn {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: inherit;
+        }
+
+        .btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+
+        .btn.secondary {
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+        }
+
+        .btn.secondary:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-title">OpenCode Assistant</div>
+        <div class="header-status">Ready</div>
+    </div>
+
+    <div class="main-content">
+        <div class="conversation-area empty" id="conversationArea">
+            Start a conversation with OpenCode...
+        </div>
+
+        <div class="input-area">
+            <div class="input-row">
+                <input type="text" class="input-field" id="messageInput" placeholder="Enter your question..." />
+                <button class="btn" id="sendButton">Send</button>
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <span>🔧</span>
+                    <span>Mode: Plan</span>
+                </div>
+                <div class="status-item">
+                    <span>🤖</span>
+                    <span>Model: GPT-4</span>
+                </div>
+                <div class="status-item">
+                    <span>📱</span>
+                    <span>Session: Default</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        
+        const conversationArea = document.getElementById('conversationArea');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+
+        // Send message
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            // Add user message to interface
+            addMessage('user', text);
+            
+            // Clear input field
+            messageInput.value = '';
+            
+            // Send to extension
+            vscode.postMessage({
+                command: 'sendMessage',
+                text: text
+            });
+        }
+
+        // Add message to interface
+        function addMessage(type, content) {
+            // Remove empty state
+            conversationArea.classList.remove('empty');
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = \`message \${type}\`;
+            
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            header.textContent = type === 'user' ? '👤 User' : '🤖 OpenCode';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+            
+            messageDiv.appendChild(header);
+            messageDiv.appendChild(contentDiv);
+            conversationArea.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            conversationArea.scrollTop = conversationArea.scrollHeight;
+        }
+
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Listen for extension messages
+        window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.command) {
+                case 'addMessage':
+                    addMessage(message.type, message.content);
+                    break;
+                case 'replaceLastMessage':
+                    replaceLastMessage(message.type, message.content);
+                    break;
+            }
+        });
+
+        // Replace last message (for loading states)
+        function replaceLastMessage(type, content) {
+            const messages = conversationArea.querySelectorAll('.message');
+            if (messages.length > 0) {
+                const lastMessage = messages[messages.length - 1];
+                const contentDiv = lastMessage.querySelector('.message-content');
+                if (contentDiv) {
+                    contentDiv.textContent = content;
+                }
+            }
+        }
+    </script>
+</body>
+</html>`
+  }
+
+  private async _handleSendMessage(text: string) {
+    console.log('Sending message:', text)
+    
+    // Show loading state
+    this._panel.webview.postMessage({
+      command: 'addMessage',
+      type: 'assistant',
+      content: 'Processing your message...'
+    })
+    
+    try {
+      // Send message to OpenCode server
+      const response = await this._api.sendMessage(text, 'plan')
+      
+      if (response) {
+        // Replace loading message with actual response
+        this._panel.webview.postMessage({
+          command: 'replaceLastMessage',
+          type: 'assistant',
+          content: response
+        })
+      } else {
+        // Show connection error
+        this._panel.webview.postMessage({
+          command: 'replaceLastMessage',
+          type: 'assistant',
+          content: '❌ Unable to connect to OpenCode server. Please ensure OpenCode is running.'
+        })
+      }
+    } catch (error) {
+      console.log('Error sending message:', error)
+      this._panel.webview.postMessage({
+        command: 'replaceLastMessage',
+        type: 'assistant',
+        content: `❌ Error: ${error}`
+      })
+    }
+  }
+
+  private _handleSetMode(mode: string) {
+    // TODO: Implement mode switching logic
+    console.log('Switching mode:', mode)
+  }
+
+  public dispose() {
+    OpenCodePanel.currentPanel = undefined
+
+    // Note: We don't dispose the API here because it's shared across panels
+    // The API will be disposed when the extension is deactivated
+
+    // Clean up resources
+    while (this._disposables.length) {
+      const x = this._disposables.pop()
+      if (x) {
+        x.dispose()
+      }
+    }
+  }
+}
