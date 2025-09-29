@@ -95,8 +95,8 @@ export class OpenCodeApp {
         (messageId: string, part: any) => {
           // Handle message part updates
           const content = this.messageManager.handleStreamingUpdate(messageId, part)
-          // Send streaming update to webview
-          this.sendStreamingUpdateToWebview(messageId, content, part.type)
+          // Send streaming update to webview with role information
+          this.sendStreamingUpdateToWebview(messageId, content, part.type, part.role)
         },
         (session: any) => {
           // Handle session updates
@@ -274,15 +274,16 @@ export class OpenCodeApp {
   /**
    * Send streaming update to webview
    */
-  private sendStreamingUpdateToWebview(messageId: string, content: string, partType: string): void {
+  private sendStreamingUpdateToWebview(messageId: string, content: string, partType: string, role?: string): void {
     this.outputChannel.appendLine(`📨 App.sendStreamingUpdateToWebview called`)
     this.outputChannel.appendLine(`📝 Message ID: ${messageId}`)
     this.outputChannel.appendLine(`🔄 Part type: ${partType}`)
     this.outputChannel.appendLine(`📄 Content length: ${content.length}`)
+    this.outputChannel.appendLine(`👤 Role: ${role || 'unknown'}`)
 
     if (this.webviewPanel) {
       this.outputChannel.appendLine(`📱 Sending streaming update to webview`)
-      this.webviewPanel.sendStreamingUpdate(messageId, content, partType)
+      this.webviewPanel.sendStreamingUpdate(messageId, content, partType, role)
     } else {
       this.outputChannel.appendLine(`⚠️ No webview panel available for streaming update`)
     }

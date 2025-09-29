@@ -12,6 +12,7 @@ export class EventStreamManager {
   private isListening: boolean = false
   private eventStream?: any // OpenCode SDK event stream
   private abortController?: AbortController
+  private messageRoles: Map<string, string> = new Map() // messageId -> role mapping
 
   constructor(api: OpenCodeAPI, outputChannel: vscode.OutputChannel) {
     this.api = api
@@ -73,14 +74,21 @@ export class EventStreamManager {
             case 'message.part.updated':
               if (event.properties?.part) {
                 this.outputChannel.appendLine(`🔄 Message part updated: ${event.properties.part.messageID} - ${event.properties.part.type}`)
-                onMessageUpdate(event.properties.part.messageID, event.properties.part)
+                // Include role information from our mapping
+                const role = this.messageRoles.get(event.properties.part.messageID) || 'unknown'
+                const partWithRole = {
+                  ...event.properties.part,
+                  role: role
+                }
+                onMessageUpdate(event.properties.part.messageID, partWithRole)
               }
               break
               
             case 'message.updated':
               if (event.properties?.info) {
                 this.outputChannel.appendLine(`🔄 Message updated: ${event.properties.info.id} - Role: ${event.properties.info.role}`)
-                // Handle message updates if needed
+                // Store role information for this message ID
+                this.messageRoles.set(event.properties.info.id, event.properties.info.role)
               }
               break
               

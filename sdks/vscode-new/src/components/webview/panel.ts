@@ -46,6 +46,12 @@ export class OpenCodePanel {
     // Set webview panel reference in app for streaming updates
     this.outputChannel.appendLine('🔗 Setting webview panel reference in app')
     this.app.setWebviewPanel(this)
+    
+    // Initialize UI with current state (async)
+    this.outputChannel.appendLine('🔄 Initializing UI with current state')
+    this.updateUI().catch(error => {
+      this.outputChannel.appendLine(`❌ Failed to initialize UI: ${error.message}`)
+    })
   }
 
   /**
@@ -72,8 +78,14 @@ export class OpenCodePanel {
         case 'getModels':
           await this.handleGetModels()
           break
+        case 'getSessions':
+          await this.handleGetSessions()
+          break
         case 'switchModel':
           await this.handleSwitchModel(message.providerId, message.modelId)
+          break
+        case 'debug':
+          this.outputChannel.appendLine(`🐛 [Frontend Debug] ${message.message}`)
           break
         default:
           this.outputChannel.appendLine(`⚠️ Unknown message type: ${message.type}`)
@@ -242,6 +254,26 @@ export class OpenCodePanel {
   }
 
   /**
+   * Handle get sessions request
+   */
+  private async handleGetSessions(): Promise<void> {
+    try {
+      const sessions = this.app.getSessions()
+      
+      this.sendMessageToWebview({
+        type: 'sessionsUpdate',
+        sessions: sessions
+      })
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to get sessions: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        message: `Failed to load sessions: ${error.message}`
+      })
+    }
+  }
+
+  /**
    * Handle model switch request
    */
   private async handleSwitchModel(providerId: string, modelId: string): Promise<void> {
@@ -275,14 +307,16 @@ export class OpenCodePanel {
   /**
    * Send streaming update to webview
    */
-  sendStreamingUpdate(messageId: string, content: string, partType: string): void {
+  sendStreamingUpdate(messageId: string, content: string, partType: string, role?: string): void {
     this.outputChannel.appendLine(`📡 Sending streaming update: ${partType} for message ${messageId}`)
     this.outputChannel.appendLine(`📝 Content: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`)
+    this.outputChannel.appendLine(`👤 Role: ${role || 'unknown'}`)
     this.sendMessageToWebview({
       type: 'streamingUpdate',
       messageId: messageId,
       content: content,
-      partType: partType
+      partType: partType,
+      role: role
     })
   }
 
@@ -438,17 +472,17 @@ export class OpenCodePanel {
             position: relative;
         }
         
-        .model-selector {
+        .model-selector, .session-selector {
             cursor: pointer;
             color: var(--vscode-textLink-foreground);
             text-decoration: underline;
         }
         
-        .model-selector:hover {
+        .model-selector:hover, .session-selector:hover {
             color: var(--vscode-textLink-activeForeground);
         }
         
-            .model-dropdown {
+            .model-dropdown, .session-dropdown {
                 position: absolute;
                 bottom: 100%;
                 left: 50%;
@@ -464,18 +498,35 @@ export class OpenCodePanel {
                 min-width: 200px;
             }
         
-        .model-option {
+        .model-option, .session-option {
             padding: 8px 12px;
             cursor: pointer;
             border-bottom: 1px solid var(--vscode-dropdown-border);
         }
         
-        .model-option:hover {
+        .model-option:hover, .session-option:hover {
             background-color: var(--vscode-list-hoverBackground);
         }
         
-        .model-option:last-child {
+        .model-option:last-child, .session-option:last-child {
             border-bottom: none;
+        }
+        
+        .session-separator {
+            height: 1px;
+            background-color: var(--vscode-dropdown-border);
+            margin: 4px 0;
+        }
+        
+        .session-type {
+            font-size: 0.8em;
+            color: var(--vscode-descriptionForeground);
+            margin-left: 8px;
+        }
+        
+        .new-session {
+            font-style: italic;
+            color: var(--vscode-textLink-foreground);
         }
         
         .model-provider {
@@ -513,7 +564,7 @@ export class OpenCodePanel {
             <span> | </span>
             <span>Model: <span id="currentModel" class="model-selector">Loading...</span></span>
             <span> | </span>
-            <span>Session: <span id="currentSession">Default</span></span>
+            <span>Session: <span id="currentSession" class="session-selector">Default</span></span>
         </div>
     </div>
 
@@ -528,6 +579,10 @@ export class OpenCodePanel {
         const currentModel = document.getElementById('currentModel');
         const currentMode = document.getElementById('currentMode');
         const currentSession = document.getElementById('currentSession');
+        
+        // Available sessions data
+        let availableSessions = [];
+        let currentSessionData = null;
 
         // Handle send button click
         sendButton.addEventListener('click', () => {
@@ -592,18 +647,36 @@ export class OpenCodePanel {
         // Model selection functionality
         let availableModels = [];
         let currentModelData = null;
+        let currentDropdownCloseHandler = null;
+        let currentSessionCloseHandler = null;
         
         // Handle model selector click
-        currentModel.addEventListener('click', () => {
-            showModelDropdown();
+        currentModel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Toggle dropdown - if already open, close it; if closed, open it
+            const existingDropdown = document.querySelector('.model-dropdown');
+            if (existingDropdown) {
+                closeModelDropdown();
+            } else {
+                showModelDropdown();
+            }
+        });
+        
+        // Handle session selector click
+        currentSession.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Toggle dropdown - if already open, close it; if closed, open it
+            const existingDropdown = document.querySelector('.session-dropdown');
+            if (existingDropdown) {
+                closeSessionDropdown();
+            } else {
+                showSessionDropdown();
+            }
         });
         
         function showModelDropdown() {
-            // Remove existing dropdown
-            const existingDropdown = document.querySelector('.model-dropdown');
-            if (existingDropdown) {
-                existingDropdown.remove();
-            }
+            // Remove existing dropdown and its event listener
+            closeModelDropdown();
             
             if (availableModels.length === 0) {
                 // Request models from extension
@@ -651,17 +724,26 @@ export class OpenCodePanel {
                 }
             });
             
-            // Position dropdown
+            // Position dropdown above the model selector
             const rect = currentModel.getBoundingClientRect();
             dropdown.style.position = 'fixed';
-            dropdown.style.top = (rect.bottom + 5) + 'px';
+            dropdown.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
             dropdown.style.left = rect.left + 'px';
             
             document.body.appendChild(dropdown);
             
+            // Create and store close handler
+            currentDropdownCloseHandler = (e) => {
+                // Don't close if clicking on the dropdown itself or the model selector
+                if (dropdown.contains(e.target) || currentModel.contains(e.target)) {
+                    return;
+                }
+                closeModelDropdown();
+            };
+            
             // Close dropdown when clicking outside
             setTimeout(() => {
-                document.addEventListener('click', closeDropdown);
+                document.addEventListener('click', currentDropdownCloseHandler);
             }, 0);
         }
         
@@ -675,7 +757,7 @@ export class OpenCodePanel {
             
             option.addEventListener('click', () => {
                 selectModel(model);
-                closeDropdown();
+                closeModelDropdown();
             });
             
             return option;
@@ -693,12 +775,148 @@ export class OpenCodePanel {
             });
         }
         
-        function closeDropdown() {
+        function showSessionDropdown() {
+            // Remove existing dropdown and its event listener
+            closeSessionDropdown();
+            
+            if (availableSessions.length === 0) {
+                // Request sessions from extension
+                vscode.postMessage({ type: 'getSessions' });
+                return;
+            }
+            
+            // Create dropdown
+            const dropdown = document.createElement('div');
+            dropdown.className = 'session-dropdown';
+            
+            // Add default session templates (like TUI)
+            const defaultSessions = [
+                { id: 'default', title: 'Getting Started with Claude Code', isDefault: true },
+                { id: 'init-cli', title: 'Initializing Claude Code CLI', isDefault: true },
+                { id: 'thread-title', title: 'Generating Thread Title', isDefault: true },
+                { id: 'project-kickoff', title: 'Brainstorming Project Kickoff', isDefault: true },
+                { id: 'cli-interaction', title: 'Exploring CLI Interaction', isDefault: true },
+                { id: 'discussing-cli', title: 'Discussing CLI Interaction', isDefault: true }
+            ];
+            
+            // Add default sessions
+            const defaultHeader = document.createElement('div');
+            defaultHeader.className = 'session-option';
+            defaultHeader.style.fontWeight = 'bold';
+            defaultHeader.textContent = 'Default Sessions';
+            dropdown.appendChild(defaultHeader);
+            
+            defaultSessions.forEach(session => {
+                const option = createSessionOption(session);
+                dropdown.appendChild(option);
+            });
+            
+            // Add separator
+            const separator = document.createElement('div');
+            separator.className = 'session-separator';
+            dropdown.appendChild(separator);
+            
+            // Add user sessions
+            if (availableSessions.length > 0) {
+                const userHeader = document.createElement('div');
+                userHeader.className = 'session-option';
+                userHeader.style.fontWeight = 'bold';
+                userHeader.textContent = 'Your Sessions';
+                dropdown.appendChild(userHeader);
+                
+                availableSessions.forEach(session => {
+                    const option = createSessionOption(session);
+                    dropdown.appendChild(option);
+                });
+            }
+            
+            // Add new session option
+            const newSessionOption = document.createElement('div');
+            newSessionOption.className = 'session-option new-session';
+            newSessionOption.innerHTML = '<span>+ New Session</span>';
+            newSessionOption.addEventListener('click', () => {
+                createNewSession();
+                closeSessionDropdown();
+            });
+            dropdown.appendChild(newSessionOption);
+            
+            // Position dropdown above the session selector
+            const rect = currentSession.getBoundingClientRect();
+            dropdown.style.position = 'fixed';
+            dropdown.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
+            dropdown.style.left = rect.left + 'px';
+            
+            document.body.appendChild(dropdown);
+            
+            // Create and store close handler
+            currentSessionCloseHandler = (e) => {
+                // Don't close if clicking on the dropdown itself or the session selector
+                if (dropdown.contains(e.target) || currentSession.contains(e.target)) {
+                    return;
+                }
+                closeSessionDropdown();
+            };
+            
+            // Close dropdown when clicking outside
+            setTimeout(() => {
+                document.addEventListener('click', currentSessionCloseHandler);
+            }, 0);
+        }
+        
+        function createSessionOption(session) {
+            const option = document.createElement('div');
+            option.className = 'session-option';
+            option.innerHTML = \`
+                <span>\${session.title}</span>
+                \${session.isDefault ? '<span class="session-type">Default</span>' : ''}
+            \`;
+            
+            option.addEventListener('click', () => {
+                selectSession(session);
+                closeSessionDropdown();
+            });
+            
+            return option;
+        }
+        
+        function selectSession(session) {
+            currentSessionData = session;
+            currentSession.textContent = session.title;
+            
+            // Send session switch request to extension
+            vscode.postMessage({
+                type: 'switchSession',
+                sessionId: session.id
+            });
+        }
+        
+        function createNewSession() {
+            // Send new session request to extension
+            vscode.postMessage({
+                type: 'createSession'
+            });
+        }
+        
+        function closeModelDropdown() {
             const dropdown = document.querySelector('.model-dropdown');
             if (dropdown) {
                 dropdown.remove();
             }
-            document.removeEventListener('click', closeDropdown);
+            if (currentDropdownCloseHandler) {
+                document.removeEventListener('click', currentDropdownCloseHandler);
+                currentDropdownCloseHandler = null;
+            }
+        }
+        
+        function closeSessionDropdown() {
+            const dropdown = document.querySelector('.session-dropdown');
+            if (dropdown) {
+                dropdown.remove();
+            }
+            if (currentSessionCloseHandler) {
+                document.removeEventListener('click', currentSessionCloseHandler);
+                currentSessionCloseHandler = null;
+            }
         }
 
         // Handle messages from extension
@@ -709,16 +927,30 @@ export class OpenCodePanel {
                 case 'messageSent':
                     // Message was sent, waiting for SSE response
                     status.textContent = 'Processing...';
+                    
+                    // Reset current streaming message to ensure clean state
+                    currentStreamingMessage = null;
 
-                    // Create AI "Generating..." message
+                    // Create AI "Generating..." message (like TUI)
                     const modelName = message.model || 'Unknown';
-                    const generatingText = modelName + ' is generating...';
-                    currentStreamingMessage = addStreamingMessage('assistant', generatingText, message.mode || 'plan');
+                    const mode = message.mode || 'plan';
+                    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const generatingText = \`Generating...\n\${mode.charAt(0).toUpperCase() + mode.slice(1)} \${modelName} (\${currentTime})\`;
+                    // Send debug info to backend
+                    vscode.postMessage({
+                        type: 'debug',
+                        message: 'Creating generating message: ' + generatingText
+                    });
+                    currentStreamingMessage = addStreamingMessage('assistant', generatingText, mode);
+                    vscode.postMessage({
+                        type: 'debug',
+                        message: 'Current streaming message created: ' + (currentStreamingMessage ? 'SUCCESS' : 'FAILED')
+                    });
                     break;
                     
                 case 'streamingUpdate':
                     // Handle streaming updates
-                    handleStreamingUpdate(message.messageId, message.content, message.partType);
+                    handleStreamingUpdate(message.messageId, message.content, message.partType, message.role);
                     break;
                     
                 case 'error':
@@ -732,11 +964,13 @@ export class OpenCodePanel {
                     // Update session info
                     const state = message.state;
                     currentMode.textContent = state.currentMode || 'Plan';
-                    currentSession.textContent = state.currentSession?.id || 'Default';
+                    currentSession.textContent = state.currentSession?.title || 'Default';
+                    currentSessionData = state.currentSession;
                     
                     // Update current model display
                     if (state.currentModel) {
                         currentModel.textContent = state.currentModel.name || 'Unknown';
+                        currentModelData = state.currentModel;
                     } else {
                         currentModel.textContent = 'Loading...';
                     }
@@ -745,6 +979,11 @@ export class OpenCodePanel {
                     if (state.availableModels && state.availableModels.length > 0) {
                         availableModels = state.availableModels;
                     }
+                    break;
+                    
+                case 'sessionsUpdate':
+                    // Update available sessions
+                    availableSessions = message.sessions || [];
                     break;
                     
                 case 'modelsLoaded':
@@ -766,14 +1005,41 @@ export class OpenCodePanel {
         // Handle streaming updates
         let currentStreamingMessage = null;
         
-        function handleStreamingUpdate(messageId, content, partType) {
+        function handleStreamingUpdate(messageId, content, partType, role) {
+            // Send debug info to backend
+            vscode.postMessage({
+                type: 'debug',
+                message: 'handleStreamingUpdate called: messageId=' + messageId + ', content="' + content + '", partType=' + partType + ', role=' + role + ', hasCurrentMessage=' + !!currentStreamingMessage
+            });
+            
             if (partType === 'text') {
                 if (!currentStreamingMessage) {
-                    // Create new streaming message if none exists
+                    // This shouldn't happen if messageSent was called first
+                    // But if it does, create a streaming message with the content
+                    vscode.postMessage({
+                        type: 'debug',
+                        message: 'WARNING: Received streaming update without messageSent event'
+                    });
                     currentStreamingMessage = addStreamingMessage('assistant', content, modeSelector.value);
                 } else {
-                    // Update existing streaming message (replace "Generating..." with actual content)
-                    updateStreamingMessage(currentStreamingMessage, content);
+                    // Check if this is a user message using role information
+                    const isUserMessage = role === 'user';
+                    
+                    if (isUserMessage) {
+                        // Skip user message streaming updates since we already display them immediately
+                        vscode.postMessage({
+                            type: 'debug',
+                            message: 'Skipping user message streaming update (already displayed)'
+                        });
+                        // Don't create another user message - we already show it immediately
+                    } else {
+                        // Update existing streaming message (replace "Generating..." with actual content)
+                        vscode.postMessage({
+                            type: 'debug',
+                            message: 'Updating existing streaming message with content: "' + content + '"'
+                        });
+                        updateStreamingMessage(currentStreamingMessage, content);
+                    }
                 }
             } else if (partType === 'step-finish') {
                 // Streaming complete
