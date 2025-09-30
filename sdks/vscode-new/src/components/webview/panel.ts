@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { OpenCodeApp } from '../../core/app-new'
+import { OpenCodeApp } from '../../core/app'
 import { Session } from '../../types/app'
 
 /**
@@ -173,7 +173,7 @@ export class OpenCodePanel {
   private async handleSwitchSession(sessionId: string): Promise<void> {
     try {
       this.outputChannel.appendLine(`🔄 Switching to session: ${sessionId}`)
-      this.app.switchToSession(sessionId)
+      await this.app.switchToSession(sessionId)
       
       this.sendMessageToWebview({
         type: 'sessionSwitched',
@@ -995,6 +995,16 @@ export class OpenCodePanel {
                     // Model was switched
                     currentModel.textContent = message.modelName || 'Unknown';
                     status.textContent = 'Model switched';
+                    setTimeout(() => {
+                        status.textContent = 'Ready';
+                    }, 2000);
+                    break;
+                    
+                case 'sessionSwitched':
+                    // Session was switched - clear chat and show welcome message
+                    chatContainer.innerHTML = '';
+                    addMessage('assistant', 'Hello! I\\'m OpenCode Assistant. How can I help you today?', 'plan');
+                    status.textContent = 'Session switched';
                     setTimeout(() => {
                         status.textContent = 'Ready';
                     }, 2000);

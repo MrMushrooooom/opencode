@@ -1,8 +1,8 @@
 import { OpenCodeAPI } from './api'
-import { SessionManager } from './session-new'
-import { MessageManager } from './message-new'
+import { SessionManager } from './session'
+import { MessageManager } from './message'
 import { ModelManager } from './model'
-import { ServerManager } from '../services/server-new'
+import { ServerManager } from '../services/server'
 import { EventStreamManager } from './stream'
 import { AppState, Session, PromptParams, PromptResponse } from '../types/app'
 import * as vscode from 'vscode'
@@ -162,13 +162,29 @@ export class OpenCodeApp {
   }
 
   /**
-   * Switch to a different session
+   * Switch to a specific session
    */
-  switchToSession(sessionId: string): void {
-    const session = this.sessionManager.getSessionById(sessionId)
-    if (session) {
+  async switchToSession(sessionId: string): Promise<void> {
+    try {
+      this.outputChannel.appendLine(`🔄 Switching to session: ${sessionId}`)
+      
+      // Load the session from server
+      const session = await this.sessionManager.loadSession(sessionId)
+      if (!session) {
+        throw new Error(`Session not found: ${sessionId}`)
+      }
+      
+      // Update current session
       this.state.currentSession = session
+      
+      // Load messages for the new session
+      const messages = await this.messageManager.getMessagesForSession(sessionId)
+      this.outputChannel.appendLine(`📋 Loaded ${messages.length} messages for session`)
+      
       this.outputChannel.appendLine(`✅ Switched to session: ${session.title}`)
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to switch session: ${error.message}`)
+      throw error
     }
   }
 

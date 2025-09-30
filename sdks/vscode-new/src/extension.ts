@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { OpenCodeApp } from './core/app-new'
+import { OpenCodeApp } from './core/app'
 import { OpenCodePanel } from './components/webview/panel'
 
 // Global variables
@@ -11,7 +11,7 @@ let openCodePanel: OpenCodePanel | null = null
  * Extension activation function
  */
 export function activate(context: vscode.ExtensionContext) {
-  console.log('OpenCode extension activated')
+  // Extension activated - logging handled by individual components
   
   // Create output channel
   outputChannel = vscode.window.createOutputChannel('OpenCode Assistant')
@@ -69,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
  * Extension deactivation function
  */
 export function deactivate() {
-  console.log('OpenCode extension deactivated')
+  // Extension deactivated - logging handled by individual components
   
   if (outputChannel) {
     outputChannel.appendLine('OpenCode extension deactivated')

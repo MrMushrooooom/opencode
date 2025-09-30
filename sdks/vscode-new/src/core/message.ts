@@ -240,4 +240,5 @@ export class MessageManager {
   getStreamingContent(messageId: string): string {
     return this.streamingMessages.get(messageId) || ''
   }
+
 }

@@ -94,6 +94,22 @@ export class OpenCodeAPI {
     }
   }
 
+  async getSessions(): Promise<any[]> {
+    if (!this.client) {
+      throw new Error('OpenCode API client not initialized')
+    }
+
+    try {
+      this.outputChannel.appendLine('📋 Getting sessions from server...')
+      const response = await this.client.session.list({})
+      this.outputChannel.appendLine(`✅ Retrieved ${response.data?.length || 0} sessions`)
+      return response.data || []
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to get sessions: ${error.message}`)
+      throw error
+    }
+  }
+
   async sendPrompt(sessionId: string, params: any): Promise<any> {
     if (!this.client) {
       throw new Error('OpenCode API client not initialized')
