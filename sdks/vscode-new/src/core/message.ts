@@ -53,22 +53,8 @@ export class MessageManager {
    */
   async sendMessage(params: PromptParams, currentModel?: any): Promise<PromptResponse> {
     try {
-      this.outputChannel.appendLine(`📤 MessageManager.sendMessage called`)
-      this.outputChannel.appendLine(`📝 Text: "${params.text}"`)
-      this.outputChannel.appendLine(`🎯 Mode: ${params.mode}`)
-      this.outputChannel.appendLine(`📋 Session ID: ${params.sessionId}`)
-
-      // Log model information
-      if (currentModel) {
-        this.outputChannel.appendLine(`🤖 Using model: ${currentModel.name} (${currentModel.providerId})`)
-        this.outputChannel.appendLine(`🆔 Model ID: ${currentModel.id}`)
-      } else {
-        this.outputChannel.appendLine(`⚠️ No model specified, using default`)
-      }
-      
       // Generate message ID (following OpenCode format)
       const messageId = this.generateMessageId()
-      this.outputChannel.appendLine(`🆔 Generated message ID: ${messageId}`)
 
       // Prepare prompt parameters (following TUI's SessionPromptParams structure)
       const promptParams = {
@@ -86,16 +72,9 @@ export class MessageManager {
         ]
       }
 
-      this.outputChannel.appendLine(`📋 Prepared prompt params: ${JSON.stringify(promptParams, null, 2)}`)
-
-      this.outputChannel.appendLine(`📤 Sending request data: ${JSON.stringify(promptParams, null, 2)}`)
-
       // Send prompt to OpenCode (following TUI approach)
       // The actual response will come through SSE, not from this call
-      this.outputChannel.appendLine(`📨 Calling api.sendPrompt for session: ${params.sessionId}`)
       await this.api.sendPrompt(params.sessionId!, promptParams)
-
-      this.outputChannel.appendLine(`✅ Message sent successfully - waiting for SSE response`)
 
       // Return empty response - the actual content will come through SSE
       const promptResponse: PromptResponse = {
@@ -119,10 +98,7 @@ export class MessageManager {
    */
   private parseResponse(response: any): string {
     try {
-      this.outputChannel.appendLine(`🔍 Parsing response: ${JSON.stringify(response)}`)
-      
       if (!response || !response.parts) {
-        this.outputChannel.appendLine(`⚠️ No parts found in response`)
         return ''
       }
 
@@ -131,17 +107,14 @@ export class MessageManager {
       const content = textParts.map((part: any) => part.text).join('\n')
       
       if (content.trim()) {
-        this.outputChannel.appendLine(`✅ Parsed content: ${content.substring(0, 100)}...`)
         return content
       } else {
         // If no text content, but steps are completed, provide a default response
         const stepStartParts = response.parts.filter((part: any) => part.type === 'step-start')
         const stepFinishParts = response.parts.filter((part: any) => part.type === 'step-finish')
         if (stepStartParts.length > 0 && stepFinishParts.length > 0) {
-          this.outputChannel.appendLine(`✅ No text content but steps completed - providing default response`)
           return 'Yes, I can help you modify code. What specific changes would you like me to make?'
         }
-        this.outputChannel.appendLine(`⚠️ No text content found in response parts`)
         return ''
       }
     } catch (error: any) {
@@ -197,33 +170,21 @@ export class MessageManager {
    * Following TUI approach: server sends complete accumulated text, not incremental updates
    */
   handleStreamingUpdate(messageId: string, part: any): string {
-    this.outputChannel.appendLine(`🔄 MessageManager.handleStreamingUpdate called`)
-    this.outputChannel.appendLine(`📝 Message ID: ${messageId}`)
-    this.outputChannel.appendLine(`🔄 Part type: ${part.type}`)
-    this.outputChannel.appendLine(`📄 Part data: ${JSON.stringify(part, null, 2)}`)
-
     if (part.type === 'text') {
       // Server sends complete accumulated text, not incremental updates
       // Following TUI approach: replace the content, don't accumulate
       const completeContent = part.text || ''
       this.streamingMessages.set(messageId, completeContent)
-
-      this.outputChannel.appendLine(`📝 Updated streaming content: ${completeContent.substring(0, 100)}${completeContent.length > 100 ? '...' : ''}`)
-      this.outputChannel.appendLine(`📊 Current streaming messages count: ${this.streamingMessages.size}`)
       return completeContent
     } else if (part.type === 'step-finish') {
       // Message is complete, remove from streaming
       const finalContent = this.streamingMessages.get(messageId) || ''
       this.streamingMessages.delete(messageId)
-
-      this.outputChannel.appendLine(`✅ Streaming complete for message ${messageId}`)
-      this.outputChannel.appendLine(`📝 Final content: ${finalContent.substring(0, 100)}${finalContent.length > 100 ? '...' : ''}`)
-      this.outputChannel.appendLine(`📊 Remaining streaming messages count: ${this.streamingMessages.size}`)
+      this.outputChannel.appendLine(`✅ Streaming complete: ${finalContent.substring(0, 50)}${finalContent.length > 50 ? '...' : ''}`)
       return finalContent
     }
 
     const currentContent = this.streamingMessages.get(messageId) || ''
-    this.outputChannel.appendLine(`📝 Returning current content: ${currentContent.substring(0, 100)}${currentContent.length > 100 ? '...' : ''}`)
     return currentContent
   }
 

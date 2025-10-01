@@ -28,11 +28,13 @@ export function activate(context: vscode.ExtensionContext) {
         await openCodeApp.initialize()
       }
 
-      // Create or show panel
-      if (!openCodePanel) {
-        openCodePanel = new OpenCodePanel(openCodeApp, outputChannel)
-      } else {
+      // Check if panel exists and is still valid
+      if (openCodePanel && !openCodePanel.isDisposed()) {
+        outputChannel.appendLine('👁️ Revealing existing OpenCode panel')
         openCodePanel.show()
+      } else {
+        outputChannel.appendLine('🆕 Creating new OpenCode panel')
+        openCodePanel = new OpenCodePanel(openCodeApp, outputChannel)
       }
 
       outputChannel.appendLine('✅ OpenCode panel opened successfully')

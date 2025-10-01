@@ -66,14 +66,11 @@ export class EventStreamManager {
           break
         }
 
-        this.outputChannel.appendLine(`📥 Received event: ${JSON.stringify(event)}`)
-        
         // Handle different event types based on actual server event format
         if (event.type) {
           switch (event.type) {
             case 'message.part.updated':
               if (event.properties?.part) {
-                this.outputChannel.appendLine(`🔄 Message part updated: ${event.properties.part.messageID} - ${event.properties.part.type}`)
                 // Include role information from our mapping
                 const role = this.messageRoles.get(event.properties.part.messageID) || 'unknown'
                 const partWithRole = {
@@ -86,7 +83,6 @@ export class EventStreamManager {
               
             case 'message.updated':
               if (event.properties?.info) {
-                this.outputChannel.appendLine(`🔄 Message updated: ${event.properties.info.id} - Role: ${event.properties.info.role}`)
                 // Store role information for this message ID
                 this.messageRoles.set(event.properties.info.id, event.properties.info.role)
               }
@@ -94,7 +90,6 @@ export class EventStreamManager {
               
             case 'session.updated':
               if (event.properties?.info) {
-                this.outputChannel.appendLine(`🔄 Session updated: ${event.properties.info.id}`)
                 onSessionUpdate(event.properties.info)
               }
               break

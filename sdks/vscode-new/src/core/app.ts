@@ -54,7 +54,7 @@ export class OpenCodeApp {
    */
   async initialize(): Promise<void> {
     try {
-      this.outputChannel.appendLine('🚀 Initializing OpenCode application...')
+      // this.outputChannel.appendLine('🚀 Initializing OpenCode application...') // Removed
 
       // Start OpenCode server
       const serverURL = await this.serverManager.startServer()
@@ -78,8 +78,8 @@ export class OpenCodeApp {
       
       // If no models loaded, log warning but continue
       if (!this.state.currentModel) {
-        this.outputChannel.appendLine(`⚠️ No models available - plugin will work in limited mode`)
-        this.outputChannel.appendLine(`💡 Models may load later from cache or when network is available`)
+        // this.outputChannel.appendLine(`⚠️ No models available - plugin will work in limited mode`) // Removed
+        // this.outputChannel.appendLine(`💡 Models may load later from cache or when network is available`) // Removed
       }
 
       // Load sessions
@@ -100,11 +100,11 @@ export class OpenCodeApp {
         },
         (session: any) => {
           // Handle session updates
-          this.outputChannel.appendLine(`📝 Session updated: ${session.id}`)
+          // this.outputChannel.appendLine(`📝 Session updated: ${session.id}`) // Removed
         }
       )
 
-      this.outputChannel.appendLine('✅ OpenCode application initialized successfully')
+      // this.outputChannel.appendLine('✅ OpenCode application initialized successfully') // Removed
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to initialize OpenCode application: ${error.message}`)
       throw error
@@ -115,28 +115,30 @@ export class OpenCodeApp {
    * Send a message
    */
   async sendMessage(text: string, mode: 'plan' | 'build' = 'plan'): Promise<PromptResponse> {
-    this.outputChannel.appendLine(`🚀 App.sendMessage called with: "${text}" mode: ${mode}`)
+    // this.outputChannel.appendLine(`🚀 App.sendMessage called with: "${text}" mode: ${mode}`) // Removed
 
     if (!this.state.currentSession) {
-      this.outputChannel.appendLine('❌ No active session')
+      // this.outputChannel.appendLine('❌ No active session') // Removed
       throw new Error('No active session')
     }
 
     if (!this.state.currentModel) {
-      this.outputChannel.appendLine('❌ No model available')
+      // this.outputChannel.appendLine('❌ No model available') // Removed
       throw new Error('No model available - please wait for models to load or check your network connection')
     }
 
-    this.outputChannel.appendLine(`📋 Using session: ${this.state.currentSession.id}`)
-    this.outputChannel.appendLine(`🤖 Using model: ${this.state.currentModel.name} (${this.state.currentModel.providerId})`)
+    // this.outputChannel.appendLine(`📋 Using session: ${this.state.currentSession.id}`) // Removed
+    // this.outputChannel.appendLine(`🤖 Using model: ${this.state.currentModel.name} (${this.state.currentModel.providerId})`) // Removed
 
+    // Following TUI/OpenCode approach: always allow message sending
+    // The server will handle queuing if needed
     const params: PromptParams = {
       text,
       mode,
       sessionId: this.state.currentSession.id
     }
 
-    this.outputChannel.appendLine(`📤 Calling messageManager.sendMessage`)
+    // this.outputChannel.appendLine(`📤 Calling messageManager.sendMessage`) // Removed
     return await this.messageManager.sendMessage(params, this.state.currentModel)
   }
 
@@ -149,6 +151,13 @@ export class OpenCodeApp {
     }
 
     return await this.messageManager.getMessagesForSession(this.state.currentSession.id)
+  }
+
+  /**
+   * Get message manager instance
+   */
+  getMessageManager(): MessageManager {
+    return this.messageManager
   }
 
   /**
@@ -166,7 +175,7 @@ export class OpenCodeApp {
    */
   async switchToSession(sessionId: string): Promise<void> {
     try {
-      this.outputChannel.appendLine(`🔄 Switching to session: ${sessionId}`)
+      // this.outputChannel.appendLine(`🔄 Switching to session: ${sessionId}`) // Removed
       
       // Load the session from server
       const session = await this.sessionManager.loadSession(sessionId)
@@ -179,9 +188,9 @@ export class OpenCodeApp {
       
       // Load messages for the new session
       const messages = await this.messageManager.getMessagesForSession(sessionId)
-      this.outputChannel.appendLine(`📋 Loaded ${messages.length} messages for session`)
+      // this.outputChannel.appendLine(`📋 Loaded ${messages.length} messages for session`) // Removed
       
-      this.outputChannel.appendLine(`✅ Switched to session: ${session.title}`)
+      // this.outputChannel.appendLine(`✅ Switched to session: ${session.title}`) // Removed
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to switch session: ${error.message}`)
       throw error
@@ -245,9 +254,13 @@ export class OpenCodeApp {
     }))
     
     const currentModel = this.state.currentModel
-    this.outputChannel.appendLine(`🔄 Model switched successfully!`)
-    this.outputChannel.appendLine(`📋 New model: ${currentModel?.name || 'Unknown'} (${providerId})`)
-    this.outputChannel.appendLine(`🆔 Model ID: ${modelId}`)
+    // this.outputChannel.appendLine(`🔄 Model switched successfully!`) // Removed
+    // this.outputChannel.appendLine(`📋 New model: ${currentModel?.name || 'Unknown'} (${providerId})`) // Removed
+    // this.outputChannel.appendLine(`🆔 Model ID: ${modelId}`) // Removed
+    
+    // Following TUI approach: don't restart SSE, just update state
+    // The SSE connection remains active and continues processing events
+    // this.outputChannel.appendLine(`✅ Model state updated - SSE continues running`) // Removed
   }
 
   getCurrentModel(): any {
@@ -271,10 +284,10 @@ export class OpenCodeApp {
    */
   async cleanup(): Promise<void> {
     try {
-      this.outputChannel.appendLine('🧹 Cleaning up OpenCode application...')
+      // this.outputChannel.appendLine('🧹 Cleaning up OpenCode application...') // Removed
       await this.serverManager.stopServer()
       this.state.isConnected = false
-      this.outputChannel.appendLine('✅ OpenCode application cleaned up')
+      // this.outputChannel.appendLine('✅ OpenCode application cleaned up') // Removed
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to cleanup OpenCode application: ${error.message}`)
     }
@@ -288,20 +301,39 @@ export class OpenCodeApp {
   }
 
   /**
+   * Clear webview panel reference
+   */
+  clearWebviewPanel(): void {
+    this.webviewPanel = null
+  }
+
+  /**
+   * Dispose of the application
+   */
+  async dispose(): Promise<void> {
+    try {
+      // this.outputChannel.appendLine('🧹 Disposing OpenCode application') // Removed
+      
+      // Clear webview panel reference
+      this.clearWebviewPanel()
+      
+      // Stop server if running
+      if (this.serverManager) {
+        await this.serverManager.stopServer()
+      }
+      
+      // this.outputChannel.appendLine('✅ OpenCode application disposed successfully') // Removed
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to dispose OpenCode application: ${error.message}`)
+    }
+  }
+
+  /**
    * Send streaming update to webview
    */
   private sendStreamingUpdateToWebview(messageId: string, content: string, partType: string, role?: string): void {
-    this.outputChannel.appendLine(`📨 App.sendStreamingUpdateToWebview called`)
-    this.outputChannel.appendLine(`📝 Message ID: ${messageId}`)
-    this.outputChannel.appendLine(`🔄 Part type: ${partType}`)
-    this.outputChannel.appendLine(`📄 Content length: ${content.length}`)
-    this.outputChannel.appendLine(`👤 Role: ${role || 'unknown'}`)
-
     if (this.webviewPanel) {
-      this.outputChannel.appendLine(`📱 Sending streaming update to webview`)
       this.webviewPanel.sendStreamingUpdate(messageId, content, partType, role)
-    } else {
-      this.outputChannel.appendLine(`⚠️ No webview panel available for streaming update`)
     }
   }
 }

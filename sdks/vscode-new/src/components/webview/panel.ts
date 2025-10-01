@@ -10,6 +10,7 @@ export class OpenCodePanel {
   private app: OpenCodeApp
   private webview: vscode.WebviewPanel
   private outputChannel: vscode.OutputChannel
+  private disposed: boolean = false
 
   constructor(app: OpenCodeApp, outputChannel: vscode.OutputChannel) {
     this.app = app
@@ -27,11 +28,9 @@ export class OpenCodePanel {
     )
 
     // Set initial HTML
-    this.outputChannel.appendLine('📄 Setting initial HTML for webview')
     this.webview.webview.html = this.getHtmlForWebview()
 
     // Handle messages from webview
-    this.outputChannel.appendLine('🔧 Setting up message handler for webview')
     this.webview.webview.onDidReceiveMessage(
       (message) => this.handleMessage(message),
       undefined,
@@ -40,15 +39,15 @@ export class OpenCodePanel {
 
     // Handle panel disposal
     this.webview.onDidDispose(() => {
-      this.outputChannel.appendLine('📤 OpenCode panel disposed')
+      this.disposed = true
+      // Clear the webview panel reference in app
+      this.app.clearWebviewPanel()
     })
 
     // Set webview panel reference in app for streaming updates
-    this.outputChannel.appendLine('🔗 Setting webview panel reference in app')
     this.app.setWebviewPanel(this)
     
     // Initialize UI with current state (async)
-    this.outputChannel.appendLine('🔄 Initializing UI with current state')
     this.updateUI().catch(error => {
       this.outputChannel.appendLine(`❌ Failed to initialize UI: ${error.message}`)
     })
@@ -59,9 +58,6 @@ export class OpenCodePanel {
    */
   private async handleMessage(message: any): Promise<void> {
     try {
-      this.outputChannel.appendLine(`📥 Received message: ${JSON.stringify(message)}`)
-      this.outputChannel.appendLine(`🔍 Message type: ${message.type}`)
-
       switch (message.type) {
         case 'sendMessage':
           await this.handleSendMessage(message.text, message.mode)
@@ -85,7 +81,10 @@ export class OpenCodePanel {
           await this.handleSwitchModel(message.providerId, message.modelId)
           break
         case 'debug':
-          this.outputChannel.appendLine(`🐛 [Frontend Debug] ${message.message}`)
+          // Only log errors and important debug info
+          if (message.message.includes('ERROR') || message.message.includes('WARNING')) {
+            this.outputChannel.appendLine(`🐛 [Frontend Debug] ${message.message}`)
+          }
           break
         default:
           this.outputChannel.appendLine(`⚠️ Unknown message type: ${message.type}`)
@@ -105,15 +104,10 @@ export class OpenCodePanel {
    */
   private async handleSendMessage(text: string, mode: 'plan' | 'build' = 'plan'): Promise<void> {
     try {
-      this.outputChannel.appendLine(`📤 Frontend requested to send message: "${text}" with mode: ${mode}`)
-
       // Get current state for generating message
       const state = this.app.getState()
       const currentModel = state.currentModel
       const timestamp = new Date().toLocaleTimeString()
-
-      this.outputChannel.appendLine(`🤖 Current model: ${currentModel?.name || 'Unknown'} (${currentModel?.providerId || 'Unknown'})`)
-      this.outputChannel.appendLine(`⏰ Timestamp: ${timestamp}`)
 
       // Show loading state with mode, model, and timestamp
       this.sendMessageToWebview({
@@ -124,13 +118,9 @@ export class OpenCodePanel {
         timestamp: timestamp
       })
 
-      this.outputChannel.appendLine(`📨 Sent messageSent event to webview`)
-
       // Send message to OpenCode (following TUI approach)
       // The actual response will come through SSE, not from this call
       await this.app.sendMessage(text, mode)
-
-      this.outputChannel.appendLine(`✅ Message sent successfully - waiting for SSE response`)
 
       // Update UI with current state
       await this.updateUI()
@@ -149,7 +139,6 @@ export class OpenCodePanel {
    */
   private async handleCreateSession(): Promise<void> {
     try {
-      this.outputChannel.appendLine('📝 Creating new session...')
       const session = await this.app.createNewSession()
       
       this.sendMessageToWebview({
@@ -172,7 +161,6 @@ export class OpenCodePanel {
    */
   private async handleSwitchSession(sessionId: string): Promise<void> {
     try {
-      this.outputChannel.appendLine(`🔄 Switching to session: ${sessionId}`)
       await this.app.switchToSession(sessionId)
       
       this.sendMessageToWebview({
@@ -214,10 +202,20 @@ export class OpenCodePanel {
   private async updateUI(): Promise<void> {
     try {
       const state = this.app.getState()
+      
       this.sendMessageToWebview({
         type: 'stateUpdate',
         state: state
       })
+      
+      // If we have a current session, also load its messages
+      if (state.currentSession) {
+        const messages = await this.app.getMessageManager().getMessagesForSession(state.currentSession.id)
+        this.sendMessageToWebview({
+          type: 'messagesLoaded',
+          messages: messages
+        })
+      }
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to update UI: ${error.message}`)
     }
@@ -308,9 +306,6 @@ export class OpenCodePanel {
    * Send streaming update to webview
    */
   sendStreamingUpdate(messageId: string, content: string, partType: string, role?: string): void {
-    this.outputChannel.appendLine(`📡 Sending streaming update: ${partType} for message ${messageId}`)
-    this.outputChannel.appendLine(`📝 Content: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`)
-    this.outputChannel.appendLine(`👤 Role: ${role || 'unknown'}`)
     this.sendMessageToWebview({
       type: 'streamingUpdate',
       messageId: messageId,
@@ -640,8 +635,8 @@ export class OpenCodePanel {
             messageDiv.appendChild(contentDiv);
             chatArea.appendChild(messageDiv);
             
-            // Scroll to bottom
-            chatArea.scrollTop = chatArea.scrollHeight;
+            // Smart scroll - only scroll if user is at bottom
+            smartScrollToBottom();
         }
 
         // Model selection functionality
@@ -830,7 +825,7 @@ export class OpenCodePanel {
                 });
             }
             
-            // Add new session option
+            // Add new session option at the top
             const newSessionOption = document.createElement('div');
             newSessionOption.className = 'session-option new-session';
             newSessionOption.innerHTML = '<span>+ New Session</span>';
@@ -838,7 +833,7 @@ export class OpenCodePanel {
                 createNewSession();
                 closeSessionDropdown();
             });
-            dropdown.appendChild(newSessionOption);
+            dropdown.insertBefore(newSessionOption, dropdown.firstChild);
             
             // Position dropdown above the session selector
             const rect = currentSession.getBoundingClientRect();
@@ -919,33 +914,45 @@ export class OpenCodePanel {
             }
         }
 
+        // State variables for message handling
+        let currentStreamingMessage = null;
+        let currentMessageId = null;
+        const processedMessageIds = new Set();
+        let lastAssistantMessageId = null;
+        let isSessionLocked = false; // Track if session is currently processing
+        
         // Handle messages from extension
         window.addEventListener('message', (event) => {
             const message = event.data;
+            // Only log errors and warnings
+            if (message.type === 'error') {
+                vscode.postMessage({
+                    type: 'debug',
+                    message: 'ERROR: ' + message.message
+                });
+            }
 
             switch (message.type) {
                 case 'messageSent':
                     // Message was sent, waiting for SSE response
                     status.textContent = 'Processing...';
                     
-                    // Reset current streaming message to ensure clean state
-                    currentStreamingMessage = null;
-
-                    // Create AI "Generating..." message (like TUI)
-                    const modelName = message.model || 'Unknown';
-                    const mode = message.mode || 'plan';
-                    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    const generatingText = \`Generating...\n\${mode.charAt(0).toUpperCase() + mode.slice(1)} \${modelName} (\${currentTime})\`;
-                    // Send debug info to backend
-                    vscode.postMessage({
-                        type: 'debug',
-                        message: 'Creating generating message: ' + generatingText
-                    });
-                    currentStreamingMessage = addStreamingMessage('assistant', generatingText, mode);
-                    vscode.postMessage({
-                        type: 'debug',
-                        message: 'Current streaming message created: ' + (currentStreamingMessage ? 'SUCCESS' : 'FAILED')
-                    });
+                    // Following TUI approach: only show "Generating..." if session is not locked
+                    // If session is locked, the message will be queued on the server side
+                    if (!isSessionLocked) {
+                        // First message - session is not locked, show "Generating..."
+                        const modelName = message.model || 'Unknown';
+                        const mode = message.mode || 'plan';
+                        const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const generatingText = \`Generating...\n\${mode.charAt(0).toUpperCase() + mode.slice(1)} \${modelName} (\${currentTime})\`;
+                        
+                        currentStreamingMessage = addStreamingMessage('assistant', generatingText, mode);
+                        currentMessageId = message.messageId;
+                        isSessionLocked = true; // Mark session as locked
+                    } else {
+                        // Session is locked - message will be queued, show "QUEUED" status
+                        addQueuedStatus();
+                    }
                     break;
                     
                 case 'streamingUpdate':
@@ -1000,64 +1007,140 @@ export class OpenCodePanel {
                     }, 2000);
                     break;
                     
+                case 'sessionCreated':
+                    // New session was created - refresh sessions list
+                    // Request updated sessions list
+                    vscode.postMessage({ type: 'getSessions' });
+                    status.textContent = 'New session created';
+                    setTimeout(() => {
+                        status.textContent = 'Ready';
+                    }, 1000);
+                    break;
+                    
                 case 'sessionSwitched':
                     // Session was switched - clear chat and show welcome message
-                    chatContainer.innerHTML = '';
+                    chatArea.innerHTML = '';
                     addMessage('assistant', 'Hello! I\\'m OpenCode Assistant. How can I help you today?', 'plan');
                     status.textContent = 'Session switched';
                     setTimeout(() => {
                         status.textContent = 'Ready';
                     }, 2000);
                     break;
+                    
+                case 'messagesLoaded':
+                    // Load messages for the current session
+                    chatArea.innerHTML = '';
+                    const messages = message.messages;
+                    if (messages && messages.length > 0) {
+                        // Display existing messages and find last assistant message ID
+                        messages.forEach(msg => {
+                            if (msg.role === 'user') {
+                                addMessage('user', msg.content || msg.text || '', modeSelector.value);
+                            } else if (msg.role === 'assistant') {
+                                addMessage('assistant', msg.content || msg.text || '', modeSelector.value);
+                                // Update lastAssistantMessageId for queue detection
+                                if (msg.id) {
+                                    lastAssistantMessageId = msg.id;
+                                }
+                            }
+                        });
+                    } else {
+                        // No messages, show welcome message
+                        addMessage('assistant', 'Hello! I\\'m OpenCode Assistant. How can I help you today?', 'plan');
+                    }
+                    // Reset session lock state when loading messages
+                    isSessionLocked = false;
+                    status.textContent = 'Messages loaded';
+                    setTimeout(() => {
+                        status.textContent = 'Ready';
+                    }, 1000);
+                    break;
             }
         });
 
-        // Handle streaming updates
-        let currentStreamingMessage = null;
+        // Smart scrolling state - following TUI approach
+        let isAtBottom = true; // Track if user is at bottom of chat
+        let userScrolled = false; // Track if user manually scrolled
+        
+        // Track scroll position to detect user scrolling
+        chatArea.addEventListener('scroll', () => {
+            const isCurrentlyAtBottom = chatArea.scrollTop + chatArea.clientHeight >= chatArea.scrollHeight - 5;
+            isAtBottom = isCurrentlyAtBottom;
+            userScrolled = !isCurrentlyAtBottom;
+        });
+        
+        // Smart scroll function - only scroll if user is at bottom
+        function smartScrollToBottom() {
+            if (isAtBottom) {
+                chatArea.scrollTop = chatArea.scrollHeight;
+            }
+        }
         
         function handleStreamingUpdate(messageId, content, partType, role) {
-            // Send debug info to backend
-            vscode.postMessage({
-                type: 'debug',
-                message: 'handleStreamingUpdate called: messageId=' + messageId + ', content="' + content + '", partType=' + partType + ', role=' + role + ', hasCurrentMessage=' + !!currentStreamingMessage
-            });
+            // Following TUI approach: ignore user message updates (they're already displayed)
+            if (role === 'user') {
+                return;
+            }
             
             if (partType === 'text') {
-                if (!currentStreamingMessage) {
-                    // This shouldn't happen if messageSent was called first
-                    // But if it does, create a streaming message with the content
-                    vscode.postMessage({
-                        type: 'debug',
-                        message: 'WARNING: Received streaming update without messageSent event'
-                    });
-                    currentStreamingMessage = addStreamingMessage('assistant', content, modeSelector.value);
-                } else {
-                    // Check if this is a user message using role information
-                    const isUserMessage = role === 'user';
+                // Following TUI approach: update the existing "Generating..." message with actual content
+                if (currentStreamingMessage) {
+                    // Replace "Generating..." content with actual LLM response
+                    updateStreamingMessage(currentStreamingMessage, content);
+                    currentMessageId = messageId; // Update to real message ID from server
                     
-                    if (isUserMessage) {
-                        // Skip user message streaming updates since we already display them immediately
-                        vscode.postMessage({
-                            type: 'debug',
-                            message: 'Skipping user message streaming update (already displayed)'
-                        });
-                        // Don't create another user message - we already show it immediately
-                    } else {
-                        // Update existing streaming message (replace "Generating..." with actual content)
-                        vscode.postMessage({
-                            type: 'debug',
-                            message: 'Updating existing streaming message with content: "' + content + '"'
-                        });
-                        updateStreamingMessage(currentStreamingMessage, content);
+                    // Remove streaming indicator only when we have actual content (not "Generating...")
+                    if (content && !content.includes('Generating...')) {
+                        finalizeStreamingMessage(currentStreamingMessage);
                     }
+                } else {
+                    // This shouldn't happen with our current logic, but handle it gracefully
+                    currentStreamingMessage = addStreamingMessage('assistant', content, modeSelector.value);
+                    currentMessageId = messageId;
                 }
             } else if (partType === 'step-finish') {
-                // Streaming complete
+                // Streaming complete - Following TUI approach
+                // The server processes all queued messages and returns a single unified response
                 if (currentStreamingMessage) {
-                    finalizeStreamingMessage(currentStreamingMessage);
-                    currentStreamingMessage = null;
-                    sendButton.disabled = false;
-                    status.textContent = 'Ready';
+                    // Only finalize if we haven't already done so
+                    if (currentStreamingMessage.classList.contains('streaming')) {
+                        finalizeStreamingMessage(currentStreamingMessage);
+                    }
+                    
+                    // Update lastAssistantMessageId to the completed message
+                    lastAssistantMessageId = messageId;
+                    
+                    // Check if there are queued messages that need processing BEFORE clearing them
+                    const queuedTags = document.querySelectorAll('.queued-tag');
+                    const hasQueuedMessages = queuedTags.length > 0;
+                    
+                    // Clear all QUEUED tags since they all get the same response
+                    queuedTags.forEach(tag => tag.remove());
+                    
+                    if (hasQueuedMessages) {
+                        // Following TUI approach: create new "Generating..." bubble for queued messages
+                        const modelName = 'Unknown'; // We don't have model info here, use default
+                        const mode = modeSelector.value || 'plan';
+                        const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const generatingText = \`Generating...\n\${mode.charAt(0).toUpperCase() + mode.slice(1)} \${modelName} (\${currentTime})\`;
+                        
+                        currentStreamingMessage = addStreamingMessage('assistant', generatingText, mode);
+                        currentMessageId = 'generating_' + Date.now();
+                        isSessionLocked = true; // Keep session locked for queued processing
+                    } else {
+                        // No queued messages - unlock session
+                        isSessionLocked = false;
+                        sendButton.disabled = false;
+                        status.textContent = 'Ready';
+                    }
+                    
+                    processedMessageIds.add(messageId);
+                    
+                    // Only reset currentStreamingMessage if there are no queued messages
+                    if (!hasQueuedMessages) {
+                        currentStreamingMessage = null;
+                        currentMessageId = null;
+                    }
                 }
             }
         }
@@ -1081,18 +1164,49 @@ export class OpenCodePanel {
             messageDiv.appendChild(contentDiv);
             chatArea.appendChild(messageDiv);
 
-            // Scroll to bottom
-            chatArea.scrollTop = chatArea.scrollHeight;
+            // Smart scroll - only scroll if user is at bottom
+            smartScrollToBottom();
 
             return messageDiv;
+        }
+        
+        function addQueuedStatus() {
+            // Add QUEUED status indicator inside the last user message bubble
+            const userMessages = chatArea.querySelectorAll('.message.user');
+            if (userMessages.length > 0) {
+                const lastUserMessage = userMessages[userMessages.length - 1];
+                const contentDiv = lastUserMessage.querySelector('.message-content');
+                if (contentDiv) {
+                    // Create QUEUED tag
+                    const queuedTag = document.createElement('div');
+                    queuedTag.className = 'queued-tag';
+                    queuedTag.style.cssText = \`
+                        margin: 4px 0 8px 0;
+                        padding: 2px 6px;
+                        font-size: 10px;
+                        font-weight: bold;
+                        color: white;
+                        background-color: #ff8c00;
+                        text-align: center;
+                        border-radius: 3px;
+                        opacity: 0.9;
+                        display: inline-block;
+                    \`;
+                    queuedTag.textContent = 'QUEUED';
+                    
+                    // Insert QUEUED tag at the top of the message content
+                    contentDiv.insertBefore(queuedTag, contentDiv.firstChild);
+                }
+            }
+            smartScrollToBottom();
         }
         
         function updateStreamingMessage(messageDiv, content) {
             const contentDiv = messageDiv.querySelector('.message-content');
             if (contentDiv) {
                 contentDiv.textContent = content;
-                // Scroll to bottom
-                chatArea.scrollTop = chatArea.scrollHeight;
+                // Smart scroll - only scroll if user is at bottom
+                smartScrollToBottom();
             }
         }
         
@@ -1100,18 +1214,29 @@ export class OpenCodePanel {
             messageDiv.classList.remove('streaming');
         }
 
-        // Request initial state
+        // Request initial state and sessions
         vscode.postMessage({ type: 'getState' });
+        vscode.postMessage({ type: 'getSessions' });
     </script>
 </body>
 </html>`;
   }
 
   /**
+   * Check if the panel is disposed
+   */
+  isDisposed(): boolean {
+    return this.disposed
+  }
+
+  /**
    * Show the panel
    */
   show(): void {
-    this.outputChannel.appendLine('👁️ Revealing OpenCode panel')
+    if (this.disposed) {
+      throw new Error('Webview is disposed')
+    }
+    // this.outputChannel.appendLine('👁️ Revealing OpenCode panel') // Removed
     this.webview.reveal()
   }
 
@@ -1119,6 +1244,9 @@ export class OpenCodePanel {
    * Dispose of the panel
    */
   dispose(): void {
-    this.webview.dispose()
+    if (!this.disposed) {
+      this.disposed = true
+      this.webview.dispose()
+    }
   }
 }
