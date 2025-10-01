@@ -130,6 +130,49 @@ export class OpenCodeAPI {
   }
 
   /**
+   * Update session properties (e.g., title)
+   */
+  async updateSession(sessionId: string, updates: { title?: string }): Promise<any> {
+    if (!this.client) {
+      throw new Error('OpenCode API client not initialized')
+    }
+
+    try {
+      this.outputChannel.appendLine(`📝 Updating session ${sessionId}...`)
+      const response = await this.client.session.update({
+        path: { id: sessionId },
+        body: updates
+      })
+      this.outputChannel.appendLine(`✅ Session updated successfully`)
+      return response.data
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to update session: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Delete a session and all its data
+   */
+  async deleteSession(sessionId: string): Promise<boolean> {
+    if (!this.client) {
+      throw new Error('OpenCode API client not initialized')
+    }
+
+    try {
+      this.outputChannel.appendLine(`🗑️ Deleting session ${sessionId}...`)
+      const response = await this.client.session.delete({
+        path: { id: sessionId }
+      })
+      this.outputChannel.appendLine(`✅ Session deleted successfully`)
+      return response.data
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to delete session: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
    * Configuration Management
    */
   async getConfig(): Promise<any> {

@@ -80,6 +80,12 @@ export class OpenCodePanel {
         case 'switchModel':
           await this.handleSwitchModel(message.providerId, message.modelId)
           break
+        case 'updateSession':
+          await this.handleUpdateSession(message.sessionId, message.updates)
+          break
+        case 'deleteSession':
+          await this.handleDeleteSession(message.sessionId)
+          break
         case 'debug':
           // Only log errors and important debug info
           if (message.message.includes('ERROR') || message.message.includes('WARNING')) {
@@ -208,6 +214,12 @@ export class OpenCodePanel {
         state: state
       })
       
+      // Also send sessions update to refresh the dropdown
+      this.sendMessageToWebview({
+        type: 'sessionsUpdate',
+        sessions: state.sessions
+      })
+      
       // If we have a current session, also load its messages
       if (state.currentSession) {
         const messages = await this.app.getMessageManager().getMessagesForSession(state.currentSession.id)
@@ -291,6 +303,52 @@ export class OpenCodePanel {
       this.sendMessageToWebview({
         type: 'error',
         message: `Failed to switch model: ${error.message}`
+      })
+    }
+  }
+
+  /**
+   * Handle session update request
+   */
+  private async handleUpdateSession(sessionId: string, updates: { title?: string }): Promise<void> {
+    try {
+      await this.app.updateSession(sessionId, updates)
+      
+      this.sendMessageToWebview({
+        type: 'sessionUpdateSuccess',
+        sessionId: sessionId
+      })
+      
+      // Update UI with new state
+      await this.updateUI()
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to update session: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        message: `Failed to update session: ${error.message}`
+      })
+    }
+  }
+
+  /**
+   * Handle session delete request
+   */
+  private async handleDeleteSession(sessionId: string): Promise<void> {
+    try {
+      await this.app.deleteSession(sessionId)
+      
+      this.sendMessageToWebview({
+        type: 'sessionDeleteSuccess',
+        sessionId: sessionId
+      })
+      
+      // Update UI with new state
+      await this.updateUI()
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to delete session: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        message: `Failed to delete session: ${error.message}`
       })
     }
   }
@@ -497,6 +555,10 @@ export class OpenCodePanel {
             padding: 8px 12px;
             cursor: pointer;
             border-bottom: 1px solid var(--vscode-dropdown-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
         }
         
         .model-option:hover, .session-option:hover {
@@ -505,6 +567,94 @@ export class OpenCodePanel {
         
         .model-option:last-child, .session-option:last-child {
             border-bottom: none;
+        }
+        
+        /* Session-specific styles */
+        .session-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .session-title {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .session-badges {
+            display: flex;
+            gap: 4px;
+            margin-left: 8px;
+        }
+        
+        .session-current {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+        
+        .session-type {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+        
+        .session-actions {
+            display: none;
+            align-items: center;
+            gap: 4px;
+            margin-left: 8px;
+        }
+        
+        .session-edit-btn, .session-delete-btn {
+            background: none;
+            border: none;
+            padding: 2px;
+            cursor: pointer;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--vscode-foreground);
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        
+        .session-edit-btn:hover, .session-delete-btn:hover {
+            opacity: 1;
+            background-color: var(--vscode-toolbar-hoverBackground);
+        }
+        
+        .session-delete-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        
+        .session-delete-btn:disabled:hover {
+            opacity: 0.3;
+            background-color: transparent;
+        }
+        
+        .session-edit-input {
+            background: var(--vscode-input-background) !important;
+            color: var(--vscode-input-foreground) !important;
+            border: 1px solid var(--vscode-input-border) !important;
+            border-radius: 3px !important;
+            padding: 2px 6px !important;
+            font-size: 12px !important;
+            width: 100% !important;
+            outline: none !important;
         }
         
         .session-separator {
@@ -849,6 +999,12 @@ export class OpenCodePanel {
                 if (dropdown.contains(e.target) || currentSession.contains(e.target)) {
                     return;
                 }
+                
+                // Don't close if clicking on session edit input
+                if (e.target.classList && e.target.classList.contains('session-edit-input')) {
+                    return;
+                }
+                
                 closeSessionDropdown();
             };
             
@@ -861,15 +1017,67 @@ export class OpenCodePanel {
         function createSessionOption(session) {
             const option = document.createElement('div');
             option.className = 'session-option';
+            option.dataset.sessionId = session.id;
+            
+            // Check if this is the current session
+            const isCurrentSession = currentSessionData?.id === session.id;
+            
             option.innerHTML = \`
-                <span>\${session.title}</span>
-                \${session.isDefault ? '<span class="session-type">Default</span>' : ''}
+                <div class="session-content">
+                    <span class="session-title">\${session.title}</span>
+                    <div class="session-badges">
+                        \${isCurrentSession ? '<span class="session-current">Current</span>' : ''}
+                        \${session.isDefault ? '<span class="session-type">Default</span>' : ''}
+                    </div>
+                </div>
+                 <div class="session-actions" style="display: none;">
+                     <button class="session-edit-btn" title="Edit session name">
+                         <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                             <path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke="currentColor" stroke-width="1" fill="none"/>
+                         </svg>
+                     </button>
+                     \${!isCurrentSession ? '<button class="session-delete-btn" title="Delete session"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M3 3L9 9M9 3L3 9" stroke="currentColor" stroke-width="1"/></svg></button>' : ''}
+                 </div>
             \`;
             
-            option.addEventListener('click', () => {
+            // Add hover effects
+            option.addEventListener('mouseenter', () => {
+                const actions = option.querySelector('.session-actions');
+                if (actions) {
+                    actions.style.display = 'flex';
+                }
+            });
+            
+            option.addEventListener('mouseleave', () => {
+                const actions = option.querySelector('.session-actions');
+                if (actions) {
+                    actions.style.display = 'none';
+                }
+            });
+            
+            // Handle session selection (click on content area)
+            const content = option.querySelector('.session-content');
+            content.addEventListener('click', (e) => {
+                e.stopPropagation();
                 selectSession(session);
                 closeSessionDropdown();
             });
+            
+            // Handle edit button
+            const editBtn = option.querySelector('.session-edit-btn');
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                startEditSession(session, option);
+            });
+            
+            // Handle delete button
+            const deleteBtn = option.querySelector('.session-delete-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteSession(session);
+                });
+            }
             
             return option;
         }
@@ -892,6 +1100,159 @@ export class OpenCodePanel {
             });
         }
         
+        function startEditSession(session, optionElement) {
+            const titleElement = optionElement.querySelector('.session-title');
+            const originalTitle = titleElement.textContent;
+            
+            // Flag to track if we're in the middle of a save operation
+            let isSaving = false;
+            
+            // Switch to edit mode: change edit button to save button, hide delete button
+            const editBtn = optionElement.querySelector('.session-edit-btn');
+            const deleteBtn = optionElement.querySelector('.session-delete-btn');
+            
+            if (editBtn) {
+                editBtn.innerHTML = \`
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                        <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                \`;
+                editBtn.title = 'Save changes';
+                
+                // Use mousedown instead of click to avoid blur event conflict
+                editBtn.onmousedown = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    isSaving = true;
+                    saveEdit();
+                };
+            }
+            
+            if (deleteBtn) {
+                deleteBtn.style.display = 'none';
+            }
+            
+            // Create input field
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = originalTitle;
+            input.className = 'session-edit-input';
+            input.style.cssText = \`
+                background: var(--vscode-input-background);
+                color: var(--vscode-input-foreground);
+                border: 1px solid var(--vscode-input-border);
+                border-radius: 3px;
+                padding: 2px 6px;
+                font-size: 12px;
+                width: 100%;
+                outline: none;
+            \`;
+            
+            // Replace title with input
+            titleElement.style.display = 'none';
+            titleElement.parentNode.insertBefore(input, titleElement);
+            
+            // Prevent input click from closing dropdown
+            input.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            
+            // Focus and select text
+            input.focus();
+            input.select();
+            
+            // Handle save (Enter key or click outside)
+            const saveEdit = () => {
+                const newTitle = input.value.trim();
+                if (newTitle && newTitle !== originalTitle) {
+                    // Send update request to extension
+                    vscode.postMessage({
+                        type: 'updateSession',
+                        sessionId: session.id,
+                        updates: { title: newTitle }
+                    });
+                }
+                
+                // Restore original display
+                titleElement.textContent = newTitle || originalTitle;
+                titleElement.style.display = '';
+                input.remove();
+                
+                // Restore button states
+                restoreButtonStates(optionElement, session);
+            };
+            
+            // Handle cancel (Escape key)
+            const cancelEdit = () => {
+                titleElement.style.display = '';
+                input.remove();
+                
+                // Restore button states
+                restoreButtonStates(optionElement, session);
+            };
+            
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveEdit();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelEdit();
+                }
+            });
+            
+            input.addEventListener('blur', () => {
+                if (!isSaving) {
+                    cancelEdit();
+                }
+            });
+        }
+        
+        function restoreButtonStates(optionElement, session) {
+            const editBtn = optionElement.querySelector('.session-edit-btn');
+            const deleteBtn = optionElement.querySelector('.session-delete-btn');
+            const isCurrentSession = currentSessionData?.id === session.id;
+            
+            // Restore edit button
+            if (editBtn) {
+                editBtn.innerHTML = \`
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                        <path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke="currentColor" stroke-width="1" fill="none"/>
+                    </svg>
+                \`;
+                editBtn.title = 'Edit session name';
+                
+                // Restore original edit button click handler
+                editBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    startEditSession(session, optionElement);
+                };
+            }
+            
+            // Restore delete button (only if not current session)
+            if (deleteBtn) {
+                if (isCurrentSession) {
+                    deleteBtn.style.display = 'none';
+                } else {
+                    deleteBtn.style.display = '';
+                }
+            }
+        }
+        
+        function deleteSession(session) {
+            // Check if this is the current session
+            if (currentSessionData?.id === session.id) {
+                // Don't allow deleting current session
+                return;
+            }
+            
+            // Send delete request to extension
+            vscode.postMessage({
+                type: 'deleteSession',
+                sessionId: session.id
+            });
+        }
+        
         function closeModelDropdown() {
             const dropdown = document.querySelector('.model-dropdown');
             if (dropdown) {
@@ -911,6 +1272,59 @@ export class OpenCodePanel {
             if (currentSessionCloseHandler) {
                 document.removeEventListener('click', currentSessionCloseHandler);
                 currentSessionCloseHandler = null;
+            }
+        }
+        
+        function updateSessionDropdownContent() {
+            const dropdown = document.querySelector('.session-dropdown');
+            if (!dropdown) return;
+            
+            // Clear existing content except the new session button
+            const newSessionButton = dropdown.querySelector('.new-session');
+            dropdown.innerHTML = '';
+            if (newSessionButton) {
+                dropdown.appendChild(newSessionButton);
+            }
+            
+            // Add default session templates (like TUI)
+            const defaultSessions = [
+                { id: 'default', title: 'Getting Started with Claude Code', isDefault: true },
+                { id: 'init-cli', title: 'Initializing Claude Code CLI', isDefault: true },
+                { id: 'thread-title', title: 'Generating Thread Title', isDefault: true },
+                { id: 'project-kickoff', title: 'Brainstorming Project Kickoff', isDefault: true },
+                { id: 'cli-interaction', title: 'Exploring CLI Interaction', isDefault: true },
+                { id: 'discussing-cli', title: 'Discussing CLI Interaction', isDefault: true }
+            ];
+            
+            // Add default sessions
+            const defaultHeader = document.createElement('div');
+            defaultHeader.className = 'session-option';
+            defaultHeader.style.fontWeight = 'bold';
+            defaultHeader.textContent = 'Default Sessions';
+            dropdown.appendChild(defaultHeader);
+            
+            defaultSessions.forEach(session => {
+                const option = createSessionOption(session);
+                dropdown.appendChild(option);
+            });
+            
+            // Add separator
+            const separator = document.createElement('div');
+            separator.className = 'session-separator';
+            dropdown.appendChild(separator);
+            
+            // Add user sessions
+            if (availableSessions.length > 0) {
+                const userHeader = document.createElement('div');
+                userHeader.className = 'session-option';
+                userHeader.style.fontWeight = 'bold';
+                userHeader.textContent = 'Your Sessions';
+                dropdown.appendChild(userHeader);
+                
+                availableSessions.forEach(session => {
+                    const option = createSessionOption(session);
+                    dropdown.appendChild(option);
+                });
             }
         }
 
@@ -991,6 +1405,21 @@ export class OpenCodePanel {
                 case 'sessionsUpdate':
                     // Update available sessions
                     availableSessions = message.sessions || [];
+                    
+                    // Update current session data if it was updated
+                    if (currentSessionData && message.sessions) {
+                        const updatedSession = message.sessions.find(s => s.id === currentSessionData.id);
+                        if (updatedSession) {
+                            currentSessionData = updatedSession;
+                            currentSession.textContent = updatedSession.title;
+                        }
+                    }
+                    
+                    // If session dropdown is open, update its content instead of rebuilding
+                    const existingDropdown = document.querySelector('.session-dropdown');
+                    if (existingDropdown) {
+                        updateSessionDropdownContent();
+                    }
                     break;
                     
                 case 'modelsLoaded':
@@ -1012,6 +1441,24 @@ export class OpenCodePanel {
                     // Request updated sessions list
                     vscode.postMessage({ type: 'getSessions' });
                     status.textContent = 'New session created';
+                    setTimeout(() => {
+                        status.textContent = 'Ready';
+                    }, 1000);
+                    break;
+                    
+                case 'sessionUpdated':
+                    // Session was updated - refresh sessions list
+                    vscode.postMessage({ type: 'getSessions' });
+                    status.textContent = 'Session updated';
+                    setTimeout(() => {
+                        status.textContent = 'Ready';
+                    }, 1000);
+                    break;
+                    
+                case 'sessionDeleted':
+                    // Session was deleted - refresh sessions list
+                    vscode.postMessage({ type: 'getSessions' });
+                    status.textContent = 'Session deleted';
                     setTimeout(() => {
                         status.textContent = 'Ready';
                     }, 1000);

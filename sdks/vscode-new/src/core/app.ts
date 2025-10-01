@@ -308,6 +308,57 @@ export class OpenCodeApp {
   }
 
   /**
+   * Update session properties (e.g., title)
+   */
+  async updateSession(sessionId: string, updates: { title?: string }): Promise<any> {
+    try {
+      const updatedSession = await this.api.updateSession(sessionId, updates)
+      
+      // Update local state
+      if (this.state.currentSession?.id === sessionId) {
+        this.state.currentSession = updatedSession
+      }
+      
+      // Update sessions list
+      const sessionIndex = this.state.sessions.findIndex(s => s.id === sessionId)
+      if (sessionIndex !== -1) {
+        this.state.sessions[sessionIndex] = updatedSession
+      }
+      
+      return updatedSession
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to update session: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Delete a session
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    try {
+      await this.api.deleteSession(sessionId)
+      
+      // Remove from local state
+      this.state.sessions = this.state.sessions.filter(s => s.id !== sessionId)
+      
+      // If deleted session was current, switch to another session
+      if (this.state.currentSession?.id === sessionId) {
+        if (this.state.sessions.length > 0) {
+          await this.switchToSession(this.state.sessions[0].id)
+        } else {
+          // No sessions left, create a new one
+          await this.createNewSession()
+        }
+      }
+      
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to delete session: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
    * Dispose of the application
    */
   async dispose(): Promise<void> {
