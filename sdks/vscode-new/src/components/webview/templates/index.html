@@ -47,7 +47,7 @@
             <span> | </span>
             <span>Model: <span id="currentModel" class="model-selector">Loading...</span></span>
             <span> | </span>
-            <span>Session: <span id="currentSession" class="session-selector">Default</span></span>
+            <button id="historyButton" class="history-button" title="Session History">🕐</button>
         </div>
     </div>
 
@@ -89,12 +89,12 @@
             function initializeDropdowns() {
                 vscode.postMessage({ type: 'debug', message: 'Initializing dropdown functionality...' });
                 const currentModel = document.getElementById('currentModel');
-                const currentSession = document.getElementById('currentSession');
+                const historyButton = document.getElementById('historyButton');
                 
-                vscode.postMessage({ type: 'debug', message: `Found elements: currentModel=${!!currentModel}, currentSession=${!!currentSession}` });
+                vscode.postMessage({ type: 'debug', message: `Found elements: currentModel=${!!currentModel}, historyButton=${!!historyButton}` });
                 
-                if (!currentModel || !currentSession) {
-                    vscode.postMessage({ type: 'debug', message: 'ERROR: Model or session selector not found' });
+                if (!currentModel || !historyButton) {
+                    vscode.postMessage({ type: 'debug', message: 'ERROR: Model selector or history button not found' });
                     return;
                 }
                 
@@ -110,9 +110,9 @@
                     }
                 });
                 
-                // Handle session selector click
-                currentSession.addEventListener('click', (e) => {
-                    vscode.postMessage({ type: 'debug', message: 'Session selector clicked' });
+                // Handle history button click
+                historyButton.addEventListener('click', (e) => {
+                    vscode.postMessage({ type: 'debug', message: 'History button clicked' });
                     e.stopPropagation();
                     const existingDropdown = document.querySelector('.session-dropdown');
                     if (existingDropdown) {
@@ -290,9 +290,9 @@
                     });
                 }
                 
-                // Position dropdown above the session selector
-                const currentSession = document.getElementById('currentSession');
-                const rect = currentSession.getBoundingClientRect();
+                // Position dropdown above the history button
+                const historyButton = document.getElementById('historyButton');
+                const rect = historyButton.getBoundingClientRect();
                 dropdown.style.position = 'fixed';
                 dropdown.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
                 dropdown.style.left = rect.left + 'px';
@@ -301,7 +301,7 @@
                 
                 // Create and store close handler
                 currentSessionCloseHandler = (e) => {
-                    if (dropdown.contains(e.target) || currentSession.contains(e.target)) {
+                    if (dropdown.contains(e.target) || historyButton.contains(e.target)) {
                         return;
                     }
                     
@@ -399,8 +399,7 @@
 
             function selectSession(session) {
                 currentSessionData = session;
-                const currentSession = document.getElementById('currentSession');
-                currentSession.textContent = session.title;
+                // No need to update UI text since we're using a history button
                 
                 vscode.postMessage({
                     type: 'switchSession',
@@ -601,10 +600,7 @@
                 },
                 updateCurrentSession: (session) => { 
                     currentSessionData = session;
-                    const currentSession = document.getElementById('currentSession');
-                    if (currentSession && session) {
-                        currentSession.textContent = session.title;
-                    }
+                    // No need to update UI text since we're using a history button
                 },
                 refreshSessionDropdown,
                 closeModelDropdown,

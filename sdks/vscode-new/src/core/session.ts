@@ -94,7 +94,10 @@ export class SessionManager {
         messageCount: 0
       }
 
-      this.outputChannel.appendLine(`✅ Created new session: ${session.id}`)
+      // Add to local sessions cache at the beginning (most recent first)
+      this.sessions.unshift(session)
+      this.outputChannel.appendLine(`✅ Created new session: ${session.id} and added to cache`)
+
       return session
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to create session: ${error.message}`)
@@ -162,7 +165,17 @@ export class SessionManager {
       if (!session) {
         throw new Error(`Session ${sessionId} not found`)
       }
-      this.outputChannel.appendLine(`✅ Switched to session: ${sessionId}`)
+      
+      // Update local sessions cache with fresh data from server
+      this.sessions = sessions.map(serverSession => ({
+        id: serverSession.id,
+        title: serverSession.title || `Session ${serverSession.id.substring(0, 8)}`,
+        createdAt: serverSession.time?.created || Date.now(),
+        updatedAt: serverSession.time?.updated || Date.now(),
+        messageCount: 0
+      }))
+      
+      this.outputChannel.appendLine(`✅ Switched to session: ${sessionId} and updated cache`)
       return session
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to switch to session: ${error.message}`)

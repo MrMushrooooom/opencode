@@ -273,7 +273,15 @@ function handleSessionsUpdate(sessions) {
     // Update current session display
     if (sessions.length > 0) {
         const currentSessionId = currentSessionData?.id;
-        const currentSession = sessions.find(s => s.id === currentSessionId);
+        let currentSession = sessions.find(s => s.id === currentSessionId);
+        
+        // If no current session is set, use the first session as default
+        if (!currentSession && !currentSessionData) {
+            currentSession = sessions[0];
+            currentSessionData = currentSession;
+            vscode.postMessage({ type: 'debug', message: `📝 Set default current session: ${currentSession.title}` });
+        }
+        
         if (currentSession && window.dropdownManager) {
             window.dropdownManager.updateCurrentSession(currentSession);
             vscode.postMessage({ type: 'debug', message: `✅ Updated current session display: ${currentSession.title}` });
@@ -560,6 +568,17 @@ function handleMessagesLoaded(messages) {
     
     // Force scroll to bottom when loading messages
     forceScrollToBottom();
+    
+    // Set current session data if we have messages (indicates we have an active session)
+    if (messages && messages.length > 0 && window.dropdownManager && window.dropdownManager.getAvailableSessions) {
+        const sessions = window.dropdownManager.getAvailableSessions();
+        if (sessions.length > 0) {
+            // Assume the first session is the current one if no specific session is set
+            const currentSession = sessions[0];
+            currentSessionData = currentSession;
+            vscode.postMessage({ type: 'debug', message: `📝 Set current session data: ${currentSession.title}` });
+        }
+    }
     
     // Reset session state
     isSessionLocked = false;

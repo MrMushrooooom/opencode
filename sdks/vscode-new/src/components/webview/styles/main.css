@@ -141,14 +141,32 @@ body {
     position: relative;
 }
 
-.model-selector, .session-selector {
+.model-selector {
     cursor: pointer;
     color: var(--vscode-textLink-foreground);
     text-decoration: underline;
 }
 
-.model-selector:hover, .session-selector:hover {
+.model-selector:hover {
     color: var(--vscode-textLink-activeForeground);
+}
+
+.history-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--vscode-foreground);
+    font-size: 16px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.1s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.history-button:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .model-dropdown, .session-dropdown {
@@ -272,7 +290,7 @@ body {
 }
 
 /* Responsive design */
-@media (max-width: 600px) {
+@media (max-width: 400px) {
     .container {
         padding: 10px;
     }
