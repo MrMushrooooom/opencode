@@ -24,7 +24,8 @@ export class EventStreamManager {
    */
   async startListening(
     onMessageUpdate: (messageId: string, part: any) => void,
-    onSessionUpdate: (session: any) => void
+    onSessionUpdate: (session: any) => void,
+    onPermissionUpdate?: (permission: any) => void
   ): Promise<void> {
     if (this.isListening) {
       this.outputChannel.appendLine('⚠️ Event stream already listening')
@@ -41,7 +42,7 @@ export class EventStreamManager {
       this.eventStream = await this.api.startEventStream(this.abortController.signal)
       
       // Process events as they come in
-      this.processEventStream(onMessageUpdate, onSessionUpdate)
+      this.processEventStream(onMessageUpdate, onSessionUpdate, onPermissionUpdate)
       
       this.isListening = true
       this.outputChannel.appendLine('✅ SSE event stream started')
@@ -57,7 +58,8 @@ export class EventStreamManager {
    */
   private async processEventStream(
     onMessageUpdate: (messageId: string, part: any) => void,
-    onSessionUpdate: (session: any) => void
+    onSessionUpdate: (session: any) => void,
+    onPermissionUpdate?: (permission: any) => void
   ): Promise<void> {
     try {
       // JavaScript SDK returns an async generator
@@ -100,6 +102,17 @@ export class EventStreamManager {
               
             case 'session.idle':
               this.outputChannel.appendLine(`💤 Session idle event received`)
+              break
+              
+            case 'permission.updated':
+              if (event.properties && onPermissionUpdate) {
+                this.outputChannel.appendLine(`🔐 Permission request received: ${event.properties.id}`)
+                onPermissionUpdate(event.properties)
+              }
+              break
+              
+            case 'permission.replied':
+              this.outputChannel.appendLine(`🔐 Permission response processed: ${event.properties?.id}`)
               break
               
             default:

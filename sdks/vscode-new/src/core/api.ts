@@ -117,6 +117,10 @@ export class OpenCodeAPI {
 
     try {
       this.outputChannel.appendLine(`📤 Sending prompt to session ${sessionId}...`)
+      this.outputChannel.appendLine(`📋 Request body: ${JSON.stringify(params, null, 2)}`)
+      this.outputChannel.appendLine(`🔗 API Base URL: ${this.baseURL}`)
+      this.outputChannel.appendLine(`🔗 Full endpoint: ${this.baseURL}/session/${sessionId}/prompt`)
+      
       const response = await this.client.session.prompt({
         path: { id: sessionId },
         body: params
@@ -125,6 +129,15 @@ export class OpenCodeAPI {
       return response.data
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to send prompt: ${error.message}`)
+      this.outputChannel.appendLine(`❌ Error type: ${error.constructor.name}`)
+      this.outputChannel.appendLine(`❌ Error stack: ${error.stack}`)
+      
+      // Check if it's a network error
+      if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
+        this.outputChannel.appendLine(`🌐 Network error detected - server may not be running`)
+        this.outputChannel.appendLine(`🔍 Check if OpenCode server is running on: ${this.baseURL}`)
+      }
+      
       throw error
     }
   }
@@ -272,6 +285,85 @@ export class OpenCodeAPI {
       return stream
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to start event stream: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Permission Management for BUILD mode
+   */
+  async respondToPermission(
+    sessionId: string, 
+    permissionId: string, 
+    response: 'once' | 'always' | 'reject'
+  ): Promise<boolean> {
+    if (!this.client) {
+      throw new Error('OpenCode API client not initialized')
+    }
+
+    try {
+      this.outputChannel.appendLine(`🔐 Responding to permission ${permissionId} with: ${response}`)
+      
+      const result = await this.client.postSessionByIdPermissionsByPermissionId({
+        path: { id: sessionId, permissionId },
+        body: { response }
+      })
+      
+      this.outputChannel.appendLine(`✅ Permission response sent successfully`)
+      return result.data
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to respond to permission: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Session Revert (Undo functionality)
+   */
+  async revertSession(sessionId: string, messageId?: string, partId?: string): Promise<any> {
+    if (!this.client) {
+      throw new Error('OpenCode API client not initialized')
+    }
+
+    try {
+      this.outputChannel.appendLine(`↩️ Reverting session ${sessionId} to message ${messageId || 'latest'}`)
+      
+      const result = await this.client.session.revert({
+        path: { id: sessionId },
+        body: {
+          messageId,
+          partId
+        }
+      })
+      
+      this.outputChannel.appendLine(`✅ Session reverted successfully`)
+      return result.data
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to revert session: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Session Unrevert (Redo functionality)
+   */
+  async unrevertSession(sessionId: string): Promise<any> {
+    if (!this.client) {
+      throw new Error('OpenCode API client not initialized')
+    }
+
+    try {
+      this.outputChannel.appendLine(`↪️ Unreverting session ${sessionId}`)
+      
+      const result = await this.client.session.unrevert({
+        path: { id: sessionId },
+        body: {}
+      })
+      
+      this.outputChannel.appendLine(`✅ Session unreverted successfully`)
+      return result.data
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to unrevert session: ${error.message}`)
       throw error
     }
   }

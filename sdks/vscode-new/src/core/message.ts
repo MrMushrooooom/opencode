@@ -11,10 +11,12 @@ export class MessageManager {
   private api: OpenCodeAPI
   private outputChannel: vscode.OutputChannel
   private streamingMessages: Map<string, string> = new Map()
+  private workspacePath: string
 
-  constructor(api: OpenCodeAPI, outputChannel: vscode.OutputChannel) {
+  constructor(api: OpenCodeAPI, outputChannel: vscode.OutputChannel, workspacePath: string) {
     this.api = api
     this.outputChannel = outputChannel
+    this.workspacePath = workspacePath
   }
 
   /**
@@ -69,8 +71,15 @@ export class MessageManager {
             type: 'text',
             text: params.text
           }
-        ]
+        ],
+        // Add workspace context for better directory awareness
+        workspace: this.workspacePath
       }
+
+      // Log the actual model parameters being sent to server
+      this.outputChannel.appendLine(`🔍 Sending request with model: ${currentModel?.providerId}/${currentModel?.id} (${currentModel?.name})`)
+      this.outputChannel.appendLine(`📋 Model parameters: ${JSON.stringify(promptParams.model)}`)
+      this.outputChannel.appendLine(`📁 Workspace path: ${this.workspacePath}`)
 
       // Send prompt to OpenCode (following TUI approach)
       // The actual response will come through SSE, not from this call

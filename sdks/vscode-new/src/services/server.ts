@@ -79,10 +79,19 @@ export class ServerManager {
 
       // Test server health
       try {
+        this.outputChannel.appendLine(`🔍 Testing server health at: ${this.serverURL}/health`)
         const response = await fetch(`${this.serverURL}/health`)
         this.outputChannel.appendLine(`✅ Server health check: ${response.status}`)
+        
+        // Test if the server is actually responding
+        if (response.ok) {
+          this.outputChannel.appendLine(`✅ Server is responding correctly`)
+        } else {
+          this.outputChannel.appendLine(`⚠️ Server responded with status: ${response.status}`)
+        }
       } catch (error) {
         this.outputChannel.appendLine(`❌ Server health check failed: ${error}`)
+        this.outputChannel.appendLine(`🔍 This indicates the server may not be running properly`)
       }
 
       // Wait for models to load (server needs to fetch from models.dev)

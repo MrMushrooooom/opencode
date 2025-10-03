@@ -1,10 +1,12 @@
 import * as vscode from 'vscode'
 import { OpenCodeApp } from '../../core/app'
 import { Session } from '../../types/app'
+import * as path from 'path'
+import * as fs from 'fs'
 
 /**
  * OpenCode Webview Panel
- * Manages the main UI interface
+ * Manages the main UI interface with modular template system
  */
 export class OpenCodePanel {
   private app: OpenCodeApp
@@ -86,11 +88,28 @@ export class OpenCodePanel {
         case 'deleteSession':
           await this.handleDeleteSession(message.sessionId)
           break
+        case 'respondToPermission':
+          await this.handleRespondToPermission(message.response)
+          break
+        case 'undoToMessage':
+          await this.handleUndoToMessage(message.messageId, message.partId)
+          break
+        case 'redoChanges':
+          await this.handleRedoChanges()
+          break
         case 'debug':
-          // Only log errors and important debug info
-          if (message.message.includes('ERROR') || message.message.includes('WARNING')) {
-            this.outputChannel.appendLine(`🐛 [Frontend Debug] ${message.message}`)
-          }
+          // Log all debug messages for troubleshooting
+          this.outputChannel.appendLine(`🐛 Frontend: ${message.message}`)
+          break
+
+        case 'checkServerStatus':
+          // Check server status for debugging
+          const status = this.app.getServerStatus()
+          this.outputChannel.appendLine(`🔍 Server Status:`)
+          this.outputChannel.appendLine(`  - Connected: ${status.isConnected}`)
+          this.outputChannel.appendLine(`  - Port: ${status.serverPort}`)
+          this.outputChannel.appendLine(`  - API Base URL: ${status.apiBaseURL}`)
+          this.outputChannel.appendLine(`  - API Initialized: ${status.apiInitialized}`)
           break
         default:
           this.outputChannel.appendLine(`⚠️ Unknown message type: ${message.type}`)
@@ -99,93 +118,85 @@ export class OpenCodePanel {
       this.outputChannel.appendLine(`❌ Error handling message: ${error.message}`)
       this.sendMessageToWebview({
         type: 'error',
-        message: error.message
+        error: error.message
       })
     }
   }
 
   /**
-   * Handle send message request
-   * Following TUI approach: send message and rely entirely on SSE for response
+   * Handle send message
    */
   private async handleSendMessage(text: string, mode: 'plan' | 'build' = 'plan'): Promise<void> {
     try {
-      // Get current state for generating message
-      const state = this.app.getState()
-      const currentModel = state.currentModel
-      const timestamp = new Date().toLocaleTimeString()
-
-      // Show loading state with mode, model, and timestamp
-      this.sendMessageToWebview({
-        type: 'messageSent',
-        text: text,
-        mode: mode,
-        model: currentModel?.name || 'Unknown',
-        timestamp: timestamp
-      })
-
-      // Send message to OpenCode (following TUI approach)
-      // The actual response will come through SSE, not from this call
-      await this.app.sendMessage(text, mode)
-
-      // Update UI with current state
-      await this.updateUI()
-
+      const response = await this.app.sendMessage(text, mode)
+      this.outputChannel.appendLine(`✅ Message sent successfully`)
+      
+      // Don't call updateUI() here as it resets the current model
+      // The message will be handled by SSE streaming updates
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to send message: ${error.message}`)
       this.sendMessageToWebview({
         type: 'error',
-        message: `Failed to send message: ${error.message}`
+        error: error.message
       })
     }
   }
 
   /**
-   * Handle create session request
+   * Handle create session
    */
   private async handleCreateSession(): Promise<void> {
     try {
       const session = await this.app.createNewSession()
+      this.outputChannel.appendLine(`✅ New session created: ${session.id}`)
       
+      // Send session created message to webview (no need to call updateUI as it will be handled by sessionCreated)
       this.sendMessageToWebview({
         type: 'sessionCreated',
         session: session
       })
-
-      await this.updateUI()
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to create session: ${error.message}`)
       this.sendMessageToWebview({
         type: 'error',
-        message: `Failed to create session: ${error.message}`
+        error: error.message
       })
     }
   }
 
   /**
-   * Handle switch session request
+   * Handle switch session
    */
   private async handleSwitchSession(sessionId: string): Promise<void> {
     try {
       await this.app.switchToSession(sessionId)
+      this.outputChannel.appendLine(`✅ Switched to session: ${sessionId}`)
       
+      // Load messages for the new session
+      const messages = await this.app.getCurrentSessionMessages()
+      this.outputChannel.appendLine(`📋 Loaded ${messages.length} messages for session ${sessionId}`)
+      
+      // Update UI with new state
+      await this.updateUI()
+      
+      // Send session switched message with messages
+      this.outputChannel.appendLine(`📡 Sending sessionSwitched message to webview: ${sessionId}`)
       this.sendMessageToWebview({
         type: 'sessionSwitched',
-        sessionId: sessionId
+        sessionId: sessionId,
+        messages: messages
       })
-
-      await this.updateUI()
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to switch session: ${error.message}`)
       this.sendMessageToWebview({
         type: 'error',
-        message: `Failed to switch session: ${error.message}`
+        error: error.message
       })
     }
   }
 
   /**
-   * Handle get state request
+   * Handle get state
    */
   private async handleGetState(): Promise<void> {
     try {
@@ -194,11 +205,183 @@ export class OpenCodePanel {
         type: 'stateUpdate',
         state: state
       })
-      
-      // Also send models information
-      await this.handleGetModels()
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to get state: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle get models
+   */
+  private async handleGetModels(): Promise<void> {
+    try {
+      const models = this.app.getAvailableModels()
+      this.sendMessageToWebview({
+        type: 'modelsUpdate',
+        models: models
+      })
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to get models: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle get sessions
+   */
+  private async handleGetSessions(): Promise<void> {
+    try {
+      const sessions = this.app.getSessions()
+      this.sendMessageToWebview({
+        type: 'sessionsUpdate',
+        sessions: sessions
+      })
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to get sessions: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle switch model
+   */
+  private async handleSwitchModel(providerId: string, modelId: string): Promise<void> {
+    try {
+      await this.app.switchModel(providerId, modelId)
+      this.outputChannel.appendLine(`✅ Switched to model: ${providerId}/${modelId}`)
+      
+      // Update UI with new state
+      await this.updateUI()
+      
+      this.sendMessageToWebview({
+        type: 'modelSwitched',
+        providerId: providerId,
+        modelId: modelId
+      })
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to switch model: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle update session
+   */
+  private async handleUpdateSession(sessionId: string, updates: { title?: string }): Promise<void> {
+    try {
+      const session = await this.app.updateSession(sessionId, updates)
+      this.outputChannel.appendLine(`✅ Session updated: ${sessionId}`)
+      
+      // Update UI with new state
+      await this.updateUI()
+      
+      this.sendMessageToWebview({
+        type: 'sessionUpdated',
+        session: session
+      })
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to update session: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle delete session
+   */
+  private async handleDeleteSession(sessionId: string): Promise<void> {
+    try {
+      await this.app.deleteSession(sessionId)
+      this.outputChannel.appendLine(`✅ Session deleted: ${sessionId}`)
+      
+      // Update UI with new state
+      await this.updateUI()
+      
+      this.outputChannel.appendLine(`📡 Sending sessionDeleteSuccess message to webview: ${sessionId}`)
+      this.sendMessageToWebview({
+        type: 'sessionDeleteSuccess',
+        sessionId: sessionId
+      })
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to delete session: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle respond to permission
+   */
+  private async handleRespondToPermission(response: 'once' | 'always' | 'reject'): Promise<void> {
+    try {
+      await this.app.respondToPermission(response)
+      this.outputChannel.appendLine(`✅ Permission response sent: ${response}`)
+      
+    this.sendMessageToWebview({
+        type: 'permissionResponseSuccess',
+        response: response
+      })
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to respond to permission: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle undo to message
+   */
+  private async handleUndoToMessage(messageId?: string, partId?: string): Promise<void> {
+    try {
+      await this.app.undoToMessage(messageId, partId)
+      this.outputChannel.appendLine(`✅ Undo completed`)
+      
+      // Update UI with new state
+      await this.updateUI()
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to undo: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle redo changes
+   */
+  private async handleRedoChanges(): Promise<void> {
+    try {
+      await this.app.redoChanges()
+      this.outputChannel.appendLine(`✅ Redo completed`)
+      
+      // Update UI with new state
+      await this.updateUI()
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to redo: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
     }
   }
 
@@ -208,21 +391,30 @@ export class OpenCodePanel {
   private async updateUI(): Promise<void> {
     try {
       const state = this.app.getState()
-      
       this.sendMessageToWebview({
         type: 'stateUpdate',
         state: state
       })
       
-      // Also send sessions update to refresh the dropdown
+      // Send models and sessions data to ensure UI is updated
+      const models = this.app.getAvailableModels()
+      this.outputChannel.appendLine(`📡 Sending ${models.length} models to webview`)
+      this.sendMessageToWebview({
+        type: 'modelsUpdate',
+        models: models
+      })
+      
+      const sessions = this.app.getSessions()
+      this.outputChannel.appendLine(`📡 Sending ${sessions.length} sessions to webview`)
       this.sendMessageToWebview({
         type: 'sessionsUpdate',
-        sessions: state.sessions
+        sessions: sessions
       })
       
       // If we have a current session, also load its messages
       if (state.currentSession) {
-        const messages = await this.app.getMessageManager().getMessagesForSession(state.currentSession.id)
+        const messages = await this.app.getCurrentSessionMessages()
+        this.outputChannel.appendLine(`📋 Loaded ${messages.length} messages for current session ${state.currentSession.id}`)
         this.sendMessageToWebview({
           type: 'messagesLoaded',
           messages: messages
@@ -234,122 +426,29 @@ export class OpenCodePanel {
   }
 
   /**
-   * Handle get models request
+   * Check if panel is disposed
    */
-  private async handleGetModels(): Promise<void> {
-    try {
-      const models = this.app.getAvailableModels()
-      const providers = this.app.getProviders()
-      const recentlyUsed = this.app.getRecentlyUsedModels()
-      
-      // Mark recent models
-      const modelsWithRecent = models.map(model => ({
-        ...model,
-        isRecent: recentlyUsed.some(recent => 
-          recent.providerId === model.providerId && recent.modelId === model.id
-        )
-      }))
-      
-      this.sendMessageToWebview({
-        type: 'modelsLoaded',
-        models: modelsWithRecent
-      })
-    } catch (error: any) {
-      this.outputChannel.appendLine(`❌ Failed to get models: ${error.message}`)
-      this.sendMessageToWebview({
-        type: 'error',
-        message: `Failed to load models: ${error.message}`
-      })
+  isDisposed(): boolean {
+    return this.disposed
+  }
+
+  /**
+   * Dispose of the panel
+   */
+  dispose(): void {
+    if (!this.disposed) {
+      this.disposed = true
+      this.webview.dispose()
+      this.outputChannel.appendLine('📡 WebView panel disposed')
     }
   }
 
   /**
-   * Handle get sessions request
+   * Show the panel
    */
-  private async handleGetSessions(): Promise<void> {
-    try {
-      const sessions = this.app.getSessions()
-      
-      this.sendMessageToWebview({
-        type: 'sessionsUpdate',
-        sessions: sessions
-      })
-    } catch (error: any) {
-      this.outputChannel.appendLine(`❌ Failed to get sessions: ${error.message}`)
-      this.sendMessageToWebview({
-        type: 'error',
-        message: `Failed to load sessions: ${error.message}`
-      })
-    }
-  }
-
-  /**
-   * Handle model switch request
-   */
-  private async handleSwitchModel(providerId: string, modelId: string): Promise<void> {
-    try {
-      await this.app.switchModel(providerId, modelId)
-      
-      const currentModel = this.app.getCurrentModel()
-      this.sendMessageToWebview({
-        type: 'modelSwitched',
-        modelName: currentModel?.name || 'Unknown'
-      })
-      
-      // Update UI with new state
-      await this.updateUI()
-    } catch (error: any) {
-      this.outputChannel.appendLine(`❌ Failed to switch model: ${error.message}`)
-      this.sendMessageToWebview({
-        type: 'error',
-        message: `Failed to switch model: ${error.message}`
-      })
-    }
-  }
-
-  /**
-   * Handle session update request
-   */
-  private async handleUpdateSession(sessionId: string, updates: { title?: string }): Promise<void> {
-    try {
-      await this.app.updateSession(sessionId, updates)
-      
-      this.sendMessageToWebview({
-        type: 'sessionUpdateSuccess',
-        sessionId: sessionId
-      })
-      
-      // Update UI with new state
-      await this.updateUI()
-    } catch (error: any) {
-      this.outputChannel.appendLine(`❌ Failed to update session: ${error.message}`)
-      this.sendMessageToWebview({
-        type: 'error',
-        message: `Failed to update session: ${error.message}`
-      })
-    }
-  }
-
-  /**
-   * Handle session delete request
-   */
-  private async handleDeleteSession(sessionId: string): Promise<void> {
-    try {
-      await this.app.deleteSession(sessionId)
-      
-      this.sendMessageToWebview({
-        type: 'sessionDeleteSuccess',
-        sessionId: sessionId
-      })
-      
-      // Update UI with new state
-      await this.updateUI()
-    } catch (error: any) {
-      this.outputChannel.appendLine(`❌ Failed to delete session: ${error.message}`)
-      this.sendMessageToWebview({
-        type: 'error',
-        message: `Failed to delete session: ${error.message}`
-      })
+  show(): void {
+    if (!this.disposed) {
+      this.webview.reveal()
     }
   }
 
@@ -357,7 +456,9 @@ export class OpenCodePanel {
    * Send message to webview
    */
   private sendMessageToWebview(message: any): void {
-    this.webview.webview.postMessage(message)
+    if (!this.disposed) {
+      this.webview.webview.postMessage(message)
+    }
   }
 
   /**
@@ -374,9 +475,49 @@ export class OpenCodePanel {
   }
 
   /**
-   * Get HTML content for webview
+   * Show permission request in webview
+   */
+  showPermissionRequest(permission: any): void {
+    this.sendMessageToWebview({
+      type: 'permissionRequest',
+      permission: permission
+    })
+  }
+
+  /**
+   * Get HTML for webview using template system
    */
   private getHtmlForWebview(): string {
+    try {
+      // Get the path to the template file
+      const templatePath = path.join(__dirname, 'components', 'webview', 'templates', 'index.html')
+      
+      // Read the template file
+      const template = fs.readFileSync(templatePath, 'utf8')
+      
+      // Replace relative paths with webview-compatible URIs
+      // webviewUri should point to the webview directory (parent of templates)
+      const webviewDir = path.dirname(path.dirname(templatePath)) // Go up from templates to webview
+      const webviewUri = this.webview.webview.asWebviewUri(vscode.Uri.file(webviewDir))
+      
+      // Replace CSS and JS paths
+      const html = template
+        .replace(/href="styles\//g, `href="${webviewUri}/styles/`)
+        .replace(/src="scripts\//g, `src="${webviewUri}/scripts/`)
+      
+      return html
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to load template: ${error.message}`)
+      
+      // Fallback to simple HTML
+      return this.getFallbackHtml()
+    }
+  }
+
+  /**
+   * Fallback HTML in case template loading fails
+   */
+  private getFallbackHtml(): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -386,1314 +527,24 @@ export class OpenCodePanel {
     <style>
         body {
             font-family: var(--vscode-font-family);
-            font-size: var(--vscode-font-size);
             color: var(--vscode-foreground);
             background-color: var(--vscode-editor-background);
             margin: 0;
-            padding: 0;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            box-sizing: border-box;
-        }
-        
-        .container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
             padding: 20px;
-            box-sizing: border-box;
         }
-        
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-            flex-shrink: 0;
-        }
-        
-        .title {
-            font-size: 18px;
-            font-weight: bold;
-        }
-        
-        .status {
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
-        }
-        
-        .chat-area {
-            flex: 1;
-            overflow-y: auto;
-            margin-bottom: 20px;
-            padding: 10px;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-            background-color: var(--vscode-editor-background);
-        }
-        
-        .message {
-            margin-bottom: 15px;
-            padding: 10px;
-            border-radius: 4px;
-        }
-        
-        .message.user {
-            background-color: var(--vscode-input-background);
-            margin-left: 20px;
-        }
-        
-        .message.assistant {
-            background-color: var(--vscode-textBlockQuote-background);
-            margin-right: 20px;
-        }
-        
-        .message.streaming {
-            border-left: 3px solid var(--vscode-textLink-foreground);
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
-        }
-        
-        .message-header {
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
-            margin-bottom: 5px;
-        }
-        
-        .message-content {
-            white-space: pre-wrap;
-        }
-        
-        .input-area {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-shrink: 0;
-            margin-bottom: 10px;
-        }
-        
-        .input-field {
-            flex: 1;
-            padding: 8px;
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 4px;
-            background-color: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-        }
-        
-        .mode-selector {
-            padding: 8px;
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 4px;
-            background-color: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-        }
-        
-        .send-button {
-            padding: 8px 16px;
-            background-color: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        .send-button:hover {
-            background-color: var(--vscode-button-hoverBackground);
-        }
-        
-        .send-button:disabled {
-            background-color: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            cursor: not-allowed;
-        }
-        
-        .session-info {
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
-            flex-shrink: 0;
-            padding-top: 10px;
-            border-top: 1px solid var(--vscode-panel-border);
-            position: relative;
-        }
-        
-        .model-selector, .session-selector {
-            cursor: pointer;
-            color: var(--vscode-textLink-foreground);
-            text-decoration: underline;
-        }
-        
-        .model-selector:hover, .session-selector:hover {
-            color: var(--vscode-textLink-activeForeground);
-        }
-        
-            .model-dropdown, .session-dropdown {
-                position: absolute;
-                bottom: 100%;
-                left: 50%;
-                transform: translateX(-50%);
-                margin-bottom: 5px;
-                background-color: var(--vscode-dropdown-background);
-                border: 1px solid var(--vscode-dropdown-border);
-                border-radius: 4px;
-                box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
-                z-index: 1000;
-                max-height: 200px;
-                overflow-y: auto;
-                min-width: 200px;
-            }
-        
-        .model-option, .session-option {
-            padding: 8px 12px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--vscode-dropdown-border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: relative;
-        }
-        
-        .model-option:hover, .session-option:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        
-        .model-option:last-child, .session-option:last-child {
-            border-bottom: none;
-        }
-        
-        /* Session-specific styles */
-        .session-content {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex: 1;
-            min-width: 0;
-        }
-        
-        .session-title {
-            flex: 1;
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        
-        .session-badges {
-            display: flex;
-            gap: 4px;
-            margin-left: 8px;
-        }
-        
-        .session-current {
-            background-color: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            padding: 1px 6px;
-            border-radius: 3px;
-            font-size: 10px;
-            font-weight: 500;
-        }
-        
-        .session-type {
-            background-color: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            padding: 1px 6px;
-            border-radius: 3px;
-            font-size: 10px;
-            font-weight: 500;
-        }
-        
-        .session-actions {
-            display: none;
-            align-items: center;
-            gap: 4px;
-            margin-left: 8px;
-        }
-        
-        .session-edit-btn, .session-delete-btn {
-            background: none;
-            border: none;
-            padding: 2px;
-            cursor: pointer;
-            border-radius: 2px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--vscode-foreground);
-            opacity: 0.7;
-            transition: opacity 0.2s;
-        }
-        
-        .session-edit-btn:hover, .session-delete-btn:hover {
-            opacity: 1;
-            background-color: var(--vscode-toolbar-hoverBackground);
-        }
-        
-        .session-delete-btn:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-        
-        .session-delete-btn:disabled:hover {
-            opacity: 0.3;
-            background-color: transparent;
-        }
-        
-        .session-edit-input {
-            background: var(--vscode-input-background) !important;
-            color: var(--vscode-input-foreground) !important;
-            border: 1px solid var(--vscode-input-border) !important;
-            border-radius: 3px !important;
-            padding: 2px 6px !important;
-            font-size: 12px !important;
-            width: 100% !important;
-            outline: none !important;
-        }
-        
-        .session-separator {
-            height: 1px;
-            background-color: var(--vscode-dropdown-border);
-            margin: 4px 0;
-        }
-        
-        .session-type {
-            font-size: 0.8em;
-            color: var(--vscode-descriptionForeground);
-            margin-left: 8px;
-        }
-        
-        .new-session {
-            font-style: italic;
-            color: var(--vscode-textLink-foreground);
-        }
-        
-        .model-provider {
-            font-size: 10px;
-            color: var(--vscode-descriptionForeground);
-            margin-left: 8px;
+        .error {
+            color: var(--vscode-errorForeground);
+            text-align: center;
+            margin-top: 50px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="title">OpenCode Assistant</div>
-            <div class="status" id="status">Ready</div>
+    <div class="error">
+        <h2>OpenCode Assistant</h2>
+        <p>Failed to load interface. Please reload the extension.</p>
         </div>
-        
-        <div class="chat-area" id="chatArea">
-            <div class="message assistant">
-                <div class="message-header">OpenCode</div>
-                <div class="message-content">Hello! I'm OpenCode Assistant. How can I help you today?</div>
-            </div>
-        </div>
-        
-        <div class="input-area">
-            <select class="mode-selector" id="modeSelector">
-                <option value="plan">Plan Mode</option>
-                <option value="build">Build Mode</option>
-            </select>
-            <input type="text" class="input-field" id="messageInput" placeholder="Enter your question..." />
-            <button class="send-button" id="sendButton">Send</button>
-        </div>
-        
-        <div class="session-info" id="sessionInfo">
-            <span>Mode: <span id="currentMode">Plan</span></span>
-            <span> | </span>
-            <span>Model: <span id="currentModel" class="model-selector">Loading...</span></span>
-            <span> | </span>
-            <span>Session: <span id="currentSession" class="session-selector">Default</span></span>
-        </div>
-    </div>
-
-    <script>
-        const vscode = acquireVsCodeApi();
-        const chatArea = document.getElementById('chatArea');
-        const messageInput = document.getElementById('messageInput');
-        const sendButton = document.getElementById('sendButton');
-        const modeSelector = document.getElementById('modeSelector');
-        const status = document.getElementById('status');
-        const sessionInfo = document.getElementById('sessionInfo');
-        const currentModel = document.getElementById('currentModel');
-        const currentMode = document.getElementById('currentMode');
-        const currentSession = document.getElementById('currentSession');
-        
-        // Available sessions data
-        let availableSessions = [];
-        let currentSessionData = null;
-
-        // Handle send button click
-        sendButton.addEventListener('click', () => {
-            const text = messageInput.value.trim();
-            if (text) {
-                sendMessage(text);
-            }
-        });
-
-        // Handle Enter key
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                const text = messageInput.value.trim();
-                if (text) {
-                    sendMessage(text);
-                }
-            }
-        });
-
-        function sendMessage(text) {
-            const mode = modeSelector.value;
-
-            // Add user message to chat
-            addMessage('user', text, mode);
-
-            // Clear input immediately
-            messageInput.value = '';
-            sendButton.disabled = true;
-            status.textContent = 'Sending...';
-
-            // Send to extension
-            vscode.postMessage({
-                type: 'sendMessage',
-                text: text,
-                mode: mode
-            });
-        }
-
-        function addMessage(role, content, mode) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = \`message \${role}\`;
-            
-            const headerDiv = document.createElement('div');
-            headerDiv.className = 'message-header';
-            headerDiv.textContent = role === 'user' ? 'You' : 'OpenCode';
-            if (mode) {
-                headerDiv.textContent += \` (\${mode})\`;
-            }
-            
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            contentDiv.textContent = content;
-            
-            messageDiv.appendChild(headerDiv);
-            messageDiv.appendChild(contentDiv);
-            chatArea.appendChild(messageDiv);
-            
-            // Smart scroll - only scroll if user is at bottom
-            smartScrollToBottom();
-        }
-
-        // Model selection functionality
-        let availableModels = [];
-        let currentModelData = null;
-        let currentDropdownCloseHandler = null;
-        let currentSessionCloseHandler = null;
-        
-        // Handle model selector click
-        currentModel.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Toggle dropdown - if already open, close it; if closed, open it
-            const existingDropdown = document.querySelector('.model-dropdown');
-            if (existingDropdown) {
-                closeModelDropdown();
-            } else {
-                showModelDropdown();
-            }
-        });
-        
-        // Handle session selector click
-        currentSession.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Toggle dropdown - if already open, close it; if closed, open it
-            const existingDropdown = document.querySelector('.session-dropdown');
-            if (existingDropdown) {
-                closeSessionDropdown();
-            } else {
-                showSessionDropdown();
-            }
-        });
-        
-        function showModelDropdown() {
-            // Remove existing dropdown and its event listener
-            closeModelDropdown();
-            
-            if (availableModels.length === 0) {
-                // Request models from extension
-                vscode.postMessage({ type: 'getModels' });
-                return;
-            }
-            
-            // Create dropdown
-            const dropdown = document.createElement('div');
-            dropdown.className = 'model-dropdown';
-            
-            // Append to session-info so it appears above the model selector
-            sessionInfo.appendChild(dropdown);
-            
-            // Add recent models first
-            const recentModels = availableModels.filter(m => m.isRecent);
-            if (recentModels.length > 0) {
-                const recentHeader = document.createElement('div');
-                recentHeader.className = 'model-option';
-                recentHeader.style.fontWeight = 'bold';
-                recentHeader.textContent = 'Recent';
-                dropdown.appendChild(recentHeader);
-                
-                recentModels.forEach(model => {
-                    const option = createModelOption(model);
-                    dropdown.appendChild(option);
-                });
-            }
-            
-            // Add all models grouped by provider
-            const providers = [...new Set(availableModels.map(m => m.providerId))];
-            providers.forEach(providerId => {
-                const providerModels = availableModels.filter(m => m.providerId === providerId && !m.isRecent);
-                if (providerModels.length > 0) {
-                    const providerHeader = document.createElement('div');
-                    providerHeader.className = 'model-option';
-                    providerHeader.style.fontWeight = 'bold';
-                    providerHeader.textContent = providerId.charAt(0).toUpperCase() + providerId.slice(1);
-                    dropdown.appendChild(providerHeader);
-                    
-                    providerModels.forEach(model => {
-                        const option = createModelOption(model);
-                        dropdown.appendChild(option);
-                    });
-                }
-            });
-            
-            // Position dropdown above the model selector
-            const rect = currentModel.getBoundingClientRect();
-            dropdown.style.position = 'fixed';
-            dropdown.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
-            dropdown.style.left = rect.left + 'px';
-            
-            document.body.appendChild(dropdown);
-            
-            // Create and store close handler
-            currentDropdownCloseHandler = (e) => {
-                // Don't close if clicking on the dropdown itself or the model selector
-                if (dropdown.contains(e.target) || currentModel.contains(e.target)) {
-                    return;
-                }
-                closeModelDropdown();
-            };
-            
-            // Close dropdown when clicking outside
-            setTimeout(() => {
-                document.addEventListener('click', currentDropdownCloseHandler);
-            }, 0);
-        }
-        
-        function createModelOption(model) {
-            const option = document.createElement('div');
-            option.className = 'model-option';
-            option.innerHTML = \`
-                <span>\${model.name}</span>
-                <span class="model-provider">\${model.providerId}</span>
-            \`;
-            
-            option.addEventListener('click', () => {
-                selectModel(model);
-                closeModelDropdown();
-            });
-            
-            return option;
-        }
-        
-        function selectModel(model) {
-            currentModelData = model;
-            currentModel.textContent = model.name;
-            
-            // Send model switch request to extension
-            vscode.postMessage({
-                type: 'switchModel',
-                providerId: model.providerId,
-                modelId: model.id
-            });
-        }
-        
-        function showSessionDropdown() {
-            // Remove existing dropdown and its event listener
-            closeSessionDropdown();
-            
-            if (availableSessions.length === 0) {
-                // Request sessions from extension
-                vscode.postMessage({ type: 'getSessions' });
-                return;
-            }
-            
-            // Create dropdown
-            const dropdown = document.createElement('div');
-            dropdown.className = 'session-dropdown';
-            
-            // Add default session templates (like TUI)
-            const defaultSessions = [
-                { id: 'default', title: 'Getting Started with Claude Code', isDefault: true },
-                { id: 'init-cli', title: 'Initializing Claude Code CLI', isDefault: true },
-                { id: 'thread-title', title: 'Generating Thread Title', isDefault: true },
-                { id: 'project-kickoff', title: 'Brainstorming Project Kickoff', isDefault: true },
-                { id: 'cli-interaction', title: 'Exploring CLI Interaction', isDefault: true },
-                { id: 'discussing-cli', title: 'Discussing CLI Interaction', isDefault: true }
-            ];
-            
-            // Add default sessions
-            const defaultHeader = document.createElement('div');
-            defaultHeader.className = 'session-option';
-            defaultHeader.style.fontWeight = 'bold';
-            defaultHeader.textContent = 'Default Sessions';
-            dropdown.appendChild(defaultHeader);
-            
-            defaultSessions.forEach(session => {
-                const option = createSessionOption(session);
-                dropdown.appendChild(option);
-            });
-            
-            // Add separator
-            const separator = document.createElement('div');
-            separator.className = 'session-separator';
-            dropdown.appendChild(separator);
-            
-            // Add user sessions
-            if (availableSessions.length > 0) {
-                const userHeader = document.createElement('div');
-                userHeader.className = 'session-option';
-                userHeader.style.fontWeight = 'bold';
-                userHeader.textContent = 'Your Sessions';
-                dropdown.appendChild(userHeader);
-                
-                availableSessions.forEach(session => {
-                    const option = createSessionOption(session);
-                    dropdown.appendChild(option);
-                });
-            }
-            
-            // Add new session option at the top
-            const newSessionOption = document.createElement('div');
-            newSessionOption.className = 'session-option new-session';
-            newSessionOption.innerHTML = '<span>+ New Session</span>';
-            newSessionOption.addEventListener('click', () => {
-                createNewSession();
-                closeSessionDropdown();
-            });
-            dropdown.insertBefore(newSessionOption, dropdown.firstChild);
-            
-            // Position dropdown above the session selector
-            const rect = currentSession.getBoundingClientRect();
-            dropdown.style.position = 'fixed';
-            dropdown.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
-            dropdown.style.left = rect.left + 'px';
-            
-            document.body.appendChild(dropdown);
-            
-            // Create and store close handler
-            currentSessionCloseHandler = (e) => {
-                // Don't close if clicking on the dropdown itself or the session selector
-                if (dropdown.contains(e.target) || currentSession.contains(e.target)) {
-                    return;
-                }
-                
-                // Don't close if clicking on session edit input
-                if (e.target.classList && e.target.classList.contains('session-edit-input')) {
-                    return;
-                }
-                
-                closeSessionDropdown();
-            };
-            
-            // Close dropdown when clicking outside
-            setTimeout(() => {
-                document.addEventListener('click', currentSessionCloseHandler);
-            }, 0);
-        }
-        
-        function createSessionOption(session) {
-            const option = document.createElement('div');
-            option.className = 'session-option';
-            option.dataset.sessionId = session.id;
-            
-            // Check if this is the current session
-            const isCurrentSession = currentSessionData?.id === session.id;
-            
-            option.innerHTML = \`
-                <div class="session-content">
-                    <span class="session-title">\${session.title}</span>
-                    <div class="session-badges">
-                        \${isCurrentSession ? '<span class="session-current">Current</span>' : ''}
-                        \${session.isDefault ? '<span class="session-type">Default</span>' : ''}
-                    </div>
-                </div>
-                 <div class="session-actions" style="display: none;">
-                     <button class="session-edit-btn" title="Edit session name">
-                         <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                             <path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke="currentColor" stroke-width="1" fill="none"/>
-                         </svg>
-                     </button>
-                     \${!isCurrentSession ? '<button class="session-delete-btn" title="Delete session"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M3 3L9 9M9 3L3 9" stroke="currentColor" stroke-width="1"/></svg></button>' : ''}
-                 </div>
-            \`;
-            
-            // Add hover effects
-            option.addEventListener('mouseenter', () => {
-                const actions = option.querySelector('.session-actions');
-                if (actions) {
-                    actions.style.display = 'flex';
-                }
-            });
-            
-            option.addEventListener('mouseleave', () => {
-                const actions = option.querySelector('.session-actions');
-                if (actions) {
-                    actions.style.display = 'none';
-                }
-            });
-            
-            // Handle session selection (click on content area)
-            const content = option.querySelector('.session-content');
-            content.addEventListener('click', (e) => {
-                e.stopPropagation();
-                selectSession(session);
-                closeSessionDropdown();
-            });
-            
-            // Handle edit button
-            const editBtn = option.querySelector('.session-edit-btn');
-            editBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                startEditSession(session, option);
-            });
-            
-            // Handle delete button
-            const deleteBtn = option.querySelector('.session-delete-btn');
-            if (deleteBtn) {
-                deleteBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    deleteSession(session);
-                });
-            }
-            
-            return option;
-        }
-        
-        function selectSession(session) {
-            currentSessionData = session;
-            currentSession.textContent = session.title;
-            
-            // Send session switch request to extension
-            vscode.postMessage({
-                type: 'switchSession',
-                sessionId: session.id
-            });
-        }
-        
-        function createNewSession() {
-            // Send new session request to extension
-            vscode.postMessage({
-                type: 'createSession'
-            });
-        }
-        
-        function startEditSession(session, optionElement) {
-            const titleElement = optionElement.querySelector('.session-title');
-            const originalTitle = titleElement.textContent;
-            
-            // Flag to track if we're in the middle of a save operation
-            let isSaving = false;
-            
-            // Switch to edit mode: change edit button to save button, hide delete button
-            const editBtn = optionElement.querySelector('.session-edit-btn');
-            const deleteBtn = optionElement.querySelector('.session-delete-btn');
-            
-            if (editBtn) {
-                editBtn.innerHTML = \`
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                        <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                \`;
-                editBtn.title = 'Save changes';
-                
-                // Use mousedown instead of click to avoid blur event conflict
-                editBtn.onmousedown = (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    isSaving = true;
-                    saveEdit();
-                };
-            }
-            
-            if (deleteBtn) {
-                deleteBtn.style.display = 'none';
-            }
-            
-            // Create input field
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.value = originalTitle;
-            input.className = 'session-edit-input';
-            input.style.cssText = \`
-                background: var(--vscode-input-background);
-                color: var(--vscode-input-foreground);
-                border: 1px solid var(--vscode-input-border);
-                border-radius: 3px;
-                padding: 2px 6px;
-                font-size: 12px;
-                width: 100%;
-                outline: none;
-            \`;
-            
-            // Replace title with input
-            titleElement.style.display = 'none';
-            titleElement.parentNode.insertBefore(input, titleElement);
-            
-            // Prevent input click from closing dropdown
-            input.addEventListener('click', (e) => {
-                e.stopPropagation();
-            });
-            
-            // Focus and select text
-            input.focus();
-            input.select();
-            
-            // Handle save (Enter key or click outside)
-            const saveEdit = () => {
-                const newTitle = input.value.trim();
-                if (newTitle && newTitle !== originalTitle) {
-                    // Send update request to extension
-                    vscode.postMessage({
-                        type: 'updateSession',
-                        sessionId: session.id,
-                        updates: { title: newTitle }
-                    });
-                }
-                
-                // Restore original display
-                titleElement.textContent = newTitle || originalTitle;
-                titleElement.style.display = '';
-                input.remove();
-                
-                // Restore button states
-                restoreButtonStates(optionElement, session);
-            };
-            
-            // Handle cancel (Escape key)
-            const cancelEdit = () => {
-                titleElement.style.display = '';
-                input.remove();
-                
-                // Restore button states
-                restoreButtonStates(optionElement, session);
-            };
-            
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    saveEdit();
-                } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cancelEdit();
-                }
-            });
-            
-            input.addEventListener('blur', () => {
-                if (!isSaving) {
-                    cancelEdit();
-                }
-            });
-        }
-        
-        function restoreButtonStates(optionElement, session) {
-            const editBtn = optionElement.querySelector('.session-edit-btn');
-            const deleteBtn = optionElement.querySelector('.session-delete-btn');
-            const isCurrentSession = currentSessionData?.id === session.id;
-            
-            // Restore edit button
-            if (editBtn) {
-                editBtn.innerHTML = \`
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                        <path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke="currentColor" stroke-width="1" fill="none"/>
-                    </svg>
-                \`;
-                editBtn.title = 'Edit session name';
-                
-                // Restore original edit button click handler
-                editBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    startEditSession(session, optionElement);
-                };
-            }
-            
-            // Restore delete button (only if not current session)
-            if (deleteBtn) {
-                if (isCurrentSession) {
-                    deleteBtn.style.display = 'none';
-                } else {
-                    deleteBtn.style.display = '';
-                }
-            }
-        }
-        
-        function deleteSession(session) {
-            // Check if this is the current session
-            if (currentSessionData?.id === session.id) {
-                // Don't allow deleting current session
-                return;
-            }
-            
-            // Send delete request to extension
-            vscode.postMessage({
-                type: 'deleteSession',
-                sessionId: session.id
-            });
-        }
-        
-        function closeModelDropdown() {
-            const dropdown = document.querySelector('.model-dropdown');
-            if (dropdown) {
-                dropdown.remove();
-            }
-            if (currentDropdownCloseHandler) {
-                document.removeEventListener('click', currentDropdownCloseHandler);
-                currentDropdownCloseHandler = null;
-            }
-        }
-        
-        function closeSessionDropdown() {
-            const dropdown = document.querySelector('.session-dropdown');
-            if (dropdown) {
-                dropdown.remove();
-            }
-            if (currentSessionCloseHandler) {
-                document.removeEventListener('click', currentSessionCloseHandler);
-                currentSessionCloseHandler = null;
-            }
-        }
-        
-        function updateSessionDropdownContent() {
-            const dropdown = document.querySelector('.session-dropdown');
-            if (!dropdown) return;
-            
-            // Clear existing content except the new session button
-            const newSessionButton = dropdown.querySelector('.new-session');
-            dropdown.innerHTML = '';
-            if (newSessionButton) {
-                dropdown.appendChild(newSessionButton);
-            }
-            
-            // Add default session templates (like TUI)
-            const defaultSessions = [
-                { id: 'default', title: 'Getting Started with Claude Code', isDefault: true },
-                { id: 'init-cli', title: 'Initializing Claude Code CLI', isDefault: true },
-                { id: 'thread-title', title: 'Generating Thread Title', isDefault: true },
-                { id: 'project-kickoff', title: 'Brainstorming Project Kickoff', isDefault: true },
-                { id: 'cli-interaction', title: 'Exploring CLI Interaction', isDefault: true },
-                { id: 'discussing-cli', title: 'Discussing CLI Interaction', isDefault: true }
-            ];
-            
-            // Add default sessions
-            const defaultHeader = document.createElement('div');
-            defaultHeader.className = 'session-option';
-            defaultHeader.style.fontWeight = 'bold';
-            defaultHeader.textContent = 'Default Sessions';
-            dropdown.appendChild(defaultHeader);
-            
-            defaultSessions.forEach(session => {
-                const option = createSessionOption(session);
-                dropdown.appendChild(option);
-            });
-            
-            // Add separator
-            const separator = document.createElement('div');
-            separator.className = 'session-separator';
-            dropdown.appendChild(separator);
-            
-            // Add user sessions
-            if (availableSessions.length > 0) {
-                const userHeader = document.createElement('div');
-                userHeader.className = 'session-option';
-                userHeader.style.fontWeight = 'bold';
-                userHeader.textContent = 'Your Sessions';
-                dropdown.appendChild(userHeader);
-                
-                availableSessions.forEach(session => {
-                    const option = createSessionOption(session);
-                    dropdown.appendChild(option);
-                });
-            }
-        }
-
-        // State variables for message handling
-        let currentStreamingMessage = null;
-        let currentMessageId = null;
-        const processedMessageIds = new Set();
-        let lastAssistantMessageId = null;
-        let isSessionLocked = false; // Track if session is currently processing
-        
-        // Handle messages from extension
-        window.addEventListener('message', (event) => {
-            const message = event.data;
-            // Only log errors and warnings
-            if (message.type === 'error') {
-                vscode.postMessage({
-                    type: 'debug',
-                    message: 'ERROR: ' + message.message
-                });
-            }
-
-            switch (message.type) {
-                case 'messageSent':
-                    // Message was sent, waiting for SSE response
-                    status.textContent = 'Processing...';
-                    
-                    // Following TUI approach: only show "Generating..." if session is not locked
-                    // If session is locked, the message will be queued on the server side
-                    if (!isSessionLocked) {
-                        // First message - session is not locked, show "Generating..."
-                        const modelName = message.model || 'Unknown';
-                        const mode = message.mode || 'plan';
-                        const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        const generatingText = \`Generating...\n\${mode.charAt(0).toUpperCase() + mode.slice(1)} \${modelName} (\${currentTime})\`;
-                        
-                        currentStreamingMessage = addStreamingMessage('assistant', generatingText, mode);
-                        currentMessageId = message.messageId;
-                        isSessionLocked = true; // Mark session as locked
-                    } else {
-                        // Session is locked - message will be queued, show "QUEUED" status
-                        addQueuedStatus();
-                    }
-                    break;
-                    
-                case 'streamingUpdate':
-                    // Handle streaming updates
-                    handleStreamingUpdate(message.messageId, message.content, message.partType, message.role);
-                    break;
-                    
-                case 'error':
-                    // Error occurred
-                    addMessage('assistant', \`Error: \${message.message}\`, 'error');
-                    sendButton.disabled = false;
-                    status.textContent = 'Error';
-                    break;
-                    
-                case 'stateUpdate':
-                    // Update session info
-                    const state = message.state;
-                    currentMode.textContent = state.currentMode || 'Plan';
-                    currentSession.textContent = state.currentSession?.title || 'Default';
-                    currentSessionData = state.currentSession;
-                    
-                    // Update current model display
-                    if (state.currentModel) {
-                        currentModel.textContent = state.currentModel.name || 'Unknown';
-                        currentModelData = state.currentModel;
-                    } else {
-                        currentModel.textContent = 'Loading...';
-                    }
-                    
-                    // Update available models if provided
-                    if (state.availableModels && state.availableModels.length > 0) {
-                        availableModels = state.availableModels;
-                    }
-                    break;
-                    
-                case 'sessionsUpdate':
-                    // Update available sessions
-                    availableSessions = message.sessions || [];
-                    
-                    // Update current session data if it was updated
-                    if (currentSessionData && message.sessions) {
-                        const updatedSession = message.sessions.find(s => s.id === currentSessionData.id);
-                        if (updatedSession) {
-                            currentSessionData = updatedSession;
-                            currentSession.textContent = updatedSession.title;
-                        }
-                    }
-                    
-                    // If session dropdown is open, update its content instead of rebuilding
-                    const existingDropdown = document.querySelector('.session-dropdown');
-                    if (existingDropdown) {
-                        updateSessionDropdownContent();
-                    }
-                    break;
-                    
-                case 'modelsLoaded':
-                    // Models loaded from extension
-                    availableModels = message.models || [];
-                    break;
-                    
-                case 'modelSwitched':
-                    // Model was switched
-                    currentModel.textContent = message.modelName || 'Unknown';
-                    status.textContent = 'Model switched';
-                    setTimeout(() => {
-                        status.textContent = 'Ready';
-                    }, 2000);
-                    break;
-                    
-                case 'sessionCreated':
-                    // New session was created - refresh sessions list
-                    // Request updated sessions list
-                    vscode.postMessage({ type: 'getSessions' });
-                    status.textContent = 'New session created';
-                    setTimeout(() => {
-                        status.textContent = 'Ready';
-                    }, 1000);
-                    break;
-                    
-                case 'sessionUpdated':
-                    // Session was updated - refresh sessions list
-                    vscode.postMessage({ type: 'getSessions' });
-                    status.textContent = 'Session updated';
-                    setTimeout(() => {
-                        status.textContent = 'Ready';
-                    }, 1000);
-                    break;
-                    
-                case 'sessionDeleted':
-                    // Session was deleted - refresh sessions list
-                    vscode.postMessage({ type: 'getSessions' });
-                    status.textContent = 'Session deleted';
-                    setTimeout(() => {
-                        status.textContent = 'Ready';
-                    }, 1000);
-                    break;
-                    
-                case 'sessionSwitched':
-                    // Session was switched - clear chat and show welcome message
-                    chatArea.innerHTML = '';
-                    addMessage('assistant', 'Hello! I\\'m OpenCode Assistant. How can I help you today?', 'plan');
-                    status.textContent = 'Session switched';
-                    setTimeout(() => {
-                        status.textContent = 'Ready';
-                    }, 2000);
-                    break;
-                    
-                case 'messagesLoaded':
-                    // Load messages for the current session
-                    chatArea.innerHTML = '';
-                    const messages = message.messages;
-                    if (messages && messages.length > 0) {
-                        // Display existing messages and find last assistant message ID
-                        messages.forEach(msg => {
-                            if (msg.role === 'user') {
-                                addMessage('user', msg.content || msg.text || '', modeSelector.value);
-                            } else if (msg.role === 'assistant') {
-                                addMessage('assistant', msg.content || msg.text || '', modeSelector.value);
-                                // Update lastAssistantMessageId for queue detection
-                                if (msg.id) {
-                                    lastAssistantMessageId = msg.id;
-                                }
-                            }
-                        });
-                    } else {
-                        // No messages, show welcome message
-                        addMessage('assistant', 'Hello! I\\'m OpenCode Assistant. How can I help you today?', 'plan');
-                    }
-                    // Reset session lock state when loading messages
-                    isSessionLocked = false;
-                    status.textContent = 'Messages loaded';
-                    setTimeout(() => {
-                        status.textContent = 'Ready';
-                    }, 1000);
-                    break;
-            }
-        });
-
-        // Smart scrolling state - following TUI approach
-        let isAtBottom = true; // Track if user is at bottom of chat
-        let userScrolled = false; // Track if user manually scrolled
-        
-        // Track scroll position to detect user scrolling
-        chatArea.addEventListener('scroll', () => {
-            const isCurrentlyAtBottom = chatArea.scrollTop + chatArea.clientHeight >= chatArea.scrollHeight - 5;
-            isAtBottom = isCurrentlyAtBottom;
-            userScrolled = !isCurrentlyAtBottom;
-        });
-        
-        // Smart scroll function - only scroll if user is at bottom
-        function smartScrollToBottom() {
-            if (isAtBottom) {
-                chatArea.scrollTop = chatArea.scrollHeight;
-            }
-        }
-        
-        function handleStreamingUpdate(messageId, content, partType, role) {
-            // Following TUI approach: ignore user message updates (they're already displayed)
-            if (role === 'user') {
-                return;
-            }
-            
-            if (partType === 'text') {
-                // Following TUI approach: update the existing "Generating..." message with actual content
-                if (currentStreamingMessage) {
-                    // Replace "Generating..." content with actual LLM response
-                    updateStreamingMessage(currentStreamingMessage, content);
-                    currentMessageId = messageId; // Update to real message ID from server
-                    
-                    // Remove streaming indicator only when we have actual content (not "Generating...")
-                    if (content && !content.includes('Generating...')) {
-                        finalizeStreamingMessage(currentStreamingMessage);
-                    }
-                } else {
-                    // This shouldn't happen with our current logic, but handle it gracefully
-                    currentStreamingMessage = addStreamingMessage('assistant', content, modeSelector.value);
-                    currentMessageId = messageId;
-                }
-            } else if (partType === 'step-finish') {
-                // Streaming complete - Following TUI approach
-                // The server processes all queued messages and returns a single unified response
-                if (currentStreamingMessage) {
-                    // Only finalize if we haven't already done so
-                    if (currentStreamingMessage.classList.contains('streaming')) {
-                        finalizeStreamingMessage(currentStreamingMessage);
-                    }
-                    
-                    // Update lastAssistantMessageId to the completed message
-                    lastAssistantMessageId = messageId;
-                    
-                    // Check if there are queued messages that need processing BEFORE clearing them
-                    const queuedTags = document.querySelectorAll('.queued-tag');
-                    const hasQueuedMessages = queuedTags.length > 0;
-                    
-                    // Clear all QUEUED tags since they all get the same response
-                    queuedTags.forEach(tag => tag.remove());
-                    
-                    if (hasQueuedMessages) {
-                        // Following TUI approach: create new "Generating..." bubble for queued messages
-                        const modelName = 'Unknown'; // We don't have model info here, use default
-                        const mode = modeSelector.value || 'plan';
-                        const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        const generatingText = \`Generating...\n\${mode.charAt(0).toUpperCase() + mode.slice(1)} \${modelName} (\${currentTime})\`;
-                        
-                        currentStreamingMessage = addStreamingMessage('assistant', generatingText, mode);
-                        currentMessageId = 'generating_' + Date.now();
-                        isSessionLocked = true; // Keep session locked for queued processing
-                    } else {
-                        // No queued messages - unlock session
-                        isSessionLocked = false;
-                        sendButton.disabled = false;
-                        status.textContent = 'Ready';
-                    }
-                    
-                    processedMessageIds.add(messageId);
-                    
-                    // Only reset currentStreamingMessage if there are no queued messages
-                    if (!hasQueuedMessages) {
-                        currentStreamingMessage = null;
-                        currentMessageId = null;
-                    }
-                }
-            }
-        }
-        
-        function addStreamingMessage(role, content, mode) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = \`message \${role} streaming\`;
-
-            const headerDiv = document.createElement('div');
-            headerDiv.className = 'message-header';
-            headerDiv.textContent = role === 'user' ? 'You' : 'OpenCode';
-            if (mode) {
-                headerDiv.textContent += \` (\${mode})\`;
-            }
-
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            contentDiv.textContent = content;
-
-            messageDiv.appendChild(headerDiv);
-            messageDiv.appendChild(contentDiv);
-            chatArea.appendChild(messageDiv);
-
-            // Smart scroll - only scroll if user is at bottom
-            smartScrollToBottom();
-
-            return messageDiv;
-        }
-        
-        function addQueuedStatus() {
-            // Add QUEUED status indicator inside the last user message bubble
-            const userMessages = chatArea.querySelectorAll('.message.user');
-            if (userMessages.length > 0) {
-                const lastUserMessage = userMessages[userMessages.length - 1];
-                const contentDiv = lastUserMessage.querySelector('.message-content');
-                if (contentDiv) {
-                    // Create QUEUED tag
-                    const queuedTag = document.createElement('div');
-                    queuedTag.className = 'queued-tag';
-                    queuedTag.style.cssText = \`
-                        margin: 4px 0 8px 0;
-                        padding: 2px 6px;
-                        font-size: 10px;
-                        font-weight: bold;
-                        color: white;
-                        background-color: #ff8c00;
-                        text-align: center;
-                        border-radius: 3px;
-                        opacity: 0.9;
-                        display: inline-block;
-                    \`;
-                    queuedTag.textContent = 'QUEUED';
-                    
-                    // Insert QUEUED tag at the top of the message content
-                    contentDiv.insertBefore(queuedTag, contentDiv.firstChild);
-                }
-            }
-            smartScrollToBottom();
-        }
-        
-        function updateStreamingMessage(messageDiv, content) {
-            const contentDiv = messageDiv.querySelector('.message-content');
-            if (contentDiv) {
-                contentDiv.textContent = content;
-                // Smart scroll - only scroll if user is at bottom
-                smartScrollToBottom();
-            }
-        }
-        
-        function finalizeStreamingMessage(messageDiv) {
-            messageDiv.classList.remove('streaming');
-        }
-
-        // Request initial state and sessions
-        vscode.postMessage({ type: 'getState' });
-        vscode.postMessage({ type: 'getSessions' });
-    </script>
 </body>
-</html>`;
-  }
-
-  /**
-   * Check if the panel is disposed
-   */
-  isDisposed(): boolean {
-    return this.disposed
-  }
-
-  /**
-   * Show the panel
-   */
-  show(): void {
-    if (this.disposed) {
-      throw new Error('Webview is disposed')
-    }
-    // this.outputChannel.appendLine('👁️ Revealing OpenCode panel') // Removed
-    this.webview.reveal()
-  }
-
-  /**
-   * Dispose of the panel
-   */
-  dispose(): void {
-    if (!this.disposed) {
-      this.disposed = true
-      this.webview.dispose()
-    }
+</html>`
   }
 }

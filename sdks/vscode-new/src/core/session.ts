@@ -4,8 +4,8 @@ import * as vscode from 'vscode'
 
 /**
  * Session Manager
- * Handles session-related operations using OpenCode API
- * Similar to TUI's session management
+ * Handles all session-related operations including lifecycle, undo/redo, and local state management
+ * Unified version combining functionality from both previous SessionManager implementations
  */
 export class SessionManager {
   private api: OpenCodeAPI
@@ -43,7 +43,11 @@ export class SessionManager {
         }
         
         // Sort sessions by updated time (most recent first)
-        sessions.sort((a, b) => b.updatedAt - a.updatedAt)
+        sessions.sort((a, b) => {
+          const aTime = typeof a.updatedAt === 'number' ? a.updatedAt : new Date(a.updatedAt).getTime()
+          const bTime = typeof b.updatedAt === 'number' ? b.updatedAt : new Date(b.updatedAt).getTime()
+          return bTime - aTime
+        })
         
         this.sessions = sessions
         
@@ -99,6 +103,13 @@ export class SessionManager {
   }
 
   /**
+   * Create a new session (alias for createSession)
+   */
+  async createNewSession(): Promise<Session> {
+    return this.createSession()
+  }
+
+  /**
    * Get all sessions
    */
   getSessions(): Session[] {
@@ -142,27 +153,139 @@ export class SessionManager {
   }
 
   /**
-   * Update session
+   * Switch to a specific session
    */
-  updateSession(sessionId: string, updates: Partial<Session>): void {
-    const sessionIndex = this.sessions.findIndex(session => session.id === sessionId)
-    if (sessionIndex !== -1) {
-      this.sessions[sessionIndex] = { ...this.sessions[sessionIndex], ...updates }
-      this.outputChannel.appendLine(`✅ Updated session: ${sessionId}`)
+  async switchToSession(sessionId: string): Promise<Session> {
+    try {
+      const sessions = await this.api.getSessions()
+      const session = sessions.find(s => s.id === sessionId)
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found`)
+      }
+      this.outputChannel.appendLine(`✅ Switched to session: ${sessionId}`)
+      return session
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to switch to session: ${error.message}`)
+      throw error
     }
   }
 
   /**
-   * Delete session
+   * Update session properties
+   */
+  async updateSession(sessionId: string, updates: { title?: string }): Promise<Session> {
+    try {
+      const session = await this.api.updateSession(sessionId, updates)
+      this.outputChannel.appendLine(`✅ Session updated: ${sessionId}`)
+      
+      // Update local session list
+      const localSession = this.sessions.find(s => s.id === sessionId)
+      if (localSession) {
+        localSession.title = session.title || localSession.title
+        localSession.updatedAt = Date.now()
+      }
+      
+      return session
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to update session: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Update session (local version)
+   */
+  updateSessionLocal(sessionId: string, updates: Partial<Session>): void {
+    const sessionIndex = this.sessions.findIndex(session => session.id === sessionId)
+    if (sessionIndex !== -1) {
+      this.sessions[sessionIndex] = { ...this.sessions[sessionIndex], ...updates }
+      this.outputChannel.appendLine(`✅ Updated local session: ${sessionId}`)
+    }
+  }
+
+  /**
+   * Delete a session
    */
   async deleteSession(sessionId: string): Promise<void> {
     try {
+      await this.api.deleteSession(sessionId)
+      
       // Remove from local list
       this.sessions = this.sessions.filter(session => session.id !== sessionId)
-      this.outputChannel.appendLine(`✅ Deleted session: ${sessionId}`)
+      
+      this.outputChannel.appendLine(`✅ Session deleted: ${sessionId}`)
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to delete session: ${error.message}`)
       throw error
     }
+  }
+
+  /**
+   * Undo to a specific message
+   */
+  async undoToMessage(sessionId: string, messageId?: string, partId?: string): Promise<Session> {
+    try {
+      const revertedSession = await this.api.revertSession(sessionId, messageId, partId)
+      this.outputChannel.appendLine(`✅ Undo completed - reverted to message ${messageId || 'latest'}`)
+      
+      // Note: WebView communication is handled by WebViewCommunicationManager
+      
+      return revertedSession
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to undo: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Redo changes
+   */
+  async redoChanges(sessionId: string): Promise<Session> {
+    try {
+      const unrevertedSession = await this.api.unrevertSession(sessionId)
+      this.outputChannel.appendLine(`✅ Redo completed`)
+      
+      // Note: WebView communication is handled by WebViewCommunicationManager
+      
+      return unrevertedSession
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to redo: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Check if undo is possible
+   */
+  canUndo(session: Session): boolean {
+    return !!(session.revert?.messageId || session.revert?.partId)
+  }
+
+  /**
+   * Get revert information
+   */
+  getRevertInfo(session: Session): { messageId?: string; partId?: string } | null {
+    return session.revert || null
+  }
+
+  /**
+   * Calculate revert info like TUI does
+   */
+  calculateRevertInfo(session: any): { messageCount: number; toolCount: number } {
+    // This is a simplified version - in a real implementation,
+    // you'd calculate based on the actual message and tool call counts
+    return {
+      messageCount: 1, // Default to 1 message reverted
+      toolCount: 0     // Default to 0 tool calls reverted
+    }
+  }
+
+  /**
+   * Get the last user message for pre-filling input (TUI behavior)
+   */
+  getLastUserMessage(): string {
+    // This would need to be implemented based on your message storage
+    // For now, return empty string
+    return ''
   }
 }

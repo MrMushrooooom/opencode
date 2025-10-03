@@ -1,0 +1,296 @@
+/* Main styles for OpenCode Assistant */
+
+body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-editor-background);
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    flex-shrink: 0;
+}
+
+.title {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.status {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.chat-area {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    padding: 10px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    background-color: var(--vscode-editor-background);
+}
+
+.message {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.message.user {
+    background-color: var(--vscode-input-background);
+    margin-left: 20px;
+}
+
+.message.assistant {
+    background-color: var(--vscode-textBlockQuote-background);
+    margin-right: 20px;
+}
+
+.message.streaming {
+    border-left: 3px solid var(--vscode-textLink-foreground);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.message-header {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: 5px;
+}
+
+.message-content {
+    white-space: pre-wrap;
+}
+
+.input-area {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-shrink: 0;
+    margin-bottom: 10px;
+}
+
+.input-field {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+}
+
+.mode-selector {
+    padding: 8px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+}
+
+.send-button {
+    padding: 8px 16px;
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.send-button:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.send-button:disabled {
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    cursor: not-allowed;
+}
+
+.session-info {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    flex-shrink: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--vscode-panel-border);
+    position: relative;
+}
+
+.model-selector, .session-selector {
+    cursor: pointer;
+    color: var(--vscode-textLink-foreground);
+    text-decoration: underline;
+}
+
+.model-selector:hover, .session-selector:hover {
+    color: var(--vscode-textLink-activeForeground);
+}
+
+.model-dropdown, .session-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 5px;
+    background-color: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    border-radius: 4px;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+    z-index: 1000;
+    max-height: 200px;
+    overflow-y: auto;
+    min-width: 200px;
+}
+
+.model-option, .session-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--vscode-dropdown-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+}
+
+.model-option:hover, .session-option:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.model-option:last-child, .session-option:last-child {
+    border-bottom: none;
+}
+
+/* Session-specific styles */
+.session-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    min-width: 0;
+}
+
+.session-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.session-actions {
+    display: flex;
+    gap: 5px;
+    margin-left: 10px;
+}
+
+.session-action {
+    background: none;
+    border: none;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 10px;
+}
+
+.session-action:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
+    color: var(--vscode-foreground);
+}
+
+/* Model-specific styles */
+.model-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    flex: 1;
+    min-width: 0;
+}
+
+.model-name {
+    font-weight: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.model-provider {
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
+    margin-top: 2px;
+}
+
+.model-status {
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
+    margin-left: 10px;
+    flex-shrink: 0;
+}
+
+/* Scrollbar styling */
+.chat-area::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chat-area::-webkit-scrollbar-track {
+    background: var(--vscode-scrollbarSlider-background);
+}
+
+.chat-area::-webkit-scrollbar-thumb {
+    background: var(--vscode-scrollbarSlider-hoverBackground);
+    border-radius: 4px;
+}
+
+.chat-area::-webkit-scrollbar-thumb:hover {
+    background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .input-area {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .mode-selector {
+        width: 100%;
+    }
+    
+    .input-field {
+        width: 100%;
+    }
+    
+    .send-button {
+        width: 100%;
+    }
+}

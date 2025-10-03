@@ -24,7 +24,13 @@ export function activate(context: vscode.ExtensionContext) {
       
       // Initialize OpenCode app if not already done
       if (!openCodeApp) {
-        openCodeApp = new OpenCodeApp(outputChannel)
+        // Get current workspace directory
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+        const workspacePath = workspaceFolder?.uri.fsPath || process.cwd()
+        
+        outputChannel.appendLine(`📁 Current workspace: ${workspacePath}`)
+        
+        openCodeApp = new OpenCodeApp(outputChannel, workspacePath)
         await openCodeApp.initialize()
       }
 
@@ -34,6 +40,10 @@ export function activate(context: vscode.ExtensionContext) {
         openCodePanel.show()
       } else {
         outputChannel.appendLine('🆕 Creating new OpenCode panel')
+        // Clear the old panel reference if it was disposed
+        if (openCodePanel && openCodePanel.isDisposed()) {
+          openCodePanel = null
+        }
         openCodePanel = new OpenCodePanel(openCodeApp, outputChannel)
       }
 

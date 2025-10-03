@@ -1,0 +1,195 @@
+/* BUILD Mode specific styles */
+
+.build-controls {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: var(--vscode-panel-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+}
+
+.build-controls.active {
+    display: flex;
+}
+
+.undo-btn, .redo-btn {
+    padding: 6px 12px;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.undo-btn:hover, .redo-btn:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.undo-btn:disabled, .redo-btn:disabled {
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-disabledForeground);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.file-changes {
+    flex: 1;
+    margin-left: 10px;
+    padding: 8px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+}
+
+.file-changes.active {
+    display: block;
+}
+
+.file-change-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.file-change-item:last-child {
+    border-bottom: none;
+}
+
+.file-status {
+    font-weight: bold;
+    min-width: 60px;
+}
+
+.file-status.added {
+    color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.file-status.modified {
+    color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.file-status.deleted {
+    color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.file-path {
+    flex: 1;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.file-diff-toggle {
+    background: none;
+    border: none;
+    color: var(--vscode-textLink-foreground);
+    cursor: pointer;
+    font-size: 10px;
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+.file-diff-toggle:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.file-diff {
+    margin-top: 8px;
+    padding: 8px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 11px;
+    line-height: 1.4;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.diff-line {
+    margin: 2px 0;
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+.diff-line.added {
+    background-color: var(--vscode-diffEditor-insertedTextBackground);
+    color: var(--vscode-diffEditor-insertedTextForeground);
+}
+
+.diff-line.removed {
+    background-color: var(--vscode-diffEditor-removedTextBackground);
+    color: var(--vscode-diffEditor-removedTextForeground);
+}
+
+.diff-line.context {
+    color: var(--vscode-foreground);
+}
+
+.diff-line-number {
+    display: inline-block;
+    width: 40px;
+    text-align: right;
+    margin-right: 8px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 10px;
+}
+
+/* Revert status display */
+.revert-status {
+    background-color: var(--vscode-panel-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    padding: 10px;
+    margin: 10px 0;
+    color: var(--vscode-foreground);
+    font-size: 12px;
+}
+
+.revert-status .status-text {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.revert-status .hint-text {
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+/* File changes list */
+#fileChangesList {
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+#fileChangesList:empty::before {
+    content: "No file changes yet";
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+/* Responsive adjustments for BUILD mode */
+@media (max-width: 600px) {
+    .build-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .undo-btn, .redo-btn {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    .file-changes {
+        margin-left: 0;
+        margin-top: 10px;
+    }
+}

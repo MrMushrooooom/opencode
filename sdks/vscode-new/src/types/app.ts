@@ -1,12 +1,9 @@
 // Application state types
 export interface AppState {
   currentSession: Session | null
-  sessions: Session[]
   messages: Message[]
   currentMode: 'plan' | 'build'
   currentModel: Model | null
-  availableModels: Model[]
-  providers: Provider[]
   recentlyUsedModels: ModelUsage[]
   isConnected: boolean
   serverPort: number | null
@@ -15,8 +12,13 @@ export interface AppState {
 export interface Session {
   id: string
   title?: string
-  createdAt: string
-  updatedAt: string
+  createdAt: string | number
+  updatedAt: string | number
+  messageCount?: number
+  revert?: {
+    messageId?: string
+    partId?: string
+  }
 }
 
 export interface Message {
@@ -57,4 +59,42 @@ export interface PromptResponse {
   content: string
   messageId: string
   sessionId: string
+}
+
+// BUILD Mode: Permission types
+export interface Permission {
+  id: string
+  sessionId: string
+  type: 'edit' | 'bash' | 'webfetch'
+  description: string
+  metadata?: Record<string, any>
+  createdAt: string
+}
+
+// BUILD Mode: File change types
+export interface FileChange {
+  filePath: string
+  type: 'added' | 'modified' | 'deleted'
+  diff?: string
+  preview?: string
+  lineCount?: number
+}
+
+// BUILD Mode: Diff types
+export interface DiffLine {
+  oldLineNo: number
+  newLineNo: number
+  kind: 'context' | 'added' | 'removed'
+  content: string
+}
+
+export interface DiffHunk {
+  header: string
+  lines: DiffLine[]
+}
+
+export interface DiffResult {
+  oldFile: string
+  newFile: string
+  hunks: DiffHunk[]
 }

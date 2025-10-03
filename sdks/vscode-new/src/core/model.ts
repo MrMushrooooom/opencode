@@ -72,7 +72,6 @@ export class ModelManager {
       // Like TUI, don't throw error - continue with empty providers
       // The selectDefaultModel will handle the case when no models are available
       this.providers = []
-      this.allModels = []
     }
   }
 
@@ -128,7 +127,7 @@ export class ModelManager {
   /**
    * Switch to a specific model
    */
-  async switchToModel(providerId: string, modelId: string): Promise<void> {
+  async switchToModel(providerId: string, modelId: string): Promise<Model> {
     try {
       const model = this.findModelByProviderAndModelID(providerId, modelId)
       if (!model) {
@@ -139,6 +138,7 @@ export class ModelManager {
       this.updateModelUsage(providerId, modelId)
       
       this.outputChannel.appendLine(`✅ Switched to model: ${model.name} (${providerId})`)
+      return model
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to switch model: ${error.message}`)
       throw error
@@ -151,7 +151,11 @@ export class ModelManager {
   getAllModels(): Model[] {
     const models: Model[] = []
     for (const provider of this.providers) {
-      models.push(...provider.models)
+      const providerModels = provider.models.map(model => ({
+        ...model,
+        isCurrent: model.id === this.currentModel?.id && model.providerId === this.currentModel?.providerId
+      }))
+      models.push(...providerModels)
     }
     return models
   }
@@ -225,5 +229,12 @@ export class ModelManager {
     
     // Keep only last 10 models
     this.recentlyUsedModels = this.recentlyUsedModels.slice(0, 10)
+  }
+
+  /**
+   * Get all providers
+   */
+  getProviders(): Provider[] {
+    return [...this.providers]
   }
 }
