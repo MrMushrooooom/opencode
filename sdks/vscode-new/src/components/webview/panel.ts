@@ -99,9 +99,8 @@ export class OpenCodePanel {
         case 'redoChanges':
           await this.handleRedoChanges()
           break
-        case 'debug':
-          // Log all debug messages for troubleshooting
-          this.outputChannel.appendLine(`🐛 Frontend: ${message.message}`)
+        case 'respondToPermission':
+          await this.handleRespondToPermission(message.permissionId, message.response)
           break
 
         case 'checkServerStatus':
@@ -146,8 +145,28 @@ export class OpenCodePanel {
   }
 
   /**
-   * Handle create session
+   * Handle respond to permission request
    */
+  private async handleRespondToPermission(permissionId: string, response: 'once' | 'always' | 'reject'): Promise<void> {
+    try {
+      this.outputChannel.appendLine(`🔐 Responding to permission ${permissionId} with: ${response}`)
+      
+      const currentSession = this.app.getCurrentSession()
+      if (!currentSession) {
+        throw new Error('No active session')
+      }
+      
+      await this.app.respondToPermission(currentSession.id, permissionId, response)
+      this.outputChannel.appendLine(`✅ Permission response sent successfully`)
+
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to respond to permission: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
   private async handleCreateSession(): Promise<void> {
     try {
       // TUI approach: Clear chat area first for manual session creation
@@ -334,27 +353,6 @@ export class OpenCodePanel {
     }
   }
 
-  /**
-   * Handle respond to permission
-   */
-  private async handleRespondToPermission(permissionId: string, response: 'once' | 'always' | 'reject'): Promise<void> {
-    try {
-      await this.app.respondToPermission(permissionId, response)
-      this.outputChannel.appendLine(`✅ Permission response sent: ${response} for ${permissionId}`)
-      
-    this.sendMessageToWebview({
-        type: 'permissionResponseSuccess',
-        permissionId: permissionId,
-        response: response
-      })
-    } catch (error: any) {
-      this.outputChannel.appendLine(`❌ Failed to respond to permission: ${error.message}`)
-      this.sendMessageToWebview({
-        type: 'error',
-        error: error.message
-      })
-    }
-  }
 
   /**
    * Handle undo to message
@@ -368,7 +366,7 @@ export class OpenCodePanel {
       await this.updateUI()
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to undo: ${error.message}`)
-      this.sendMessageToWebview({
+    this.sendMessageToWebview({
         type: 'error',
         error: error.message
       })

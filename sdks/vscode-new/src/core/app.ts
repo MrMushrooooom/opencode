@@ -234,8 +234,20 @@ export class OpenCodeApp {
   }
 
   /**
-   * Get current session
+   * Respond to permission request
    */
+  async respondToPermission(sessionId: string, permissionId: string, response: 'once' | 'always' | 'reject'): Promise<void> {
+    try {
+      this.outputChannel.appendLine(`🔐 Responding to permission ${permissionId} with: ${response}`)
+      
+      await this.api.respondToPermission(sessionId, permissionId, response)
+      this.outputChannel.appendLine(`✅ Permission response sent successfully`)
+      
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to respond to permission: ${error.message}`)
+      throw error
+    }
+  }
   getCurrentSession(): Session | null {
     return this.stateManager.getCurrentSession()
   }
@@ -416,12 +428,6 @@ export class OpenCodeApp {
     this.permissionManager.addPermission(permission)
   }
 
-  /**
-   * Respond to a specific permission request
-   */
-  async respondToPermission(permissionId: string, response: 'once' | 'always' | 'reject'): Promise<void> {
-    await this.permissionManager.respondToPermissionById(permissionId, response)
-  }
 
   /**
    * Get the current permission being processed

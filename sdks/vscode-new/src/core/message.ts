@@ -135,13 +135,17 @@ export class MessageManager {
         const partTypes = response.parts.map((part: any) => part.type)
         this.outputChannel.appendLine(`⚠️ No text content found. Part types: ${partTypes.join(', ')}`)
         
-        // If no text content, but steps are completed, provide a default response
-        const stepStartParts = response.parts.filter((part: any) => part.type === 'step-start')
-        const stepFinishParts = response.parts.filter((part: any) => part.type === 'step-finish')
-        if (stepStartParts.length > 0 && stepFinishParts.length > 0) {
-          this.outputChannel.appendLine(`📝 Using default response for completed steps`)
-          return 'Yes, I can help you modify code. What specific changes would you like me to make?'
+        // If no text content, check if there are tool parts that should be displayed
+        const toolParts = response.parts.filter((part: any) => part.type === 'tool')
+        if (toolParts.length > 0) {
+          this.outputChannel.appendLine(`🔧 Found ${toolParts.length} tool parts, no text content`)
+          // CRITICAL FIX: Return a special marker to indicate tool-only message
+          // This allows frontend to know this message has tool calls
+          return '[TOOL_CALLS_ONLY]'
         }
+        
+        // If no text content and no tool parts, return empty string
+        this.outputChannel.appendLine(`📝 No text or tool content found`)
         return ''
       }
     } catch (error: any) {

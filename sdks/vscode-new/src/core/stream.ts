@@ -78,13 +78,39 @@ export class EventStreamManager {
           switch (event.type) {
             case 'message.part.updated':
               if (event.properties?.part) {
+                // Following TUI approach: update local message state first
+                const messageId = event.properties.part.messageID
+                const partId = event.properties.part.id
+                const partType = event.properties.part.type
+                
+                this.outputChannel.appendLine(`📝 Part updated: ${partId} (${partType}) for message ${messageId}`)
+                
                 // Include role information from our mapping
-                const role = this.messageRoles.get(event.properties.part.messageID) || 'unknown'
+                const role = this.messageRoles.get(messageId) || 'unknown'
                 const partWithRole = {
                   ...event.properties.part,
                   role: role
                 }
-                onMessageUpdate(event.properties.part.messageID, partWithRole)
+                
+                // Following TUI approach: handle different part types
+                if (partType === 'tool') {
+                  // Send tool parts directly to webview for unified handling
+                  this.outputChannel.appendLine(`🔧 Tool part updated: ${partId}`)
+                  this.webviewCommManager.sendMessage({
+                    type: 'tool-part-updated',
+                    messageId: messageId,
+                    toolPart: partWithRole
+                  })
+                } else if (partType === 'text') {
+                  // Handle text parts through streaming system
+                  onMessageUpdate(messageId, partWithRole)
+                } else if (partType === 'step-start' || partType === 'step-finish') {
+                  // Handle step events through streaming system
+                  onMessageUpdate(messageId, partWithRole)
+                } else {
+                  // Handle other part types through streaming system
+                  onMessageUpdate(messageId, partWithRole)
+                }
               }
               break
               
@@ -115,17 +141,63 @@ export class EventStreamManager {
               
             case 'session.idle':
               this.outputChannel.appendLine(`💤 Session idle event received`)
+              // Send session idle event to webview to update status
+              this.webviewCommManager.sendMessage({
+                type: 'session-idle'
+              })
               break
               
             case 'permission.updated':
               if (event.properties && onPermissionUpdate) {
                 this.outputChannel.appendLine(`🔐 Permission request received: ${event.properties.id}`)
+                // TUI-style: Send permission request directly to webview
+                this.webviewCommManager.sendMessage({
+                  type: 'permission-request',
+                  permission: event.properties
+                })
                 onPermissionUpdate(event.properties)
               }
               break
               
             case 'permission.replied':
               this.outputChannel.appendLine(`🔐 Permission response processed: ${event.properties?.id}`)
+              // TUI-style: Send permission response to webview
+              this.webviewCommManager.sendMessage({
+                type: 'permission-replied',
+                permissionId: event.properties?.id
+              })
+              break
+              
+            case 'message.part.removed':
+              if (event.properties) {
+                const messageId = event.properties.messageID
+                const partId = event.properties.partID
+                
+                this.outputChannel.appendLine(`🗑️ Part removed: ${partId} from message ${messageId}`)
+                
+                // Following TUI approach: send part removal to webview
+                this.webviewCommManager.sendMessage({
+                  type: 'part-removed',
+                  messageId: messageId,
+                  partId: partId
+                })
+              }
+              break
+              
+            case 'message.removed':
+              if (event.properties) {
+                const messageId = event.properties.messageID
+                const sessionId = event.properties.sessionID
+                
+                this.outputChannel.appendLine(`🗑️ Message removed: ${messageId} from session ${sessionId}`)
+                
+                // Following TUI approach: send message removal to webview
+                this.webviewCommManager.sendMessage({
+                  type: 'message-removed',
+                  messageId: messageId,
+                  sessionId: sessionId
+                })
+              }
               break
               
             default:

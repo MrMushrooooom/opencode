@@ -20,6 +20,7 @@ let currentSessionData = null;
 let currentStreamingMessage = null;
 let currentMessageId = null;
 let isSessionLocked = false;
+let showThinkingBlocks = false; // Default to false, following TUI
 let lastAssistantMessageId = null;
 
 // Initialize event listeners
@@ -205,21 +206,50 @@ function addMessage(role, content, mode, forceScroll = false, messageId = null, 
         }
     } else if (role === 'assistant') {
         // Following TUI approach: if assistant message has no content, show "Generating..."
-        const generatingPartDiv = document.createElement('div');
-        generatingPartDiv.className = 'message-part text-part generating';
-        generatingPartDiv.setAttribute('data-part-id', `generating_${Date.now()}`);
-        generatingPartDiv.innerHTML = '<span class="generating-label">Generating...</span>';
-        contentDiv.appendChild(generatingPartDiv);
-        
-        // Track this part in messageParts
-        if (finalMessageId && window.messageParts) {
-            const parts = window.messageParts.get(finalMessageId) || [];
-            parts.push({
-                type: 'generating',
-                id: generatingPartDiv.getAttribute('data-part-id'),
-                content: 'Generating...'
-            });
-            window.messageParts.set(finalMessageId, parts);
+        // TUI shows "Generating..." for empty assistant messages (line 664-682 in messages.go)
+        if (content) {
+            // CRITICAL FIX: Check for tool-only messages
+            if (content === '[TOOL_CALLS_ONLY]') {
+                // This is a tool-only message - don't show "Generating..." 
+                // The tool parts will be loaded separately via SSE events
+                vscode.postMessage({ type: 'debug', message: `🔧 Tool-only message detected: ${finalMessageId}` });
+            } else {
+                // For assistant messages with text content, create text part directly
+                const textPartDiv = document.createElement('div');
+                textPartDiv.className = 'message-part text-part';
+                textPartDiv.setAttribute('data-part-id', `text_${Date.now()}`);
+                textPartDiv.innerHTML = renderMarkdown(content);
+                contentDiv.appendChild(textPartDiv);
+                
+                // Track this part in messageParts
+                if (finalMessageId && window.messageParts) {
+                    const parts = window.messageParts.get(finalMessageId) || [];
+                    parts.push({
+                        type: 'text',
+                        id: textPartDiv.getAttribute('data-part-id'),
+                        content: content
+                    });
+                    window.messageParts.set(finalMessageId, parts);
+                }
+            }
+        } else {
+            // Following TUI approach: show "Generating..." for empty assistant messages
+            const generatingPartDiv = document.createElement('div');
+            generatingPartDiv.className = 'message-part text-part generating-part';
+            generatingPartDiv.setAttribute('data-part-id', `generating_${Date.now()}`);
+            generatingPartDiv.innerHTML = '<span class="generating-label">Generating...</span>';
+            contentDiv.appendChild(generatingPartDiv);
+            
+            // Track this part in messageParts
+            if (finalMessageId && window.messageParts) {
+                const parts = window.messageParts.get(finalMessageId) || [];
+                parts.push({
+                    type: 'generating',
+                    id: generatingPartDiv.getAttribute('data-part-id'),
+                    content: 'Generating...'
+                });
+                window.messageParts.set(finalMessageId, parts);
+            }
         }
     }
     
@@ -241,6 +271,10 @@ function addMessage(role, content, mode, forceScroll = false, messageId = null, 
         const modelName = messageModel || (window.currentModelData ? window.currentModelData.id : 'Loading...');
         const time = messageTimestamp ? new Date(messageTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         metadataDiv.textContent = `${modeText} ${modelName} (${time})`;
+        
+        // CRITICAL FIX: Hide metadata by default for new assistant messages
+        // Following TUI approach: metadata only shows when message is completed
+        metadataDiv.style.display = 'none';
     }
     
     messageDiv.appendChild(contentDiv);

@@ -73,6 +73,36 @@ window.addEventListener('message', (event) => {
             handleStateUpdate(message.state);
             break;
             
+        case 'tool-part-updated':
+            vscode.postMessage({ type: 'debug', message: `🔧 Received tool-part-updated message: ${message.toolPart.id}` });
+            handleToolPartUpdated(message.messageId, message.toolPart);
+            break;
+            
+        case 'permission-request':
+            vscode.postMessage({ type: 'debug', message: `🔐 Received permission-request message: ${message.permission.id}` });
+            handlePermissionRequest(message.permission);
+            break;
+            
+        case 'permission-replied':
+            vscode.postMessage({ type: 'debug', message: `🔐 Received permission-replied message: ${message.permissionId}` });
+            handlePermissionReplied(message.permissionId);
+            break;
+            
+        case 'part-removed':
+            vscode.postMessage({ type: 'debug', message: `🗑️ Received part-removed message: ${message.partId} from ${message.messageId}` });
+            handlePartRemoved(message.messageId, message.partId);
+            break;
+            
+        case 'message-removed':
+            vscode.postMessage({ type: 'debug', message: `🗑️ Received message-removed message: ${message.messageId} from ${message.sessionId}` });
+            handleMessageRemoved(message.messageId, message.sessionId);
+            break;
+            
+        case 'session-idle':
+            vscode.postMessage({ type: 'debug', message: '💤 Session idle event received - updating status' });
+            updateSessionStatus();
+            break;
+            
         case 'error':
             handleError(message.error);
             break;
@@ -88,15 +118,140 @@ window.addEventListener('message', (event) => {
     }
 });
 
-// Handle permission request
+// TUI-style tool part update handling
+function handleToolPartUpdated(messageId, toolPart) {
+    const targetMessage = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (targetMessage) {
+        handleToolPart(targetMessage, toolPart);
+    }
+}
+
+// TUI-style permission replied handling
+function handlePermissionReplied(permissionId) {
+    // Remove permission UI after response
+    const permissionDiv = document.querySelector(`[data-permission-id="${permissionId}"]`);
+    if (permissionDiv) {
+        permissionDiv.remove();
+        vscode.postMessage({ type: 'debug', message: `✅ Permission UI removed for: ${permissionId}` });
+    }
+}
+
+// TUI-style part removal handling
+function handlePartRemoved(messageId, partId) {
+    const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageDiv) {
+        const partDiv = messageDiv.querySelector(`[data-part-id="${partId}"]`);
+        if (partDiv) {
+            partDiv.remove();
+            vscode.postMessage({ type: 'debug', message: `✅ Part removed: ${partId} from message ${messageId}` });
+            
+            // Update messageParts tracking
+            if (window.messageParts && window.messageParts.has(messageId)) {
+                const parts = window.messageParts.get(messageId);
+                const updatedParts = parts.filter(part => part.id !== partId);
+                window.messageParts.set(messageId, updatedParts);
+            }
+        }
+    }
+}
+
+// TUI-style message removal handling
+function handleMessageRemoved(messageId, sessionId) {
+    const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageDiv) {
+        messageDiv.remove();
+        vscode.postMessage({ type: 'debug', message: `✅ Message removed: ${messageId} from session ${sessionId}` });
+        
+        // Clean up tracking data
+        if (window.messageParts) {
+            window.messageParts.delete(messageId);
+        }
+        if (window.messageData) {
+            window.messageData.delete(messageId);
+        }
+        
+        // Update QUEUED status for remaining messages
+        updateQueuedStatusForAllMessages();
+    }
+}
+// TUI-style permission request handling
 function handlePermissionRequest(permission) {
     vscode.postMessage({ type: 'debug', message: `🔐 Handling permission request: ${JSON.stringify(permission)}` });
     
-    // Find the current streaming message to add permission request inline
+    // Following TUI approach: find the current streaming message and add permission inline
     if (currentStreamingMessage) {
-        addInlinePermissionRequest(currentStreamingMessage, permission);
+        addPermissionToMessage(currentStreamingMessage, permission);
     } else {
-        vscode.postMessage({ type: 'debug', message: '⚠️ No current streaming message found for permission request' });
+        // If no current streaming message, find the last assistant message
+        const lastAssistantMessage = document.querySelector('.message.assistant:last-child');
+        if (lastAssistantMessage) {
+            addPermissionToMessage(lastAssistantMessage, permission);
+        } else {
+            vscode.postMessage({ type: 'debug', message: '⚠️ No message found for permission request' });
+        }
+    }
+}
+
+// TUI-style permission addition to message - following TUI's renderToolDetails with permission
+function addPermissionToMessage(messageDiv, permission) {
+    const contentDiv = messageDiv.querySelector('.message-content');
+    if (!contentDiv) return;
+    
+    // Check if permission already exists
+    let permissionDiv = contentDiv.querySelector(`[data-permission-id="${permission.id}"]`);
+    
+    if (!permissionDiv) {
+        // Create permission container
+        permissionDiv = document.createElement('div');
+        permissionDiv.className = 'permission-request';
+        permissionDiv.setAttribute('data-permission-id', permission.id);
+        contentDiv.appendChild(permissionDiv);
+    }
+    
+    // Render permission following TUI's approach
+    const permissionContent = renderPermissionContent(permission);
+    permissionDiv.innerHTML = permissionContent;
+    
+    smartScrollToBottom();
+}
+
+// TUI-style permission content rendering
+function renderPermissionContent(permission) {
+    const toolName = renderToolName(permission.type);
+    const title = permission.title || `${toolName} permission required`;
+    
+    return `
+        <div class="permission-content">
+            <div class="permission-title">${title}</div>
+            <div class="permission-description">Permission required to run this tool</div>
+            <div class="permission-actions">
+                <button class="permission-btn accept-once" onclick="respondToPermission('${permission.id}', 'once')">
+                    Accept
+                </button>
+                <button class="permission-btn accept-always" onclick="respondToPermission('${permission.id}', 'always')">
+                    Accept Always
+                </button>
+                <button class="permission-btn reject" onclick="respondToPermission('${permission.id}', 'reject')">
+                    Reject
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// TUI-style permission response handling
+function respondToPermission(permissionId, response) {
+    vscode.postMessage({ 
+        type: 'respondToPermission', 
+        permissionId: permissionId, 
+        response: response 
+    });
+    
+    // Remove permission UI immediately for better UX
+    const permissionDiv = document.querySelector(`[data-permission-id="${permissionId}"]`);
+    if (permissionDiv) {
+        permissionDiv.remove();
+        vscode.postMessage({ type: 'debug', message: `✅ Permission UI removed immediately for: ${permissionId}` });
     }
 }
 
@@ -104,13 +259,24 @@ function handlePermissionRequest(permission) {
 function updateMessageMetadata(messageDiv, messageInfo) {
     const metadataDiv = messageDiv.querySelector('.message-metadata');
     if (metadataDiv && messageInfo.role === 'assistant') {
-        // Update model and timestamp information
-        const modeText = modeSelector.value ? modeSelector.value.charAt(0).toUpperCase() + modeSelector.value.slice(1) : 'Plan';
-        const modelName = messageInfo.modelID || (window.currentModelData ? window.currentModelData.id : 'Loading...');
-        const time = messageInfo.time?.created ? new Date(messageInfo.time.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        metadataDiv.textContent = `${modeText} ${modelName} (${time})`;
+        // CRITICAL FIX: Only update metadata when message is completed
+        // Following TUI approach: metadata should only show when Time.Completed > 0
+        const isCompleted = messageInfo.time?.completed && messageInfo.time.completed > 0;
         
-        vscode.postMessage({ type: 'debug', message: `🔄 Updated metadata for message: ${messageInfo.id}` });
+        if (isCompleted) {
+            // Update model and timestamp information using completed time
+            const modeText = modeSelector.value ? modeSelector.value.charAt(0).toUpperCase() + modeSelector.value.slice(1) : 'Plan';
+            const modelName = messageInfo.modelID || (window.currentModelData ? window.currentModelData.id : 'Loading...');
+            const time = new Date(messageInfo.time.completed).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            metadataDiv.textContent = `${modeText} ${modelName} (${time})`;
+            metadataDiv.style.display = 'block'; // Show metadata when completed
+            
+            vscode.postMessage({ type: 'debug', message: `🔄 Updated metadata for completed message: ${messageInfo.id}` });
+        } else {
+            // Hide metadata while message is still streaming
+            metadataDiv.style.display = 'none';
+            vscode.postMessage({ type: 'debug', message: `🔄 Hiding metadata for streaming message: ${messageInfo.id}` });
+        }
     }
 }
 
@@ -128,6 +294,29 @@ function handleMessageUpdated(messageInfo) {
             // Update existing message metadata
             vscode.postMessage({ type: 'debug', message: `🔄 Updating existing message: ${messageInfo.id}` });
             updateMessageMetadata(existingMessage, messageInfo);
+            
+            // Following TUI approach: store message data for completion checking
+            if (!window.messageData) {
+                window.messageData = new Map();
+            }
+            window.messageData.set(messageInfo.id, messageInfo);
+            
+            // CRITICAL FIX: For completed messages, ensure metadata is visible
+            // This handles the case where page refreshes and metadata gets hidden
+            if (messageInfo.role === 'assistant' && messageInfo.time?.completed && messageInfo.time.completed > 0) {
+                const metadataDiv = existingMessage.querySelector('.message-metadata');
+                if (metadataDiv) {
+                    metadataDiv.style.display = 'block';
+                    vscode.postMessage({ type: 'debug', message: `🔄 Restored metadata visibility for completed message: ${messageInfo.id}` });
+                }
+            }
+            
+            // CRITICAL FIX: Update session status when message is completed
+            // Following TUI approach: check if message is completed and update status accordingly
+            if (messageInfo.role === 'assistant' && messageInfo.time?.completed && messageInfo.time.completed > 0) {
+                vscode.postMessage({ type: 'debug', message: `🏁 Assistant message completed: ${messageInfo.id}` });
+                updateSessionStatus();
+            }
         } else {
             // Create new message (following TUI's approach)
             vscode.postMessage({ type: 'debug', message: `🆕 Creating new message: ${messageInfo.id} (${messageInfo.role})` });
@@ -157,24 +346,34 @@ function handleMessageUpdated(messageInfo) {
                     vscode.postMessage({ type: 'debug', message: `⚠️ No temp user message found for ID update: ${messageInfo.id}` });
                 }
             } else if (messageInfo.role === 'assistant') {
-                // Create assistant message with empty content initially
-                const assistantMessageDiv = addMessage('assistant', '', modeSelector.value, false, messageInfo.id, messageInfo.modelID, messageInfo.time?.created);
+                // Following TUI approach: Create assistant message with empty content initially
+                // Only create if it doesn't already exist
+                let assistantMessageDiv = document.querySelector(`[data-message-id="${messageInfo.id}"]`);
                 
-                // CRITICAL FIX: Only set as current streaming message if no other message is currently streaming
-                // This ensures QUEUED status works correctly for consecutive messages
-                if (!currentStreamingMessage) {
-                    vscode.postMessage({ type: 'debug', message: `🔄 Setting currentStreamingMessage to: ${messageInfo.id} (no other message streaming)` });
-                    currentStreamingMessage = assistantMessageDiv;
-                    currentMessageId = messageInfo.id;
+                if (!assistantMessageDiv) {
+                    assistantMessageDiv = addMessage('assistant', '', modeSelector.value, false, messageInfo.id, messageInfo.modelID, messageInfo.time?.created);
+                    
+                    // Following TUI approach: store message data for completion checking
+                    if (!window.messageData) {
+                        window.messageData = new Map();
+                    }
+                    window.messageData.set(messageInfo.id, messageInfo);
+                    
+                    // CRITICAL FIX: Only set as current streaming message if no other message is currently streaming
+                    // This ensures QUEUED status works correctly for consecutive messages
+                    if (!currentStreamingMessage) {
+                        vscode.postMessage({ type: 'debug', message: `🔄 Setting currentStreamingMessage to: ${messageInfo.id} (no other message streaming)` });
+                        currentStreamingMessage = assistantMessageDiv;
+                        currentMessageId = messageInfo.id;
+                    } else {
+                        vscode.postMessage({ type: 'debug', message: `⚠️ Not setting currentStreamingMessage - another message is already streaming: ${currentMessageId}` });
+                    }
+                    
+                    // TUI approach: Update QUEUED status for all user messages when a new assistant message is created
+                    updateQueuedStatusForAllMessages();
                 } else {
-                    vscode.postMessage({ type: 'debug', message: `⚠️ Not setting currentStreamingMessage - another message is already streaming: ${currentMessageId}` });
+                    vscode.postMessage({ type: 'debug', message: `🔄 Assistant message already exists: ${messageInfo.id}` });
                 }
-                
-                // TUI approach: Update QUEUED status for all user messages when a new assistant message is created
-                updateQueuedStatusForAllMessages();
-            } else if (messageInfo.role === 'user') {
-                // User messages are usually created immediately when sent
-                vscode.postMessage({ type: 'debug', message: `👤 User message already created: ${messageInfo.id}` });
             }
         }
     } else {
@@ -182,112 +381,6 @@ function handleMessageUpdated(messageInfo) {
     }
 }
 
-// Add inline permission request to message - TUI-style integration
-function addInlinePermissionRequest(messageDiv, permission) {
-    const contentDiv = messageDiv.querySelector('.message-content');
-    if (!contentDiv) return;
-    
-    // Create permission request container
-    const permissionDiv = document.createElement('div');
-    permissionDiv.className = 'permission-request';
-    permissionDiv.setAttribute('data-permission-id', permission.id);
-    
-    // Create permission content
-    const permissionContent = document.createElement('div');
-    permissionContent.className = 'permission-content';
-    
-    // Permission description
-    const descriptionDiv = document.createElement('div');
-    descriptionDiv.className = 'permission-description';
-    descriptionDiv.textContent = 'Permission required to run this tool:';
-    
-    // Permission metadata (tool details)
-    const metadataDiv = document.createElement('div');
-    metadataDiv.className = 'permission-metadata';
-    metadataDiv.textContent = formatPermissionMetadata(permission);
-    
-    // Permission actions
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'permission-actions';
-    
-    // Accept Once button
-    const acceptOnceBtn = document.createElement('button');
-    acceptOnceBtn.className = 'permission-btn accept-once';
-    acceptOnceBtn.textContent = 'Accept';
-    acceptOnceBtn.addEventListener('click', () => respondToPermission(permission.id, 'once'));
-    
-    // Accept Always button
-    const acceptAlwaysBtn = document.createElement('button');
-    acceptAlwaysBtn.className = 'permission-btn accept-always';
-    acceptAlwaysBtn.textContent = 'Accept Always';
-    acceptAlwaysBtn.addEventListener('click', () => respondToPermission(permission.id, 'always'));
-    
-    // Reject button
-    const rejectBtn = document.createElement('button');
-    rejectBtn.className = 'permission-btn reject';
-    rejectBtn.textContent = 'Reject';
-    rejectBtn.addEventListener('click', () => respondToPermission(permission.id, 'reject'));
-    
-    // Assemble the permission request
-    actionsDiv.appendChild(acceptOnceBtn);
-    actionsDiv.appendChild(acceptAlwaysBtn);
-    actionsDiv.appendChild(rejectBtn);
-    
-    permissionContent.appendChild(descriptionDiv);
-    permissionContent.appendChild(metadataDiv);
-    permissionContent.appendChild(actionsDiv);
-    
-    permissionDiv.appendChild(permissionContent);
-    
-    // Insert permission request after the message content
-    contentDiv.appendChild(permissionDiv);
-    
-    vscode.postMessage({ type: 'debug', message: '✅ Inline permission request UI added to message' });
-}
-
-// Format permission metadata for display
-function formatPermissionMetadata(permission) {
-    let metadata = '';
-    
-    if (permission.metadata) {
-        if (permission.metadata.tool) {
-            metadata += `Tool: ${permission.metadata.tool}\n`;
-        }
-        if (permission.metadata.filePath) {
-            metadata += `File: ${permission.metadata.filePath}\n`;
-        }
-        if (permission.metadata.command) {
-            metadata += `Command: ${permission.metadata.command}\n`;
-        }
-        if (permission.metadata.url) {
-            metadata += `URL: ${permission.metadata.url}\n`;
-        }
-        if (permission.metadata.description) {
-            metadata += `Description: ${permission.metadata.description}\n`;
-        }
-    }
-    
-    return metadata || 'No additional details available';
-}
-
-// Respond to permission request
-function respondToPermission(permissionId, response) {
-    vscode.postMessage({ type: 'debug', message: `🔐 Responding to permission ${permissionId} with: ${response}` });
-    
-    // Send response to backend
-    vscode.postMessage({
-        type: 'respondToPermission',
-        permissionId: permissionId,
-        response: response
-    });
-    
-    // Remove permission request UI
-    const permissionDiv = document.querySelector(`[data-permission-id="${permissionId}"]`);
-    if (permissionDiv) {
-        permissionDiv.remove();
-        vscode.postMessage({ type: 'debug', message: '✅ Permission request UI removed' });
-    }
-}
 
 // Following TUI approach: determine if a message should show QUEUED status
 function shouldShowQueued(messageId) {
@@ -396,39 +489,44 @@ function handleStreamingUpdate(message) {
         } else {
             vscode.postMessage({ type: 'debug', message: `⚠️ Message not found for messageId: ${messageId}` });
         }
+    } else if (partType === 'reasoning') {
+        // TUI-style reasoning part handling - filter based on showThinkingBlocks setting
+        vscode.postMessage({ type: 'debug', message: `🧠 Processing reasoning part for messageId: ${messageId}, showThinkingBlocks: ${showThinkingBlocks}` });
+        
+        // Following TUI approach: only show reasoning if showThinkingBlocks is true
+        if (!showThinkingBlocks) {
+            vscode.postMessage({ type: 'debug', message: `🚫 Reasoning part hidden - showThinkingBlocks is false` });
+            return;
+        }
+        
+        const targetMessage = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (targetMessage) {
+            vscode.postMessage({ type: 'debug', message: `✅ Found target message for reasoning part: ${messageId}` });
+            addReasoningPartToMessage(targetMessage, content);
+        } else {
+            vscode.postMessage({ type: 'debug', message: `⚠️ Message not found for reasoning part: ${messageId}` });
+        }
     } else if (partType === 'tool') {
-        vscode.postMessage({ type: 'debug', message: `🔧 Processing tool call for messageId: ${messageId}` });
+        // TUI-style tool part handling - unified approach
+        vscode.postMessage({ type: 'debug', message: `🔧 Processing tool part for messageId: ${messageId}` });
         
-        // Following TUI approach: find the specific message by ID
         const targetMessage = document.querySelector(`[data-message-id="${messageId}"]`);
         if (targetMessage) {
-            addToolPartToMessage(targetMessage, content);
-        }
-        
-        // Tool calls might trigger permission requests
-        // We'll wait for the backend to send permission requests
-        
-    } else if (partType === 'tool-result' || partType === 'tool-completed') {
-        vscode.postMessage({ type: 'debug', message: `🔧 Processing tool result for messageId: ${messageId}` });
-        
-        // Following TUI approach: find the specific message by ID
-        const targetMessage = document.querySelector(`[data-message-id="${messageId}"]`);
-        if (targetMessage) {
-            const toolResult = content || 'Tool executed successfully';
-            updateToolPartInMessage(targetMessage, toolResult);
-        }
-        
-    } else if (partType === 'tool-updated') {
-        vscode.postMessage({ type: 'debug', message: `🔧 Processing tool update for messageId: ${messageId}` });
-        
-        // Following TUI approach: find the specific message by ID
-        const targetMessage = document.querySelector(`[data-message-id="${messageId}"]`);
-        if (targetMessage && message.toolState) {
-            const { status, output, title } = message.toolState;
-            if (status === 'completed' && output) {
-                updateToolPartInMessage(targetMessage, output, title);
-            } else if (status === 'error') {
-                updateToolPartInMessage(targetMessage, null, title, message.toolState.error);
+            handleToolPart(targetMessage, message);
+            
+            // CRITICAL FIX: Remove "Generating..." when tool execution starts
+            // This handles both streaming and loaded messages
+            const generatingDiv = targetMessage.querySelector('.generating-part');
+            if (generatingDiv) {
+                generatingDiv.remove();
+                vscode.postMessage({ type: 'debug', message: `🗑️ Removed generating part for message: ${messageId}` });
+            }
+            
+            // Also remove any generating parts from messageParts tracking
+            if (window.messageParts && window.messageParts.has(messageId)) {
+                const parts = window.messageParts.get(messageId);
+                const filteredParts = parts.filter(part => part.type !== 'generating');
+                window.messageParts.set(messageId, filteredParts);
             }
         }
         
@@ -444,28 +542,17 @@ function handleStreamingUpdate(message) {
         
     } else if (partType === 'step-finish') {
         vscode.postMessage({ type: 'debug', message: `🏁 Step finish for messageId: ${messageId}` });
-        // Streaming complete - Following TUI approach
-        // The server processes all queued messages and returns a single unified response
-        if (currentStreamingMessage) {
-            // Only finalize if we haven't already done so
-            if (currentStreamingMessage.classList.contains('streaming')) {
-                vscode.postMessage({ type: 'debug', message: '🏁 Finalizing streaming message on step-finish' });
-                finalizeStreamingMessage(currentStreamingMessage);
-            }
-        }
         
-        // Check if there are queued messages that need processing BEFORE clearing them
-        const queuedTags = document.querySelectorAll('.queued-tag');
-        const hasQueuedMessages = queuedTags.length > 0;
+        // Following TUI approach: step-finish is just another part, not the end of streaming
+        // TUI treats step-start and step-finish as regular parts in the message
+        // We should NOT finalize the message here - wait for actual completion
         
-        // Clear all QUEUED tags since they all get the same response
-        queuedTags.forEach(tag => tag.remove());
+        // Only clear QUEUED tags if this is truly the end of the entire response
+        // For now, just log the step finish - the server will continue sending parts
+        vscode.postMessage({ type: 'debug', message: `🏁 Step finished for messageId: ${messageId} - waiting for more parts` });
         
-        // Following TUI approach: don't create new messages here
-        // Wait for server to send EventMessageUpdated for queued messages
-        // Just unlock session if no more messages are being processed
-        isSessionLocked = false;
-        status.textContent = 'Ready';
+        // Don't unlock session or change status here - wait for actual completion
+        // The server will continue sending text parts after tool execution
     }
 }
 
@@ -507,11 +594,28 @@ function addTextPartToMessage(messageDiv, content) {
             queuedStatus.remove();
         }
         
-        // CRITICAL FIX: Update the content (replace, not append) - Following TUI approach
-        // The server sends complete accumulated text each time, so we should replace the entire content
-        // Only replace if we have actual content (not empty or just whitespace)
+        // CRITICAL FIX: Following TUI's exact logic for "Generating..." handling
+        // TUI only shows "Generating..." if the text is exactly "Generating..."
+        // Otherwise, it shows the actual content and removes any generating parts
         if (content && content.trim() !== '') {
-            textPartDiv.innerHTML = renderMarkdown(content);
+            // Check if this is exactly "Generating..." text
+            const isGenerating = content.trim() === "Generating...";
+            
+            if (isGenerating) {
+                // Only show "Generating..." if text is exactly "Generating..."
+                textPartDiv.innerHTML = '<span class="generating-label">Generating...</span>';
+                textPartDiv.classList.add('generating-part');
+            } else {
+                // Remove generating class and show actual content
+                textPartDiv.classList.remove('generating-part');
+                textPartDiv.innerHTML = renderMarkdown(content);
+                
+                // Remove any other generating parts when real content arrives
+                const generatingDiv = contentDiv.querySelector('.generating-part');
+                if (generatingDiv) {
+                    generatingDiv.remove();
+                }
+            }
         }
         
         // Update the part in messageParts
@@ -528,127 +632,206 @@ function addTextPartToMessage(messageDiv, content) {
     }
 }
 
-// Add or update tool part to message (for tool execution results) - TUI-style with state visualization
-function addToolPartToMessage(messageDiv, content, toolState) {
+// TUI-style reasoning part handling - following TUI's renderText with isThinking=true
+function addReasoningPartToMessage(messageDiv, content) {
     const contentDiv = messageDiv.querySelector('.message-content');
     if (contentDiv) {
-        // Get message ID for parts tracking
         const messageId = messageDiv.getAttribute('data-message-id');
-        
-        // Check if tool part already exists
-        let toolPartDiv = contentDiv.querySelector('.tool-part');
-        
-        if (!toolPartDiv) {
-            // Create new tool part container
-            toolPartDiv = document.createElement('div');
-            toolPartDiv.className = 'message-part tool-part';
-            toolPartDiv.setAttribute('data-part-id', `tool_${Date.now()}`);
-            contentDiv.appendChild(toolPartDiv);
+        let reasoningPartDiv = contentDiv.querySelector('.reasoning-part');
+
+        if (!reasoningPartDiv) {
+            reasoningPartDiv = document.createElement('div');
+            reasoningPartDiv.className = 'message-part reasoning-part';
+            reasoningPartDiv.setAttribute('data-part-id', `reasoning_${Date.now()}`);
+            contentDiv.appendChild(reasoningPartDiv);
             
             // Track this part in messageParts
             if (messageId && window.messageParts) {
                 const parts = window.messageParts.get(messageId) || [];
                 parts.push({
-                    type: 'tool',
-                    id: toolPartDiv.getAttribute('data-part-id'),
+                    type: 'reasoning',
+                    id: reasoningPartDiv.getAttribute('data-part-id'),
                     content: content
                 });
                 window.messageParts.set(messageId, parts);
             }
+        } else {
+            reasoningPartDiv.classList.remove('generating');
+        }
+
+        const queuedStatus = contentDiv.querySelector('.queued-status');
+        if (queuedStatus) {
+            queuedStatus.remove();
+        }
+
+        if (content && content.trim() !== '') {
+            // Following TUI's renderText with isThinking=true
+            const thinkingLabel = '<div class="thinking-label">Thinking...</div>';
+            const thinkingContent = renderMarkdown(content);
+            reasoningPartDiv.innerHTML = thinkingLabel + '<div class="thinking-content">' + thinkingContent + '</div>';
         }
         
-        // Parse tool content to extract tool name and output
-        const lines = content.split('\n');
-        let toolName = 'Tool';
-        let toolOutput = content;
-        
-        // Try to extract tool name from content
-        if (lines.length > 0 && lines[0].includes('**')) {
-            const match = lines[0].match(/\*\*(.*?)\*\*/);
-            if (match) {
-                toolName = match[1];
-                toolOutput = lines.slice(2).join('\n'); // Skip tool name and empty line
-            }
-        }
-        
-        // Determine tool state and styling
-        const state = toolState?.status || 'pending';
-        const stateClass = `tool-state-${state}`;
-        
-        // Update the tool part HTML with state visualization
-        toolPartDiv.innerHTML = `
-            <div class="tool-header ${stateClass}">
-                <strong>${toolName}</strong>
-                <span class="tool-state-indicator">${getToolStateIndicator(state)}</span>
-            </div>
-            <div class="tool-output ${stateClass}">
-                ${getToolOutputContent(toolOutput, state, toolState)}
-            </div>
-        `;
-        
-        // Update the part in messageParts
         if (messageId && window.messageParts) {
             const parts = window.messageParts.get(messageId) || [];
-            const partIndex = parts.findIndex(p => p.id === toolPartDiv.getAttribute('data-part-id'));
-            if (partIndex !== -1) {
-                parts[partIndex].content = content;
-                window.messageParts.set(messageId, parts);
+            const existingPartIndex = parts.findIndex(p => p.id === reasoningPartDiv.getAttribute('data-part-id'));
+            if (existingPartIndex !== -1) {
+                parts[existingPartIndex].content = content;
             }
+            window.messageParts.set(messageId, parts);
         }
         
         smartScrollToBottom();
     }
 }
 
-// Get tool state indicator - TUI-style visual indicators
-function getToolStateIndicator(state) {
-    switch (state) {
-        case 'pending':
-            return '⏳ Pending';
-        case 'running':
-            return '🔄 Running';
-        case 'completed':
-            return '✅ Completed';
-        case 'error':
-            return '❌ Error';
-        default:
-            return '⏳ Pending';
-    }
-}
-
-// Get tool output content based on state
-function getToolOutputContent(output, state, toolState) {
-    switch (state) {
-        case 'pending':
-            return '<pre><code>Waiting for execution...</code></pre>';
-        case 'running':
-            return '<pre><code>Executing...</code></pre>';
-        case 'completed':
-            return `<pre><code>${output}</code></pre>`;
-        case 'error':
-            const error = toolState?.error || output || 'Unknown error';
-            return `<pre><code class="error">❌ ${error}</code></pre>`;
-        default:
-            return `<pre><code>${output}</code></pre>`;
-    }
-}
-
-// Update tool part in message
-function updateToolPartInMessage(messageDiv, output, title, error) {
+// TUI-style tool part handling - unified approach following TUI's renderToolDetails
+function handleToolPart(messageDiv, toolPart) {
     const contentDiv = messageDiv.querySelector('.message-content');
-    if (contentDiv) {
-        const toolPartDiv = contentDiv.querySelector('.tool-part');
-        if (toolPartDiv) {
-            const toolOutputDiv = toolPartDiv.querySelector('.tool-output');
-            if (toolOutputDiv) {
-                if (error) {
-                    toolOutputDiv.innerHTML = `<pre><code class="error">❌ ${title || 'Tool'} error: ${error}</code></pre>`;
-                } else if (output) {
-                    toolOutputDiv.innerHTML = `<pre><code>${output}</code></pre>`;
-                }
-            }
+    if (!contentDiv) return;
+    
+    const messageId = messageDiv.getAttribute('data-message-id');
+    
+    // Check if tool part already exists
+    let toolPartDiv = contentDiv.querySelector(`[data-tool-id="${toolPart.id}"]`);
+    
+    if (!toolPartDiv) {
+        // Create new tool part container
+        toolPartDiv = document.createElement('div');
+        toolPartDiv.className = 'message-part tool-part';
+        toolPartDiv.setAttribute('data-tool-id', toolPart.id);
+        toolPartDiv.setAttribute('data-part-id', toolPart.id);
+        contentDiv.appendChild(toolPartDiv);
+        
+        // Track this part in messageParts
+        if (messageId && window.messageParts) {
+            const parts = window.messageParts.get(messageId) || [];
+            parts.push({
+                type: 'tool',
+                id: toolPart.id,
+                content: toolPart
+            });
+            window.messageParts.set(messageId, parts);
         }
-        smartScrollToBottom();
+        
+        // Following TUI approach: store tool data for completion checking
+        if (!window.toolData) {
+            window.toolData = new Map();
+        }
+        window.toolData.set(toolPart.id, toolPart);
+    }
+    
+    // Render tool details following TUI's approach
+    const toolDetails = renderToolDetails(toolPart);
+    toolPartDiv.innerHTML = toolDetails;
+    
+    smartScrollToBottom();
+}
+
+// TUI-style tool details rendering - following TUI's renderToolDetails function
+function renderToolDetails(toolPart) {
+    const toolName = renderToolName(toolPart.tool);
+    const state = toolPart.state?.status || 'pending';
+    
+    // Handle pending state - show action description
+    if (state === 'pending') {
+        const action = renderToolAction(toolPart.tool);
+        return `
+            <div class="tool-pending">
+                <div class="tool-title">${action}</div>
+            </div>
+        `;
+    }
+    
+    // Handle completed/error states
+    let title = renderToolTitle(toolPart);
+    let output = '';
+    
+    if (toolPart.state?.output) {
+        // Format output for better display
+        const outputText = toolPart.state.output;
+        output = `<pre><code>${outputText}</code></pre>`;
+    }
+    
+    if (toolPart.state?.error) {
+        output = `<pre><code class="error">❌ ${toolPart.state.error}</code></pre>`;
+    }
+    
+    return `
+        <div class="tool-completed">
+            <div class="tool-title">${title}</div>
+            ${output ? `<div class="tool-output">${output}</div>` : ''}
+        </div>
+    `;
+}
+
+// TUI-style tool name rendering
+function renderToolName(name) {
+    switch (name) {
+        case 'bash':
+            return 'Shell';
+        case 'webfetch':
+            return 'Fetch';
+        case 'invalid':
+            return 'Invalid';
+        default:
+            let normalizedName = name;
+            if (name.startsWith('opencode_')) {
+                normalizedName = name.substring(9);
+            }
+            return normalizedName.charAt(0).toUpperCase() + normalizedName.slice(1);
+    }
+}
+
+// TUI-style tool action rendering
+function renderToolAction(name) {
+    switch (name) {
+        case 'task':
+            return 'Delegating...';
+        case 'bash':
+            return 'Writing command...';
+        case 'edit':
+            return 'Preparing edit...';
+        case 'webfetch':
+            return 'Fetching from the web...';
+        case 'glob':
+            return 'Finding files...';
+        case 'grep':
+            return 'Searching content...';
+        case 'list':
+            return 'Listing directory...';
+        case 'read':
+            return 'Reading file...';
+        case 'write':
+            return 'Preparing write...';
+        case 'todowrite':
+        case 'todoread':
+            return 'Planning...';
+        case 'patch':
+            return 'Preparing patch...';
+        default:
+            return 'Working...';
+    }
+}
+
+// TUI-style tool title rendering
+function renderToolTitle(toolPart) {
+    const toolName = renderToolName(toolPart.tool);
+    const args = toolPart.state?.input || {};
+    
+    switch (toolPart.tool) {
+        case 'read':
+            return `${toolName} ${args.filePath || ''}`;
+        case 'edit':
+        case 'write':
+            return `${toolName} ${args.filePath || ''}`;
+        case 'bash':
+            return `${toolName} ${args.command || args.description || ''}`;
+        case 'webfetch':
+            return `${toolName} ${args.url || ''}`;
+        case 'list':
+            return `${toolName} ${args.path || '.'}`;
+        default:
+            return toolName;
     }
 }
 
@@ -683,27 +866,113 @@ function updateStreamingMessage(messageDiv, content) {
 }
 
 
-// Handle streaming complete
+// Following TUI approach: check if there's any animating work
+function hasAnimatingWork() {
+    // TUI's HasAnimatingWork logic:
+    // 1. Check if any AssistantMessage has Time.Completed == 0
+    // 2. Check if any ToolPart has Status == 'pending'
+    
+    const assistantMessages = document.querySelectorAll('.message.assistant[data-message-id]');
+    for (const msg of assistantMessages) {
+        const messageId = msg.getAttribute('data-message-id');
+        const messageData = window.messageData?.get(messageId);
+        
+        // Check if assistant message is not completed (Time.Completed == 0)
+        if (messageData && messageData.time && messageData.time.completed === 0) {
+            vscode.postMessage({ type: 'debug', message: `🔄 HasAnimatingWork: Assistant message ${messageId} not completed` });
+            return true;
+        }
+        
+        // Check if any tool parts are pending
+        const toolParts = msg.querySelectorAll('.tool-part[data-tool-id]');
+        for (const toolPart of toolParts) {
+            const toolId = toolPart.getAttribute('data-tool-id');
+            const toolData = window.toolData?.get(toolId);
+            
+            if (toolData && toolData.state && toolData.state.status === 'pending') {
+                vscode.postMessage({ type: 'debug', message: `🔄 HasAnimatingWork: Tool ${toolId} is pending` });
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+// Following TUI approach: check if session is busy
+function isSessionBusy() {
+    // TUI's IsBusy logic: check if last message is AssistantMessage with Time.Completed == 0
+    const allMessages = document.querySelectorAll('.message[data-message-id]');
+    if (allMessages.length === 0) {
+        return false;
+    }
+    
+    const lastMessage = allMessages[allMessages.length - 1];
+    if (lastMessage.classList.contains('assistant')) {
+        const messageId = lastMessage.getAttribute('data-message-id');
+        const messageData = window.messageData?.get(messageId);
+        
+        if (messageData && messageData.time && messageData.time.completed === 0) {
+            vscode.postMessage({ type: 'debug', message: `🔄 IsBusy: Last assistant message ${messageId} not completed` });
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// Update session status based on TUI's logic
+function updateSessionStatus() {
+    vscode.postMessage({ type: 'debug', message: '🔄 Updating session status...' });
+    
+    const hasWork = hasAnimatingWork();
+    vscode.postMessage({ type: 'debug', message: `🔍 hasAnimatingWork() result: ${hasWork}` });
+    
+    // Check if there's any animating work (following TUI's HasAnimatingWork logic)
+    if (!hasWork) {
+        // No animating work - unlock session and update status
+        if (isSessionLocked) {
+            isSessionLocked = false;
+            status.textContent = 'Ready';
+            vscode.postMessage({ type: 'debug', message: '🔓 Session unlocked - no more animating work' });
+        } else {
+            vscode.postMessage({ type: 'debug', message: '🔄 Session already unlocked' });
+        }
+    } else {
+        // Still has animating work - keep session locked
+        if (!isSessionLocked) {
+            isSessionLocked = true;
+            status.textContent = 'Sending...';
+            vscode.postMessage({ type: 'debug', message: '🔒 Session locked - has animating work' });
+        } else {
+            vscode.postMessage({ type: 'debug', message: '🔄 Session still busy - keeping locked' });
+        }
+    }
+}
+
+// Handle streaming complete - Following TUI's approach
 function handleStreamingComplete(message) {
     vscode.postMessage({ type: 'debug', message: `🏁 Handling streaming complete for message: ${message?.messageId || 'unknown'}` });
     
-    if (currentStreamingMessage) {
-        finalizeStreamingMessage(currentStreamingMessage);
-        vscode.postMessage({ type: 'debug', message: `🏁 Finalized streaming message: ${currentMessageId}` });
-        currentStreamingMessage = null;
-        currentMessageId = null;
-    }
-    
-    // Check if there are any queued messages
-    const queuedMessages = document.querySelectorAll('.queued-status');
-    if (queuedMessages.length > 0) {
-        // There are still queued messages, keep session locked
-        vscode.postMessage({ type: 'debug', message: `🔄 Streaming complete but ${queuedMessages.length} messages still queued` });
+    // Following TUI approach: only finalize if no more animating work
+    if (!hasAnimatingWork()) {
+        if (currentStreamingMessage) {
+            finalizeStreamingMessage(currentStreamingMessage);
+            vscode.postMessage({ type: 'debug', message: `🏁 Finalized streaming message: ${currentMessageId}` });
+            currentStreamingMessage = null;
+            currentMessageId = null;
+        }
+        
+        // Following TUI approach: unlock session only if not busy
+        if (!isSessionBusy()) {
+            isSessionLocked = false;
+            status.textContent = 'Ready';
+            vscode.postMessage({ type: 'debug', message: '🔓 Session unlocked - no more animating work' });
+        } else {
+            vscode.postMessage({ type: 'debug', message: '🔄 Session still busy - keeping locked' });
+        }
     } else {
-        // No queued messages, unlock session
-        isSessionLocked = false;
-        status.textContent = 'Ready';
-        vscode.postMessage({ type: 'debug', message: '🔓 Session unlocked - no more queued messages' });
+        vscode.postMessage({ type: 'debug', message: '🔄 Still has animating work - not finalizing' });
     }
 }
 
@@ -988,7 +1257,26 @@ function handleSessionSwitched(sessionId, messages = []) {
     if (messages && messages.length > 0) {
         vscode.postMessage({ type: 'debug', message: `📝 Loading ${messages.length} messages` });
         messages.forEach(message => {
-            addMessage(message.role, message.content, message.mode || modeSelector.value, true, message.id, message.model, message.timestamp); // Force scroll for loaded messages
+            const messageDiv = addMessage(message.role, message.content, message.mode || modeSelector.value, true, message.id, message.model, message.timestamp);
+            
+            // CRITICAL FIX: Ensure metadata is visible for completed assistant messages
+            if (message.role === 'assistant' && message.completed && messageDiv) {
+                const metadataDiv = messageDiv.querySelector('.message-metadata');
+                if (metadataDiv) {
+                    metadataDiv.style.display = 'block';
+                    vscode.postMessage({ type: 'debug', message: `🔄 Restored metadata visibility for loaded message: ${message.id}` });
+                }
+            }
+            
+            // CRITICAL FIX: Handle tool-only messages during loading
+            if (message.content === '[TOOL_CALLS_ONLY]' && messageDiv) {
+                vscode.postMessage({ type: 'debug', message: `🔧 Tool-only message loaded: ${message.id}` });
+                // Remove any generating parts that might have been created
+                const generatingDiv = messageDiv.querySelector('.generating-part');
+                if (generatingDiv) {
+                    generatingDiv.remove();
+                }
+            }
         });
         vscode.postMessage({ type: 'debug', message: '✅ Messages loaded successfully' });
     } else {
@@ -1104,7 +1392,26 @@ function handleMessagesLoaded(messages) {
     if (messages && messages.length > 0) {
         vscode.postMessage({ type: 'debug', message: `📝 Loading ${messages.length} messages` });
         messages.forEach(message => {
-            addMessage(message.role, message.content, message.mode || modeSelector.value, true, message.id, message.model, message.timestamp); // Force scroll for loaded messages
+            const messageDiv = addMessage(message.role, message.content, message.mode || modeSelector.value, true, message.id, message.model, message.timestamp);
+            
+            // CRITICAL FIX: Ensure metadata is visible for completed assistant messages
+            if (message.role === 'assistant' && message.completed && messageDiv) {
+                const metadataDiv = messageDiv.querySelector('.message-metadata');
+                if (metadataDiv) {
+                    metadataDiv.style.display = 'block';
+                    vscode.postMessage({ type: 'debug', message: `🔄 Restored metadata visibility for loaded message: ${message.id}` });
+                }
+            }
+            
+            // CRITICAL FIX: Handle tool-only messages during loading
+            if (message.content === '[TOOL_CALLS_ONLY]' && messageDiv) {
+                vscode.postMessage({ type: 'debug', message: `🔧 Tool-only message loaded: ${message.id}` });
+                // Remove any generating parts that might have been created
+                const generatingDiv = messageDiv.querySelector('.generating-part');
+                if (generatingDiv) {
+                    generatingDiv.remove();
+                }
+            }
         });
         vscode.postMessage({ type: 'debug', message: '✅ Messages loaded successfully' });
     } else {
