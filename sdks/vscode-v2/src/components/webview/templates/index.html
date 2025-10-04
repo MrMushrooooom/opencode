@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCode Assistant</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/build-mode.css">
+    <link rel="stylesheet" href="styles/permission-dialog.css">
+    <link rel="stylesheet" href="styles/dropdown.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">OpenCode Assistant</div>
+            <div class="status" id="status">Ready</div>
+        </div>
+        
+        <!-- BUILD Mode Controls -->
+        <div class="build-controls" id="buildControls">
+            <button class="undo-btn" id="undoBtn" disabled>↩️ Undo</button>
+            <button class="redo-btn" id="redoBtn" disabled>↪️ Redo</button>
+            <div class="file-changes" id="fileChanges">
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px;">File Changes:</div>
+                <div id="fileChangesList"></div>
+            </div>
+        </div>
+
+        <div class="chat-area" id="chatArea">
+            <!-- Welcome message will be dynamically added when no sessions exist -->
+        </div>
+        
+        <div class="input-area">
+            <select class="mode-selector" id="modeSelector">
+                <option value="plan">Plan</option>
+                <option value="build">Build</option>
+            </select>
+            <input type="text" class="input-field" id="messageInput" placeholder="Enter your question..." />
+            <button class="send-button" id="sendButton">Send</button>
+        </div>
+        
+        <div class="session-info" id="sessionInfo">
+            <span>Mode: <span id="currentMode">Plan</span></span>
+            <span> | </span>
+            <span>Model: <span id="currentModel" class="model-selector">Loading...</span></span>
+            <span> | </span>
+            <button id="historyButton" class="history-button" title="Session History">🕐</button>
+        </div>
+    </div>
+
+    <!-- Permission Request Dialog -->
+    <div class="permission-dialog" id="permissionDialog">
+        <div class="permission-content">
+            <div class="permission-header" id="permissionHeader">Permission Required</div>
+            <div class="permission-description" id="permissionDescription"></div>
+            <div class="permission-metadata" id="permissionMetadata"></div>
+            <div class="permission-actions">
+                <button class="permission-btn accept" id="permissionAccept">Accept Once</button>
+                <button class="permission-btn always" id="permissionAlways">Always Allow</button>
+                <button class="permission-btn reject" id="permissionReject">Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="scripts/main.js"></script>
+    <script src="scripts/build-mode.js"></script>
+    <script src="scripts/permission-dialog.js"></script>
+    <script src="scripts/chat.js"></script>
+    <script src="scripts/init.js"></script>
+    
+    <!-- Inline dropdown functionality -->
+    <script>
+        // Dropdown functionality for model and session selectors
+        (function() {
+            vscode.postMessage({ type: 'debug', message: 'Inline dropdown script loaded' });
+            
+            // Global variables for dropdown state
+            let availableModels = [];
+            let availableSessions = [];
+            let currentModelData = null;
+            let currentSessionData = null;
+            let currentDropdownCloseHandler = null;
+            let currentSessionCloseHandler = null;
+
+            // Initialize dropdown functionality
+            function initializeDropdowns() {
+                vscode.postMessage({ type: 'debug', message: 'Initializing dropdown functionality...' });
+                const currentModel = document.getElementById('currentModel');
+                const historyButton = document.getElementById('historyButton');
+                
+                vscode.postMessage({ type: 'debug', message: `Found elements: currentModel=${!!currentModel}, historyButton=${!!historyButton}` });
+                
+                if (!currentModel || !historyButton) {
+                    vscode.postMessage({ type: 'debug', message: 'ERROR: Model selector or history button not found' });
+                    return;
+                }
+                
+                // Handle model selector click
+                currentModel.addEventListener('click', (e) => {
+                    vscode.postMessage({ type: 'debug', message: 'Model selector clicked' });
+                    e.stopPropagation();
+                    const existingDropdown = document.querySelector('.model-dropdown');
+                    if (existingDropdown) {
+                        closeModelDropdown();
+                    } else {
+                        showModelDropdown();
+                    }
+                });
+                
+                // Handle history button click
+                historyButton.addEventListener('click', (e) => {
+                    vscode.postMessage({ type: 'debug', message: 'History button clicked' });
+                    e.stopPropagation();
+                    const existingDropdown = document.querySelector('.session-dropdown');
+                    if (existingDropdown) {
+                        closeSessionDropdown();
+                    } else {
+                        showSessionDropdown();
+                    }
+                });
+            }
+
+            function showModelDropdown() {
+                closeModelDropdown();
+                
+                if (availableModels.length === 0) {
+                    vscode.postMessage({ type: 'getModels' });
+                    return;
+                }
+                
+                const dropdown = document.createElement('div');
+                dropdown.className = 'model-dropdown';
+                
+                // Add recent models first
+                const recentModels = availableModels.filter(m => m.isRecent);
+                if (recentModels.length > 0) {
+                    const recentHeader = document.createElement('div');
+                    recentHeader.className = 'model-option';
+                    recentHeader.style.fontWeight = 'bold';
+                    recentHeader.textContent = 'Recent';
+                    dropdown.appendChild(recentHeader);
+                    
+                    recentModels.forEach(model => {
+                        const option = createModelOption(model);
+                        dropdown.appendChild(option);
+                    });
+                }
+                
+                // Add all models grouped by provider
+                const providers = [...new Set(availableModels.map(m => m.providerId))];
+                providers.forEach(providerId => {
+                    const providerModels = availableModels.filter(m => m.providerId === providerId && !m.isRecent);
+                    if (providerModels.length > 0) {
+                        const providerHeader = document.createElement('div');
+                        providerHeader.className = 'model-option';
+                        providerHeader.style.fontWeight = 'bold';
+                        providerHeader.textContent = providerId.charAt(0).toUpperCase() + providerId.slice(1);
+                        dropdown.appendChild(providerHeader);
+                        
+                        providerModels.forEach(model => {
+                            const option = createModelOption(model);
+                            dropdown.appendChild(option);
+                        });
+                    }
+                });
+                
+                // Position dropdown above the model selector
+                const currentModel = document.getElementById('currentModel');
+                const rect = currentModel.getBoundingClientRect();
+                dropdown.style.position = 'fixed';
+                dropdown.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
+                dropdown.style.left = rect.left + 'px';
+                
+                document.body.appendChild(dropdown);
+                
+                // Create and store close handler
+                currentDropdownCloseHandler = (e) => {
+                    if (dropdown.contains(e.target) || currentModel.contains(e.target)) {
+                        return;
+                    }
+                    closeModelDropdown();
+                };
+                
+                setTimeout(() => {
+                    document.addEventListener('click', currentDropdownCloseHandler);
+                }, 0);
+            }
+
+            function createModelOption(model) {
+                const option = document.createElement('div');
+                option.className = 'model-option';
+                option.innerHTML = `
+                    <span>${model.name}</span>
+                    <span class="model-provider">${model.providerId}</span>
+                `;
+                
+                option.addEventListener('click', () => {
+                    selectModel(model);
+                    closeModelDropdown();
+                });
+                
+                return option;
+            }
+
+            function selectModel(model) {
+                currentModelData = model;
+                const currentModel = document.getElementById('currentModel');
+                currentModel.textContent = model.name;
+                
+                vscode.postMessage({
+                    type: 'switchModel',
+                    providerId: model.providerId,
+                    modelId: model.id
+                });
+            }
+
+            function closeModelDropdown() {
+                const dropdown = document.querySelector('.model-dropdown');
+                if (dropdown) {
+                    dropdown.remove();
+                }
+                
+                if (currentDropdownCloseHandler) {
+                    document.removeEventListener('click', currentDropdownCloseHandler);
+                    currentDropdownCloseHandler = null;
+                }
+            }
+
+            function showSessionDropdown() {
+                closeSessionDropdown();
+                
+                const dropdown = document.createElement('div');
+                dropdown.className = 'session-dropdown';
+                
+                // Add new session option at the top
+                const newSessionOption = document.createElement('div');
+                newSessionOption.className = 'session-option new-session';
+                newSessionOption.innerHTML = '<span>+ New Session</span>';
+                newSessionOption.addEventListener('click', () => {
+                    vscode.postMessage({ type: 'createSession' });
+                    closeSessionDropdown();
+                });
+                dropdown.appendChild(newSessionOption);
+                
+                // Add user sessions (if any)
+                if (availableSessions.length > 0) {
+                    availableSessions.forEach(session => {
+                        const option = createSessionOption(session);
+                        dropdown.appendChild(option);
+                    });
+                } else {
+                    // Show empty state when no sessions exist
+                    const emptyOption = document.createElement('div');
+                    emptyOption.className = 'session-option empty-sessions';
+                    emptyOption.innerHTML = '<span style="color: #666; font-style: italic;">No sessions yet</span>';
+                    dropdown.appendChild(emptyOption);
+                }
+                
+                // Position dropdown above the history button
+                const historyButton = document.getElementById('historyButton');
+                const rect = historyButton.getBoundingClientRect();
+                dropdown.style.position = 'fixed';
+                dropdown.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
+                dropdown.style.left = rect.left + 'px';
+                
+                document.body.appendChild(dropdown);
+                
+                // Create and store close handler
+                currentSessionCloseHandler = (e) => {
+                    if (dropdown.contains(e.target) || historyButton.contains(e.target)) {
+                        return;
+                    }
+                    
+                    if (e.target.classList && e.target.classList.contains('session-edit-input')) {
+                        return;
+                    }
+                    
+                    closeSessionDropdown();
+                };
+                
+                setTimeout(() => {
+                    document.addEventListener('click', currentSessionCloseHandler);
+                }, 0);
+            }
+
+            function createSessionOption(session) {
+                const option = document.createElement('div');
+                option.className = 'session-option';
+                option.dataset.sessionId = session.id;
+                
+                const isCurrentSession = currentSessionData?.id === session.id;
+                
+                option.innerHTML = `
+                    <span class="session-title">${session.title}</span>
+                    <div class="session-right">
+                        ${isCurrentSession ? '<span class="session-current">Current</span>' : ''}
+                        <div class="session-actions" style="display: none;">
+                            <button class="session-edit-btn" title="Edit session name">
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                                    <path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke="currentColor" stroke-width="1" fill="none"/>
+                                </svg>
+                            </button>
+                            ${!isCurrentSession ? '<button class="session-delete-btn" title="Delete session"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M3 3L9 9M9 3L3 9" stroke="currentColor" stroke-width="1"/></svg></button>' : ''}
+                        </div>
+                    </div>
+                `;
+                
+                // Add hover effects
+                option.addEventListener('mouseenter', () => {
+                    const actions = option.querySelector('.session-actions');
+                    if (actions) {
+                        actions.style.display = 'flex';
+                    }
+                });
+                
+                option.addEventListener('mouseleave', () => {
+                    const actions = option.querySelector('.session-actions');
+                    if (actions) {
+                        actions.style.display = 'none';
+                    }
+                });
+                
+                // Add click handler for session selection
+                option.addEventListener('click', (e) => {
+                    if (e.target.closest('.session-actions')) {
+                        return;
+                    }
+                    selectSession(session);
+                    closeSessionDropdown();
+                });
+                
+                // Add edit button handler
+                const editBtn = option.querySelector('.session-edit-btn');
+                if (editBtn) {
+                    editBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        editSessionTitle(session, option);
+                    });
+                }
+                
+                // Add delete button handler
+                const deleteBtn = option.querySelector('.session-delete-btn');
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        vscode.postMessage({ type: 'debug', message: `🗑️ Delete button clicked for session: ${session.title}` });
+                        
+                        // Check if this is the current session
+                        if (currentSessionData?.id === session.id) {
+                            vscode.postMessage({ type: 'debug', message: `🗑️ Cannot delete current session: ${session.title}` });
+                            return;
+                        }
+                        
+                        // Send delete request to extension (no confirmation needed)
+                        vscode.postMessage({ type: 'debug', message: `🗑️ Deleting session: ${session.id}` });
+                        vscode.postMessage({
+                            type: 'deleteSession',
+                            sessionId: session.id
+                        });
+                    });
+                }
+                
+                return option;
+            }
+
+            function selectSession(session) {
+                currentSessionData = session;
+                // No need to update UI text since we're using a history button
+                
+                vscode.postMessage({
+                    type: 'switchSession',
+                    sessionId: session.id
+                });
+            }
+
+            function editSessionTitle(session, optionElement) {
+                const titleSpan = optionElement.querySelector('.session-title');
+                const currentTitle = titleSpan.textContent;
+                const editBtn = optionElement.querySelector('.session-edit-btn');
+                
+                // Create input field
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'session-edit-input';
+                input.value = currentTitle;
+                input.style.width = '100%';
+                
+                // Replace title with input
+                titleSpan.style.display = 'none';
+                titleSpan.parentNode.insertBefore(input, titleSpan);
+                
+                // Change edit button to save button (checkmark)
+                editBtn.innerHTML = `
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                        <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                `;
+                editBtn.title = 'Save session name';
+                
+                input.focus();
+                input.select();
+                
+                // Remove existing event listeners and add new ones
+                const newEditBtn = editBtn.cloneNode(true);
+                editBtn.parentNode.replaceChild(newEditBtn, editBtn);
+                
+                const saveEdit = () => {
+                    const newTitle = input.value.trim();
+                    if (newTitle && newTitle !== currentTitle) {
+                        vscode.postMessage({
+                            type: 'updateSession',
+                            sessionId: session.id,
+                            updates: { title: newTitle }
+                        });
+                    }
+                    
+                    // Restore title
+                    titleSpan.textContent = newTitle || currentTitle;
+                    titleSpan.style.display = '';
+                    input.remove();
+                    
+                    // Restore edit button
+                    newEditBtn.innerHTML = `
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                            <path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke="currentColor" stroke-width="1" fill="none"/>
+                        </svg>
+                    `;
+                    newEditBtn.title = 'Edit session name';
+                    
+                    // Restore edit functionality
+                    newEditBtn.removeEventListener('click', saveEdit);
+                    newEditBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        editSessionTitle(session, optionElement);
+                    });
+                };
+
+                const cancelEdit = () => {
+                    titleSpan.style.display = '';
+                    input.remove();
+                    
+                    // Restore edit button
+                    newEditBtn.innerHTML = `
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                            <path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke="currentColor" stroke-width="1" fill="none"/>
+                        </svg>
+                    `;
+                    newEditBtn.title = 'Edit session name';
+                    
+                    // Restore edit functionality
+                    newEditBtn.removeEventListener('click', saveEdit);
+                    newEditBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        editSessionTitle(session, optionElement);
+                    });
+                };
+                
+                newEditBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    saveEdit();
+                });
+                
+                input.addEventListener('blur', saveEdit);
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        saveEdit();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cancelEdit();
+                    }
+                });
+                
+                // Prevent dropdown from closing when clicking on input
+                input.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+            }
+
+            function refreshSessionDropdown() {
+                vscode.postMessage({ type: 'debug', message: '🔄 refreshSessionDropdown called' });
+                
+                const dropdown = document.querySelector('.session-dropdown');
+                if (!dropdown) {
+                    vscode.postMessage({ type: 'debug', message: '❌ No dropdown found, nothing to refresh' });
+                    return; // No dropdown open, nothing to refresh
+                }
+                
+                vscode.postMessage({ type: 'debug', message: `✅ Found dropdown, availableSessions: ${availableSessions.length}` });
+                
+                // Find the "New Session" button to determine where to insert sessions
+                const newSessionButton = dropdown.querySelector('.new-session');
+                if (!newSessionButton) {
+                    vscode.postMessage({ type: 'debug', message: '⚠️ "New Session" button not found' });
+                    return;
+                }
+                
+                // Remove all existing session items (but keep the "New Session" button)
+                const existingSessions = dropdown.querySelectorAll('.session-option[data-session-id]');
+                existingSessions.forEach(session => {
+                    session.remove();
+                });
+                
+                vscode.postMessage({ type: 'debug', message: `🗑️ Removed ${existingSessions.length} old session items` });
+                
+                // Re-add user sessions with updated data
+                if (availableSessions.length > 0) {
+                    vscode.postMessage({ type: 'debug', message: `➕ Re-adding ${availableSessions.length} user sessions` });
+                    
+                    let addedCount = 0;
+                    // Insert sessions in reverse order to maintain correct order
+                    availableSessions.slice().reverse().forEach(session => {
+                        const option = createSessionOption(session);
+                        newSessionButton.parentNode.insertBefore(option, newSessionButton.nextSibling);
+                        addedCount++;
+                        vscode.postMessage({ type: 'debug', message: `➕ Added session: ${session.title}` });
+                    });
+                    vscode.postMessage({ type: 'debug', message: `✅ User sessions refreshed successfully - added ${addedCount} sessions` });
+                } else {
+                    vscode.postMessage({ type: 'debug', message: '⚠️ No available sessions to add' });
+                }
+            }
+
+            function closeSessionDropdown() {
+                const dropdown = document.querySelector('.session-dropdown');
+                if (dropdown) {
+                    dropdown.remove();
+                }
+                
+                if (currentSessionCloseHandler) {
+                    document.removeEventListener('click', currentSessionCloseHandler);
+                    currentSessionCloseHandler = null;
+                }
+            }
+
+            // Export functions for external use
+            window.dropdownManager = {
+                initializeDropdowns,
+                updateAvailableModels: (models) => { availableModels = models; },
+                updateAvailableSessions: (sessions) => { availableSessions = sessions; },
+                getAvailableSessions: () => { return availableSessions; },
+                getAvailableModels: () => { return availableModels; },
+                updateCurrentModel: (model) => { 
+                    currentModelData = model;
+                    const currentModel = document.getElementById('currentModel');
+                    if (currentModel && model) {
+                        currentModel.textContent = model.name;
+                    }
+                },
+                updateCurrentSession: (session) => { 
+                    currentSessionData = session;
+                    // No need to update UI text since we're using a history button
+                },
+                refreshSessionDropdown,
+                closeModelDropdown,
+                closeSessionDropdown
+            };
+
+            // Auto-initialize when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    vscode.postMessage({ type: 'debug', message: 'Auto-initializing dropdowns on DOMContentLoaded' });
+                    initializeDropdowns();
+                    // Pre-load models and sessions on initialization
+                    vscode.postMessage({ type: 'getModels' });
+                    vscode.postMessage({ type: 'getSessions' });
+                });
+            } else {
+                vscode.postMessage({ type: 'debug', message: 'Auto-initializing dropdowns immediately' });
+                initializeDropdowns();
+                // Pre-load models and sessions on initialization
+                vscode.postMessage({ type: 'getModels' });
+                vscode.postMessage({ type: 'getSessions' });
+            }
+        })();
+    </script>
+</body>
+</html>

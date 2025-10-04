@@ -1,0 +1,145 @@
+/* Dropdown Styles */
+.model-dropdown, .session-dropdown {
+    position: fixed;
+    background-color: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    min-width: 200px;
+    max-width: 300px;
+}
+
+.model-option, .session-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--vscode-dropdown-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background-color 0.1s ease;
+}
+
+.model-option:last-child, .session-option:last-child {
+    border-bottom: none;
+}
+
+.model-option:hover, .session-option:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.model-option:active, .session-option:active {
+    background-color: var(--vscode-dropdown-border);
+}
+
+/* Model specific styles */
+.model-option .model-provider {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.7;
+}
+
+/* Session specific styles */
+.session-title {
+    font-weight: 400;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+
+.session-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+}
+
+.session-current {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.7;
+}
+
+.session-actions {
+    display: none;
+    gap: 4px;
+    align-items: center;
+    min-width: 32px; /* Reserve space for edit/delete buttons */
+}
+
+.session-edit-btn, .session-delete-btn {
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    border-radius: 2px;
+    color: var(--vscode-foreground);
+    opacity: 0.6;
+    transition: opacity 0.1s ease;
+}
+
+.session-edit-btn:hover, .session-delete-btn:hover {
+    opacity: 1;
+    background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.session-delete-btn:hover {
+    color: var(--vscode-errorForeground);
+}
+
+.session-separator {
+    height: 1px;
+    background-color: var(--vscode-dropdown-border);
+    margin: 4px 0;
+}
+
+/* New session option */
+.new-session {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    font-weight: 500;
+}
+
+.new-session:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+/* Session edit input */
+.session-edit-input {
+    background: none;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-size: 12px;
+    color: var(--vscode-input-foreground);
+    background-color: var(--vscode-input-background);
+    width: 100%;
+    outline: none;
+}
+
+.session-edit-input:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+/* Scrollbar styling */
+.model-dropdown::-webkit-scrollbar, .session-dropdown::-webkit-scrollbar {
+    width: 6px;
+}
+
+.model-dropdown::-webkit-scrollbar-track, .session-dropdown::-webkit-scrollbar-track {
+    background: var(--vscode-scrollbarSlider-background);
+}
+
+.model-dropdown::-webkit-scrollbar-thumb, .session-dropdown::-webkit-scrollbar-thumb {
+    background: var(--vscode-scrollbarSlider-hoverBackground);
+    border-radius: 3px;
+}
+
+.model-dropdown::-webkit-scrollbar-thumb:hover, .session-dropdown::-webkit-scrollbar-thumb:hover {
+    background: var(--vscode-scrollbarSlider-activeBackground);
+}
