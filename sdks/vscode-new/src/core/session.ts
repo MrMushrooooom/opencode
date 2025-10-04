@@ -51,24 +51,18 @@ export class SessionManager {
         
         this.sessions = sessions
         
-        // If no sessions exist, create a new one (like TUI does)
-        if (sessions.length === 0) {
-          this.outputChannel.appendLine('📋 No existing sessions found, creating new session...')
-          const newSession = await this.createSession()
-          this.sessions = [newSession]
-        }
-        
+        // Don't auto-create sessions on startup (follow TUI logic)
+        // Sessions will be created when user sends first message
         this.outputChannel.appendLine(`✅ Loaded ${this.sessions.length} sessions`)
         return this.sessions
       } catch (error: any) {
         this.outputChannel.appendLine(`⚠️ Failed to load sessions from server: ${error.message}`)
-        this.outputChannel.appendLine('📋 Falling back to creating new session...')
+        this.outputChannel.appendLine('📋 No sessions available - will create on first message')
         
-        // Fallback: create a new session if server is unavailable
-        const newSession = await this.createSession()
-        this.sessions = [newSession]
+        // Don't create fallback session (follow TUI logic)
+        this.sessions = []
         
-        this.outputChannel.appendLine(`✅ Created fallback session: ${newSession.id}`)
+        this.outputChannel.appendLine(`✅ No sessions loaded - ready for first message`)
         return this.sessions
       }
     } catch (error: any) {

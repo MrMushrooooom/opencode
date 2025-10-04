@@ -32,9 +32,12 @@ export class WebViewCommunicationManager {
   /**
    * Send streaming update to webview
    */
-  sendStreamingUpdate(messageId: string, content: string, partType: string, role?: string): void {
+  sendStreamingUpdate(messageId: string, content: string | object, partType: string, role?: string): void {
     if (this.webviewPanel) {
-      this.webviewPanel.sendStreamingUpdate(messageId, content, partType, role)
+      // Convert object content to JSON string for message-updated events
+      const contentString = typeof content === 'object' ? JSON.stringify(content) : content
+      this.outputChannel.appendLine(`📡 [WebviewComm] Sending streaming update to panel. messageId: ${messageId}, partType: ${partType}, ContentString (first 100 chars): ${contentString.substring(0, 100)}... (length: ${contentString.length})`)
+      this.webviewPanel.sendStreamingUpdate(messageId, contentString, partType, role)
       this.outputChannel.appendLine(`📡 Streaming update sent: ${messageId}`)
     }
   }
@@ -44,7 +47,7 @@ export class WebViewCommunicationManager {
    */
   sendMessage(message: any): void {
     if (this.webviewPanel) {
-      this.webviewPanel.sendMessage(message)
+      this.webviewPanel.sendMessageToWebview(message)
       this.outputChannel.appendLine(`📡 Message sent: ${message.type}`)
     }
   }
@@ -92,5 +95,12 @@ export class WebViewCommunicationManager {
    */
   isWebViewAvailable(): boolean {
     return this.webviewPanel !== null
+  }
+
+  /**
+   * Get webview panel reference
+   */
+  getWebviewPanel(): any {
+    return this.webviewPanel
   }
 }

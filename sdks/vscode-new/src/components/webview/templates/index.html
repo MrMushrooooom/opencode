@@ -27,10 +27,7 @@
         </div>
 
         <div class="chat-area" id="chatArea">
-            <div class="message assistant">
-                <div class="message-header">OpenCode</div>
-                <div class="message-content">Hello! I'm OpenCode Assistant. How can I help you today?</div>
-            </div>
+            <!-- Welcome message will be dynamically added when no sessions exist -->
         </div>
         
         <div class="input-area">
@@ -232,11 +229,6 @@
             function showSessionDropdown() {
                 closeSessionDropdown();
                 
-                if (availableSessions.length === 0) {
-                    vscode.postMessage({ type: 'getSessions' });
-                    return;
-                }
-                
                 const dropdown = document.createElement('div');
                 dropdown.className = 'session-dropdown';
                 
@@ -250,44 +242,18 @@
                 });
                 dropdown.appendChild(newSessionOption);
                 
-                // Add default sessions
-                const defaultSessions = [
-                    { id: 'default', title: 'Getting Started with Claude Code', isDefault: true },
-                    { id: 'init-cli', title: 'Initializing Claude Code CLI', isDefault: true },
-                    { id: 'thread-title', title: 'Generating Thread Title', isDefault: true },
-                    { id: 'project-kickoff', title: 'Brainstorming Project Kickoff', isDefault: true },
-                    { id: 'cli-interaction', title: 'Exploring CLI Interaction', isDefault: true },
-                    { id: 'discussing-cli', title: 'Discussing CLI Interaction', isDefault: true }
-                ];
-                
-                const defaultHeader = document.createElement('div');
-                defaultHeader.className = 'session-option';
-                defaultHeader.style.fontWeight = 'bold';
-                defaultHeader.textContent = 'Default Sessions';
-                dropdown.appendChild(defaultHeader);
-                
-                defaultSessions.forEach(session => {
-                    const option = createSessionOption(session);
-                    dropdown.appendChild(option);
-                });
-                
-                // Add user sessions
+                // Add user sessions (if any)
                 if (availableSessions.length > 0) {
-                    // Add separator
-                    const separator = document.createElement('div');
-                    separator.className = 'session-separator';
-                    dropdown.appendChild(separator);
-                    
-                    const userHeader = document.createElement('div');
-                    userHeader.className = 'session-option';
-                    userHeader.style.fontWeight = 'bold';
-                    userHeader.textContent = 'Your Sessions';
-                    dropdown.appendChild(userHeader);
-                    
                     availableSessions.forEach(session => {
                         const option = createSessionOption(session);
                         dropdown.appendChild(option);
                     });
+                } else {
+                    // Show empty state when no sessions exist
+                    const emptyOption = document.createElement('div');
+                    emptyOption.className = 'session-option empty-sessions';
+                    emptyOption.innerHTML = '<span style="color: #666; font-style: italic;">No sessions yet</span>';
+                    dropdown.appendChild(emptyOption);
                 }
                 
                 // Position dropdown above the history button
@@ -328,14 +294,14 @@
                     <span class="session-title">${session.title}</span>
                     <div class="session-right">
                         ${isCurrentSession ? '<span class="session-current">Current</span>' : ''}
-                        ${!session.isDefault ? `<div class="session-actions" style="display: none;">
+                        <div class="session-actions" style="display: none;">
                             <button class="session-edit-btn" title="Edit session name">
                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
                                     <path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke="currentColor" stroke-width="1" fill="none"/>
                                 </svg>
                             </button>
                             ${!isCurrentSession ? '<button class="session-delete-btn" title="Delete session"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M3 3L9 9M9 3L3 9" stroke="currentColor" stroke-width="1"/></svg></button>' : ''}
-                        </div>` : ''}
+                        </div>
                     </div>
                 `;
                 
@@ -522,53 +488,36 @@
                 
                 vscode.postMessage({ type: 'debug', message: `✅ Found dropdown, availableSessions: ${availableSessions.length}` });
                 
-                // Find the "Your Sessions" section and update only the session items
-                const allHeaders = dropdown.querySelectorAll('.session-option[style*="font-weight: bold"]');
-                vscode.postMessage({ type: 'debug', message: `🔍 Found ${allHeaders.length} bold headers in dropdown` });
+                // Find the "New Session" button to determine where to insert sessions
+                const newSessionButton = dropdown.querySelector('.new-session');
+                if (!newSessionButton) {
+                    vscode.postMessage({ type: 'debug', message: '⚠️ "New Session" button not found' });
+                    return;
+                }
                 
-                let userSessionsHeader = null;
-                allHeaders.forEach((header, index) => {
-                    const headerText = header.textContent;
-                    vscode.postMessage({ type: 'debug', message: `📝 Header ${index + 1}: "${headerText}"` });
-                    
-                    if (headerText === 'Your Sessions') {
-                        userSessionsHeader = header;
-                    }
+                // Remove all existing session items (but keep the "New Session" button)
+                const existingSessions = dropdown.querySelectorAll('.session-option[data-session-id]');
+                existingSessions.forEach(session => {
+                    session.remove();
                 });
                 
-                if (userSessionsHeader) {
-                    vscode.postMessage({ type: 'debug', message: '🔄 Updating "Your Sessions" section' });
+                vscode.postMessage({ type: 'debug', message: `🗑️ Removed ${existingSessions.length} old session items` });
+                
+                // Re-add user sessions with updated data
+                if (availableSessions.length > 0) {
+                    vscode.postMessage({ type: 'debug', message: `➕ Re-adding ${availableSessions.length} user sessions` });
                     
-                    // Remove all existing user session items (but keep the header)
-                    let nextElement = userSessionsHeader.nextElementSibling;
-                    let removedCount = 0;
-                    while (nextElement && !nextElement.classList.contains('session-separator')) {
-                        const toRemove = nextElement;
-                        nextElement = nextElement.nextElementSibling;
-                        toRemove.remove();
-                        removedCount++;
-                    }
-                    
-                    vscode.postMessage({ type: 'debug', message: `🗑️ Removed ${removedCount} old session items` });
-                    
-                    // Re-add user sessions with updated data
-                    if (availableSessions.length > 0) {
-                        vscode.postMessage({ type: 'debug', message: `➕ Re-adding ${availableSessions.length} user sessions` });
-                        
-                        let addedCount = 0;
-                        // Insert sessions in reverse order to maintain correct order
-                        availableSessions.slice().reverse().forEach(session => {
-                            const option = createSessionOption(session);
-                            userSessionsHeader.parentNode.insertBefore(option, userSessionsHeader.nextSibling);
-                            addedCount++;
-                            vscode.postMessage({ type: 'debug', message: `➕ Added session: ${session.title}` });
-                        });
-                        vscode.postMessage({ type: 'debug', message: `✅ User sessions refreshed successfully - added ${addedCount} sessions` });
-                    } else {
-                        vscode.postMessage({ type: 'debug', message: '⚠️ No available sessions to add' });
-                    }
+                    let addedCount = 0;
+                    // Insert sessions in reverse order to maintain correct order
+                    availableSessions.slice().reverse().forEach(session => {
+                        const option = createSessionOption(session);
+                        newSessionButton.parentNode.insertBefore(option, newSessionButton.nextSibling);
+                        addedCount++;
+                        vscode.postMessage({ type: 'debug', message: `➕ Added session: ${session.title}` });
+                    });
+                    vscode.postMessage({ type: 'debug', message: `✅ User sessions refreshed successfully - added ${addedCount} sessions` });
                 } else {
-                    vscode.postMessage({ type: 'debug', message: '⚠️ "Your Sessions" header not found' });
+                    vscode.postMessage({ type: 'debug', message: '⚠️ No available sessions to add' });
                 }
             }
 

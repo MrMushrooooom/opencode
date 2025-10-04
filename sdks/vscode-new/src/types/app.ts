@@ -28,6 +28,7 @@ export interface Message {
   content: string
   timestamp: number
   mode?: 'plan' | 'build'
+  model?: string | null // Model information for the message
 }
 
 export interface Model {

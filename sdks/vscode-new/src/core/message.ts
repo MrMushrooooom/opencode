@@ -29,7 +29,10 @@ export class MessageManager {
       // Convert server messages to our format
       const messages: Message[] = []
       for (const serverMsg of serverMessages) {
+        this.outputChannel.appendLine(`🔍 Processing server message: ${serverMsg.info.id}, role: ${serverMsg.info.role}, parts: ${serverMsg.parts?.length || 0}`)
+        this.outputChannel.appendLine(`🔍 Server message info: ${JSON.stringify(serverMsg.info, null, 2)}`)
         const content = this.parseResponse({ parts: serverMsg.parts })
+        this.outputChannel.appendLine(`📝 Parsed content length: ${content?.length || 0}`)
         if (content) {
           messages.push({
             id: serverMsg.info.id,
@@ -37,8 +40,11 @@ export class MessageManager {
             role: serverMsg.info.role,
             content: content,
             timestamp: serverMsg.info.time?.created || Date.now(),
-            mode: serverMsg.info.mode || 'plan'
+            mode: serverMsg.info.mode || 'plan',
+            model: serverMsg.info.modelID || null // Add model information if available
           })
+        } else {
+          this.outputChannel.appendLine(`⚠️ Skipping message with no content: ${serverMsg.info.id}`)
         }
       }
       
@@ -68,6 +74,7 @@ export class MessageManager {
         messageID: messageId,
         parts: [
           {
+            id: MessageManager.generatePartId(),
             type: 'text',
             text: params.text
           }
@@ -108,20 +115,31 @@ export class MessageManager {
   private parseResponse(response: any): string {
     try {
       if (!response || !response.parts) {
+        this.outputChannel.appendLine(`⚠️ No response or parts to parse`)
         return ''
       }
 
+      this.outputChannel.appendLine(`🔍 Parsing ${response.parts.length} parts`)
+      
       // Extract text content from parts
       const textParts = response.parts.filter((part: any) => part.type === 'text')
+      this.outputChannel.appendLine(`📝 Found ${textParts.length} text parts`)
+      
       const content = textParts.map((part: any) => part.text).join('\n')
       
       if (content.trim()) {
+        this.outputChannel.appendLine(`✅ Extracted content: ${content.substring(0, 50)}...`)
         return content
       } else {
+        // If no text content, check for other part types
+        const partTypes = response.parts.map((part: any) => part.type)
+        this.outputChannel.appendLine(`⚠️ No text content found. Part types: ${partTypes.join(', ')}`)
+        
         // If no text content, but steps are completed, provide a default response
         const stepStartParts = response.parts.filter((part: any) => part.type === 'step-start')
         const stepFinishParts = response.parts.filter((part: any) => part.type === 'step-finish')
         if (stepStartParts.length > 0 && stepFinishParts.length > 0) {
+          this.outputChannel.appendLine(`📝 Using default response for completed steps`)
           return 'Yes, I can help you modify code. What specific changes would you like me to make?'
         }
         return ''
@@ -133,39 +151,93 @@ export class MessageManager {
   }
 
   /**
-   * Generate a unique message ID (following OpenCode Identifier format exactly)
-   * Using the same algorithm as TUI's id.Ascending(id.Message)
+   * Generate a unique message ID using TUI's exact algorithm
+   * This ensures string comparison works correctly for QUEUED logic
    */
   private generateMessageId(): string {
-    // Follow OpenCode's Identifier.ascending("message") format exactly
-    // This matches the TUI's id.Ascending(id.Message) implementation
-    
-    const currentTimestamp = Date.now()
-    
-    // Use a simple counter for uniqueness within the same millisecond
-    // This is a simplified version of the TUI's monotonic counter
-    const counter = Math.floor(Math.random() * 4096) // 0-4095 range
-    
-    // Combine timestamp and counter like TUI does
-    const combined = BigInt(currentTimestamp) * BigInt(0x1000) + BigInt(counter)
-    
-    // Convert to 6-byte hex string (12 hex chars)
-    const timeBytes = Buffer.alloc(6)
-    for (let i = 0; i < 6; i++) {
-      timeBytes[i] = Number((combined >> BigInt(40 - 8 * i)) & BigInt(0xff))
-    }
-    const timeHex = timeBytes.toString('hex')
-    
-    // Generate 14 base62 characters
-    const randomBase62 = this.generateRandomBase62(14)
-    
-    return `msg_${timeHex}${randomBase62}`
+    return MessageManager.generateAscendingId('msg')
   }
 
   /**
-   * Generate random base62 string
+   * Static method to generate ascending IDs (TUI's id.Ascending implementation)
+   * This ensures consistent ID generation across all instances
    */
-  private generateRandomBase62(length: number): string {
+  static generateAscendingId(prefix: string): string {
+    return MessageManager.generateId(prefix, false)
+  }
+
+  /**
+   * Static method to generate descending IDs (TUI's id.Descending implementation)
+   */
+  static generateDescendingId(prefix: string): string {
+    return MessageManager.generateId(prefix, true)
+  }
+
+  /**
+   * Generate a unique part ID using TUI's exact algorithm
+   * Used for TextPart, ToolPart, etc.
+   */
+  static generatePartId(): string {
+    return MessageManager.generateAscendingId('prt')
+  }
+
+  /**
+   * TUI's exact ID generation algorithm
+   * Replicates packages/tui/internal/id/id.go:generateNewID
+   */
+  private static generateId(prefix: string, descending: boolean): string {
+    // Global state (like TUI's package-level variables)
+    if (!MessageManager.globalIdState) {
+      MessageManager.globalIdState = {
+        lastTimestamp: 0,
+        counter: 0
+      }
+    }
+
+    const state = MessageManager.globalIdState
+    const currentTimestamp = Date.now()
+    
+    // Reset counter if timestamp changed (TUI logic)
+    if (currentTimestamp !== state.lastTimestamp) {
+      state.lastTimestamp = currentTimestamp
+      state.counter = 0
+    }
+    state.counter++
+    
+    // Combine timestamp and counter (TUI's exact formula)
+    let now = BigInt(currentTimestamp) * BigInt(0x1000) + BigInt(state.counter)
+    
+    // Apply descending logic if needed
+    if (descending) {
+      now = ~now
+    }
+    
+    // Convert to 6-byte hex string (TUI's exact encoding)
+    const timeBytes = Buffer.alloc(6)
+    for (let i = 0; i < 6; i++) {
+      timeBytes[i] = Number((now >> BigInt(40 - 8 * i)) & BigInt(0xff))
+    }
+    const timeHex = timeBytes.toString('hex')
+    
+    // Generate random base62 suffix (TUI's randomBase62)
+    // TUI uses length-12 = 26-12 = 14 characters
+    const randomBase62 = MessageManager.generateRandomBase62(14)
+    
+    return `${prefix}_${timeHex}${randomBase62}`
+  }
+
+  /**
+   * Global state for ID generation (TUI's package-level variables)
+   */
+  private static globalIdState: {
+    lastTimestamp: number
+    counter: number
+  } | null = null
+
+  /**
+   * Generate random base62 string (TUI's randomBase62 implementation)
+   */
+  private static generateRandomBase62(length: number): string {
     const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
     let result = ''
     for (let i = 0; i < length; i++) {
@@ -178,13 +250,55 @@ export class MessageManager {
    * Handle streaming message part update
    * Following TUI approach: server sends complete accumulated text, not incremental updates
    */
-  handleStreamingUpdate(messageId: string, part: any): string {
+  handleStreamingUpdate(messageId: string, part: any): string | object {
     if (part.type === 'text') {
-      // Server sends complete accumulated text, not incremental updates
-      // Following TUI approach: replace the content, don't accumulate
-      const completeContent = part.text || ''
-      this.streamingMessages.set(messageId, completeContent)
-      return completeContent
+      // Following TUI approach: server sends complete accumulated text, not incremental updates
+      // We should REPLACE the content, not append to it
+      const newTextContent = part.text || ''
+      
+      // Replace the content (server sends complete text each time)
+      this.streamingMessages.set(messageId, newTextContent)
+      return newTextContent
+    } else if (part.type === 'tool') {
+      // Handle tool part updates - Following TUI approach
+      const currentContent = this.streamingMessages.get(messageId) || ''
+      
+      if (part.state?.status === 'completed') {
+        // Tool execution completed - format like TUI
+        const toolOutput = part.state.output || ''
+        const toolTitle = part.state.title || part.tool || 'Tool'
+        
+        // Format tool result similar to TUI's renderToolDetails
+        let toolResult = ''
+        if (toolOutput) {
+          // Truncate long outputs like TUI does
+          const truncatedOutput = toolOutput.length > 500 ? 
+            toolOutput.substring(0, 500) + '\n\n(Output truncated due to length)' : 
+            toolOutput
+          toolResult = `**${toolTitle}**\n\n\`\`\`\n${truncatedOutput}\n\`\`\``
+        } else {
+          toolResult = `**${toolTitle}** - Completed`
+        }
+        
+        // Following TUI approach: append tool results to existing content
+        this.streamingMessages.set(messageId, currentContent + '\n\n' + toolResult)
+        return this.streamingMessages.get(messageId) || ''
+      } else if (part.state?.status === 'error') {
+        // Tool execution failed
+        const toolError = part.state.error || 'Unknown error'
+        const toolTitle = part.state.title || part.tool || 'Tool'
+        const errorResult = `**${toolTitle}** - Error\n\n\`\`\`\n${toolError}\n\`\`\``
+        this.streamingMessages.set(messageId, currentContent + '\n\n' + errorResult)
+        return this.streamingMessages.get(messageId) || ''
+      } else if (part.state?.status === 'running') {
+        // Tool is running
+        const toolTitle = part.state.title || part.tool || 'Tool'
+        const runningResult = `**${toolTitle}** - Running...`
+        this.streamingMessages.set(messageId, currentContent + '\n\n' + runningResult)
+        return this.streamingMessages.get(messageId) || ''
+      }
+      
+      return currentContent
     } else if (part.type === 'step-finish') {
       // Message is complete, remove from streaming
       const finalContent = this.streamingMessages.get(messageId) || ''

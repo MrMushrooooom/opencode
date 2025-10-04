@@ -28,7 +28,11 @@ export function activate(context: vscode.ExtensionContext) {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
         const workspacePath = workspaceFolder?.uri.fsPath || process.cwd()
         
-        outputChannel.appendLine(`📁 Current workspace: ${workspacePath}`)
+        outputChannel.appendLine(`📁 Workspace folder: ${workspaceFolder?.name || 'none'}`)
+        outputChannel.appendLine(`📁 Workspace URI: ${workspaceFolder?.uri.toString() || 'none'}`)
+        outputChannel.appendLine(`📁 Workspace fsPath: ${workspaceFolder?.uri.fsPath || 'none'}`)
+        outputChannel.appendLine(`📁 Process cwd: ${process.cwd()}`)
+        outputChannel.appendLine(`📁 Final workspace path: ${workspacePath}`)
         
         openCodeApp = new OpenCodeApp(outputChannel, workspacePath)
         await openCodeApp.initialize()

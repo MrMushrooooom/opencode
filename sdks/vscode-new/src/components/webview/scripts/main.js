@@ -100,8 +100,10 @@ function sendMessage(text) {
         }
     }
 
-    // Add user message to chat
-    addMessage('user', text, mode);
+    // Following TUI approach: create user message immediately
+    // This ensures correct chronological order
+    const userMessageDiv = addMessage('user', text, mode, true);
+    vscode.postMessage({ type: 'debug', message: `👤 Created user message immediately: "${text}"` });
 
     // Clear input immediately
     messageInput.value = '';
@@ -110,22 +112,20 @@ function sendMessage(text) {
     updateSendButtonState();
     status.textContent = 'Sending...';
 
-    // Show generating bubble or QUEUED status
+    // Following TUI approach: don't create any status messages locally
+    // Let the server create assistant messages via EventMessageUpdated
+    // and handle status display during rendering
+    vscode.postMessage({ type: 'debug', message: `🔍 sendMessage: isSessionLocked=${isSessionLocked}, currentStreamingMessage=${currentStreamingMessage ? 'exists' : 'null'}` });
+    
     if (!isSessionLocked) {
-        // First message - session is not locked, show "Generating..."
-        const modelName = currentModel ? currentModel.textContent : 'Unknown';
-        const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const generatingText = `Generating...\n${mode.charAt(0).toUpperCase() + mode.slice(1)} ${modelName} (${currentTime})`;
-        
-        currentStreamingMessage = addStreamingMessage('assistant', generatingText, mode, true); // Force scroll since user just sent a message
-        currentMessageId = 'generating_' + Date.now();
         isSessionLocked = true; // Mark session as locked
+        vscode.postMessage({ type: 'debug', message: `🔒 Session locked for first message` });
     } else {
-        // Session is locked - message will be queued, show "QUEUED" status
-        addQueuedStatus();
+        vscode.postMessage({ type: 'debug', message: `⚠️ Session already locked - this message will be queued` });
     }
 
     // Send to extension
+    vscode.postMessage({ type: 'debug', message: `📤 Sending message to extension: "${text}" (mode: ${mode})` });
     vscode.postMessage({
         type: 'sendMessage',
         text: text,
@@ -133,24 +133,118 @@ function sendMessage(text) {
     });
 }
 
-// Add message to chat area
-function addMessage(role, content, mode, forceScroll = false) {
+// Simple Markdown renderer for basic formatting
+function renderMarkdown(text) {
+    if (!text) return '';
+    
+    // Escape HTML first
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    
+    // Bold text: **text** -> <strong>text</strong>
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Code blocks: ```\ncode\n``` -> <pre><code>code</code></pre>
+    html = html.replace(/```\n([\s\S]*?)\n```/g, '<pre><code>$1</code></pre>');
+    
+    // Inline code: `code` -> <code>code</code>
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Line breaks: \n -> <br>
+    html = html.replace(/\n/g, '<br>');
+    
+    return html;
+}
+
+// Message structure following TUI's approach - message.Parts array
+let messageParts = new Map(); // messageId -> parts array
+
+// Add message to chat area - Following TUI's message structure
+function addMessage(role, content, mode, forceScroll = false, messageId = null, messageModel = null, messageTimestamp = null) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
     
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'message-header';
-    headerDiv.textContent = role === 'user' ? 'You' : 'OpenCode';
-    if (mode) {
-        headerDiv.textContent += ` (${mode})`;
-    }
+    // Use provided messageId or generate one using TUI's algorithm
+    // Frontend should not generate IDs - they come from the backend
+    const finalMessageId = messageId || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    messageDiv.setAttribute('data-message-id', finalMessageId);
+    
+    // CRITICAL FIX: Store timestamp for QUEUED logic
+    const timestamp = messageTimestamp || Date.now();
+    messageDiv.setAttribute('data-timestamp', timestamp.toString());
+    
+    messageParts.set(finalMessageId, []);
     
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
-    contentDiv.textContent = content;
     
-    messageDiv.appendChild(headerDiv);
+    // For user messages, set content directly (not using parts structure)
+    if (content) {
+        if (role === 'user') {
+            contentDiv.innerHTML = renderMarkdown(content);
+        } else {
+            // For assistant messages, create text part directly
+            const textPartDiv = document.createElement('div');
+            textPartDiv.className = 'message-part text-part';
+            textPartDiv.setAttribute('data-part-id', `text_${Date.now()}`);
+            textPartDiv.innerHTML = renderMarkdown(content);
+            contentDiv.appendChild(textPartDiv);
+            
+            // Track this part in messageParts
+            if (finalMessageId && window.messageParts) {
+                const parts = window.messageParts.get(finalMessageId) || [];
+                parts.push({
+                    type: 'text',
+                    id: textPartDiv.getAttribute('data-part-id'),
+                    content: content
+                });
+                window.messageParts.set(finalMessageId, parts);
+            }
+        }
+    } else if (role === 'assistant') {
+        // Following TUI approach: if assistant message has no content, show "Generating..."
+        const generatingPartDiv = document.createElement('div');
+        generatingPartDiv.className = 'message-part text-part generating';
+        generatingPartDiv.setAttribute('data-part-id', `generating_${Date.now()}`);
+        generatingPartDiv.innerHTML = '<span class="generating-label">Generating...</span>';
+        contentDiv.appendChild(generatingPartDiv);
+        
+        // Track this part in messageParts
+        if (finalMessageId && window.messageParts) {
+            const parts = window.messageParts.get(finalMessageId) || [];
+            parts.push({
+                type: 'generating',
+                id: generatingPartDiv.getAttribute('data-part-id'),
+                content: 'Generating...'
+            });
+            window.messageParts.set(finalMessageId, parts);
+        }
+    }
+    
+    // Add metadata at the bottom - TUI style
+    const metadataDiv = document.createElement('div');
+    metadataDiv.className = 'message-metadata';
+    
+    if (role === 'user') {
+        // User message metadata: username + time
+        const username = 'jack'; // Could be dynamic
+        const time = messageTimestamp ? new Date(messageTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        metadataDiv.textContent = `${username} (${time})`;
+    } else {
+        // Assistant message metadata: mode + model + time
+        const modeText = mode ? mode.charAt(0).toUpperCase() + mode.slice(1) : 'Plan';
+        // Always use technical model ID for consistency with TUI
+        // For historical messages: use server's modelID
+        // For new messages: use current model's ID (technical ID)
+        const modelName = messageModel || (window.currentModelData ? window.currentModelData.id : 'Loading...');
+        const time = messageTimestamp ? new Date(messageTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        metadataDiv.textContent = `${modeText} ${modelName} (${time})`;
+    }
+    
     messageDiv.appendChild(contentDiv);
+    messageDiv.appendChild(metadataDiv);
     chatArea.appendChild(messageDiv);
     
     // Use force scroll for user messages, smart scroll for assistant messages
@@ -159,15 +253,35 @@ function addMessage(role, content, mode, forceScroll = false) {
     } else {
         smartScrollToBottom();
     }
+    
+    // TUI approach: Check QUEUED status for user messages
+    if (role === 'user' && window.addQueuedStatusToMessage) {
+        // Use setTimeout to ensure DOM is fully rendered before checking QUEUED status
+        setTimeout(() => {
+            window.addQueuedStatusToMessage(messageDiv);
+        }, 0);
+    }
+    
+    return messageDiv;
 }
 
 // Smart scroll function - only scroll if user is at bottom
 function smartScrollToBottom() {
     // Use requestAnimationFrame to ensure DOM updates are complete
     requestAnimationFrame(() => {
-        const isAtBottom = chatArea.scrollTop + chatArea.clientHeight >= chatArea.scrollHeight - 50; // Increased buffer
+        const scrollTop = chatArea.scrollTop;
+        const scrollHeight = chatArea.scrollHeight;
+        const clientHeight = chatArea.clientHeight;
+        
+        // More generous buffer for detecting "at bottom" - 100px instead of 50px
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 100;
+        
         if (isAtBottom) {
-            chatArea.scrollTop = chatArea.scrollHeight;
+            // Smooth scroll to bottom
+            chatArea.scrollTo({
+                top: scrollHeight,
+                behavior: 'smooth'
+            });
         }
     });
 }
@@ -181,35 +295,6 @@ function forceScrollToBottom() {
 }
 
 // Add streaming message
-function addStreamingMessage(role, content, mode, forceScroll = false) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${role} streaming`;
-    
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'message-header';
-    headerDiv.textContent = role === 'user' ? 'You' : 'OpenCode';
-    if (mode) {
-        headerDiv.textContent += ` (${mode})`;
-    }
-    
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-    contentDiv.textContent = content;
-    
-    messageDiv.appendChild(headerDiv);
-    messageDiv.appendChild(contentDiv);
-    chatArea.appendChild(messageDiv);
-    
-    // Use force scroll for specific cases, smart scroll for others
-    if (forceScroll) {
-        forceScrollToBottom();
-    } else {
-        smartScrollToBottom();
-    }
-    
-    return messageDiv;
-}
-
 // Finalize streaming message
 function finalizeStreamingMessage(messageDiv) {
     messageDiv.classList.remove('streaming');
@@ -258,8 +343,9 @@ function initialize() {
     initializeEventListeners();
     updateBuildModeUI();
     
-    // Request initial state and sessions
+    // Request initial state, models and sessions
     vscode.postMessage({ type: 'getState' });
+    vscode.postMessage({ type: 'getModels' });
     vscode.postMessage({ type: 'getSessions' });
 }
 

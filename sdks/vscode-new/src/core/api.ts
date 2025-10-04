@@ -10,9 +10,11 @@ export class OpenCodeAPI {
   private client: OpencodeClient | null = null
   private baseURL: string | null = null
   private outputChannel: vscode.OutputChannel
+  private workspacePath: string
 
-  constructor(outputChannel: vscode.OutputChannel) {
+  constructor(outputChannel: vscode.OutputChannel, workspacePath: string) {
     this.outputChannel = outputChannel
+    this.workspacePath = workspacePath
   }
 
   /**
@@ -67,7 +69,9 @@ export class OpenCodeAPI {
 
     try {
       this.outputChannel.appendLine('📝 Creating session using OpenCode API...')
-      const session = await this.client.session.create({})
+      const session = await this.client.session.create({
+        query: { directory: this.workspacePath }
+      })
       this.outputChannel.appendLine(`✅ Session created: ${session.data?.id}`)
       return session.data
     } catch (error: any) {
@@ -84,7 +88,8 @@ export class OpenCodeAPI {
     try {
       this.outputChannel.appendLine(`📋 Getting messages for session ${sessionId}...`)
       const response = await this.client.session.messages({
-        path: { id: sessionId }
+        path: { id: sessionId },
+        query: { directory: this.workspacePath }
       })
       this.outputChannel.appendLine(`✅ Retrieved ${response.data?.length || 0} messages`)
       return response.data || []
@@ -101,7 +106,9 @@ export class OpenCodeAPI {
 
     try {
       this.outputChannel.appendLine('📋 Getting sessions from server...')
-      const response = await this.client.session.list({})
+      const response = await this.client.session.list({
+        query: { directory: this.workspacePath }
+      })
       this.outputChannel.appendLine(`✅ Retrieved ${response.data?.length || 0} sessions`)
       return response.data || []
     } catch (error: any) {
@@ -123,7 +130,8 @@ export class OpenCodeAPI {
       
       const response = await this.client.session.prompt({
         path: { id: sessionId },
-        body: params
+        body: params,
+        query: { directory: this.workspacePath }
       })
       this.outputChannel.appendLine(`✅ Prompt sent successfully`)
       return response.data
@@ -154,7 +162,8 @@ export class OpenCodeAPI {
       this.outputChannel.appendLine(`📝 Updating session ${sessionId}...`)
       const response = await this.client.session.update({
         path: { id: sessionId },
-        body: updates
+        body: updates,
+        query: { directory: this.workspacePath }
       })
       this.outputChannel.appendLine(`✅ Session updated successfully`)
       return response.data
@@ -175,7 +184,8 @@ export class OpenCodeAPI {
     try {
       this.outputChannel.appendLine(`🗑️ Deleting session ${sessionId}...`)
       const response = await this.client.session.delete({
-        path: { id: sessionId }
+        path: { id: sessionId },
+        query: { directory: this.workspacePath }
       })
       this.outputChannel.appendLine(`✅ Session deleted successfully`)
       return response.data
@@ -195,7 +205,9 @@ export class OpenCodeAPI {
 
     try {
       this.outputChannel.appendLine('🔧 Getting OpenCode configuration...')
-      const response = await this.client.config.get({})
+      const response = await this.client.config.get({
+        query: { directory: this.workspacePath }
+      })
       this.outputChannel.appendLine('✅ Configuration retrieved successfully')
       return response.data
     } catch (error: any) {
@@ -214,7 +226,9 @@ export class OpenCodeAPI {
 
     try {
       this.outputChannel.appendLine('📁 Getting current project...')
-      const response = await this.client.project.current({})
+      const response = await this.client.project.current({
+        query: { directory: this.workspacePath }
+      })
       this.outputChannel.appendLine('✅ Project information retrieved successfully')
       return response.data
     } catch (error: any) {
@@ -244,7 +258,9 @@ export class OpenCodeAPI {
       await new Promise(resolve => setTimeout(resolve, 1000))
       
         this.outputChannel.appendLine('🔍 Calling this.client.config.providers({})...')
-        const response = await this.client.config.providers({})
+        const response = await this.client.config.providers({
+          query: { directory: this.workspacePath }
+        })
         
         this.outputChannel.appendLine(`🔍 Raw SDK response: ${JSON.stringify(response)}`)
         
@@ -279,7 +295,10 @@ export class OpenCodeAPI {
       this.outputChannel.appendLine('🔄 Starting event stream...')
       
       // Use OpenCode SDK's event streaming (JavaScript SDK uses subscribe method)
-      const stream = await this.client.event.subscribe({ signal })
+      const stream = await this.client.event.subscribe({ 
+        signal,
+        query: { directory: this.workspacePath }
+      })
       
       this.outputChannel.appendLine('✅ Event stream started')
       return stream
@@ -306,7 +325,8 @@ export class OpenCodeAPI {
       
       const result = await this.client.postSessionByIdPermissionsByPermissionId({
         path: { id: sessionId, permissionId },
-        body: { response }
+        body: { response },
+        query: { directory: this.workspacePath }
       })
       
       this.outputChannel.appendLine(`✅ Permission response sent successfully`)
@@ -333,7 +353,8 @@ export class OpenCodeAPI {
         body: {
           messageId,
           partId
-        }
+        },
+        query: { directory: this.workspacePath }
       })
       
       this.outputChannel.appendLine(`✅ Session reverted successfully`)
@@ -357,7 +378,8 @@ export class OpenCodeAPI {
       
       const result = await this.client.session.unrevert({
         path: { id: sessionId },
-        body: {}
+        body: {},
+        query: { directory: this.workspacePath }
       })
       
       this.outputChannel.appendLine(`✅ Session unreverted successfully`)

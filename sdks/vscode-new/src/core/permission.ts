@@ -9,9 +9,17 @@ export class PermissionManager {
   private permissions: Permission[] = []
   private currentPermission: Permission | null = null
   private outputChannel: vscode.OutputChannel
+  private webviewCommManager?: any // WebView communication manager
 
   constructor(outputChannel: vscode.OutputChannel) {
     this.outputChannel = outputChannel
+  }
+
+  /**
+   * Set WebView communication manager
+   */
+  setWebviewCommManager(webviewCommManager: any): void {
+    this.webviewCommManager = webviewCommManager
   }
 
   /**
@@ -39,7 +47,10 @@ export class PermissionManager {
     this.currentPermission = this.permissions.shift()!
     this.outputChannel.appendLine(`🔐 Processing permission: ${this.currentPermission.type}`)
     
-    // Note: WebView communication is handled by WebViewCommunicationManager
+    // Show permission request in WebView
+    if (this.webviewCommManager) {
+      this.webviewCommManager.showPermissionRequest(this.currentPermission)
+    }
   }
 
   /**
@@ -58,6 +69,35 @@ export class PermissionManager {
       // Clear current permission and process next
       this.currentPermission = null
       this.processNextPermission()
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to respond to permission: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Respond to a specific permission by ID
+   */
+  async respondToPermissionById(permissionId: string, response: 'once' | 'always' | 'reject'): Promise<void> {
+    // Find the permission in the queue
+    const permissionIndex = this.permissions.findIndex(p => p.id === permissionId)
+    if (permissionIndex === -1 && this.currentPermission?.id !== permissionId) {
+      throw new Error(`Permission ${permissionId} not found`)
+    }
+
+    try {
+      this.outputChannel.appendLine(`🔐 Permission response: ${response} for ${permissionId}`)
+      
+      // Remove the permission from queue if it exists there
+      if (permissionIndex !== -1) {
+        this.permissions.splice(permissionIndex, 1)
+      }
+      
+      // Clear current permission if it matches
+      if (this.currentPermission?.id === permissionId) {
+        this.currentPermission = null
+        this.processNextPermission()
+      }
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to respond to permission: ${error.message}`)
       throw error

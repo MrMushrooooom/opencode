@@ -9,14 +9,16 @@ import * as vscode from 'vscode'
 export class EventStreamManager {
   private api: OpenCodeAPI
   private outputChannel: vscode.OutputChannel
+  private webviewCommManager: any // WebView communication manager
   private isListening: boolean = false
   private eventStream?: any // OpenCode SDK event stream
   private abortController?: AbortController
   private messageRoles: Map<string, string> = new Map() // messageId -> role mapping
 
-  constructor(api: OpenCodeAPI, outputChannel: vscode.OutputChannel) {
+  constructor(api: OpenCodeAPI, outputChannel: vscode.OutputChannel, webviewCommManager: any) {
     this.api = api
     this.outputChannel = outputChannel
+    this.webviewCommManager = webviewCommManager
   }
 
   /**
@@ -27,6 +29,8 @@ export class EventStreamManager {
     onSessionUpdate: (session: any) => void,
     onPermissionUpdate?: (permission: any) => void
   ): Promise<void> {
+    this.outputChannel.appendLine(`🔍 startListening called with ${arguments.length} arguments`)
+    
     if (this.isListening) {
       this.outputChannel.appendLine('⚠️ Event stream already listening')
       return
@@ -70,6 +74,7 @@ export class EventStreamManager {
 
         // Handle different event types based on actual server event format
         if (event.type) {
+          this.outputChannel.appendLine(`📥 Received SSE event: ${event.type}`)
           switch (event.type) {
             case 'message.part.updated':
               if (event.properties?.part) {
@@ -87,6 +92,14 @@ export class EventStreamManager {
               if (event.properties?.info) {
                 // Store role information for this message ID
                 this.messageRoles.set(event.properties.info.id, event.properties.info.role)
+                
+                // Following TUI approach: send message update event directly to webview
+                this.outputChannel.appendLine(`📨 Message updated: ${event.properties.info.id} (${event.properties.info.role})`)
+                // Send message update event directly to webview (not through streaming system)
+                this.webviewCommManager.sendMessage({
+                  type: 'message-updated',
+                  messageInfo: event.properties.info
+                })
               }
               break
               

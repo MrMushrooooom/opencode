@@ -51,20 +51,19 @@ body {
     background-color: var(--vscode-editor-background);
 }
 
+/* Message styling - Following TUI's design principles */
 .message {
-    margin-bottom: 15px;
-    padding: 10px;
-    border-radius: 4px;
+    margin-top: 12px; /* Default spacing for assistant messages */
+    margin-bottom: 12px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Always left-aligned like TUI */
 }
 
+/* User messages - larger top margin to separate conversation groups */
 .message.user {
-    background-color: var(--vscode-input-background);
-    margin-left: 20px;
-}
-
-.message.assistant {
-    background-color: var(--vscode-textBlockQuote-background);
-    margin-right: 20px;
+    margin-top: 60px; /* Increased spacing for new conversation groups */
 }
 
 .message.streaming {
@@ -78,13 +77,38 @@ body {
     100% { opacity: 1; }
 }
 
-.message-header {
+/* Message metadata - TUI-style at bottom */
+.message-metadata {
     font-size: 12px;
     color: var(--vscode-descriptionForeground);
-    margin-bottom: 5px;
+    margin-top: 4px;
+    padding: 0 8px;
+    font-weight: normal;
 }
 
-.message-content {
+/* User messages - Keep bubble styling like TUI */
+.message.user .message-content {
+    background-color: var(--vscode-input-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 8px;
+    padding: 6px 8px; /* Reduced padding for more compact bubbles */
+    max-width: 100%;
+    word-wrap: break-word;
+    line-height: 1.5;
+    color: var(--vscode-editor-foreground);
+    white-space: pre-wrap;
+}
+
+/* Assistant text messages - No bubble, clean display like TUI with left alignment */
+.message.assistant .message-content {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 8px 12px; /* Match user message padding for left alignment */
+    max-width: 100%;
+    word-wrap: break-word;
+    line-height: 1.6;
+    color: var(--vscode-editor-foreground);
     white-space: pre-wrap;
 }
 
@@ -298,17 +322,301 @@ body {
     .input-area {
         flex-direction: column;
         gap: 5px;
+        align-items: stretch;
     }
     
     .mode-selector {
-        width: 100%;
+        width: auto;
+        min-width: 0;
     }
     
     .input-field {
-        width: 100%;
+        width: auto;
+        min-width: 0;
     }
     
     .send-button {
-        width: 100%;
+        width: auto;
+        min-width: 0;
     }
+}
+
+/* Inline permission request styles - TUI-like integration */
+.permission-request {
+    margin: 8px 0;
+    padding: 12px;
+    background-color: var(--vscode-inputValidation-warningBackground);
+    border: 1px solid var(--vscode-inputValidation-warningBorder);
+    border-radius: 6px;
+    border-left: 4px solid var(--vscode-inputValidation-warningBorder);
+}
+
+.permission-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.permission-description {
+    font-size: 14px;
+    color: var(--vscode-inputValidation-warningForeground);
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.permission-metadata {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    background-color: var(--vscode-input-background);
+    padding: 8px;
+    border-radius: 4px;
+    font-family: var(--vscode-editor-font-family);
+    white-space: pre-wrap;
+    max-height: 100px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+
+.permission-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.permission-btn {
+    padding: 8px 16px; /* Increased padding for better clickability */
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 4px;
+    font-size: 13px; /* Slightly larger font */
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 90px; /* Increased minimum width */
+    font-weight: 500; /* Slightly bolder text */
+}
+
+.permission-btn.accept-once {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.permission-btn.accept-once:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.permission-btn.accept-always {
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+}
+
+.permission-btn.accept-always:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.permission-btn.reject {
+    background-color: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.permission-btn.reject:hover {
+    background-color: var(--vscode-inputValidation-errorForeground);
+    color: var(--vscode-inputValidation-errorBackground);
+}
+
+/* Markdown content styling */
+.message-content strong {
+    font-weight: 600;
+    color: var(--vscode-textPreformat-foreground);
+}
+
+.message-content code {
+    background-color: var(--vscode-textCodeBlock-background);
+    color: var(--vscode-textPreformat-foreground);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 0.9em;
+}
+
+.message-content pre {
+    background-color: var(--vscode-textCodeBlock-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 8px 0;
+    overflow-x: auto;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+.message-content pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+}
+
+/* Message parts styling - TUI-like separation */
+.message-part {
+    margin: 8px 0;
+    padding: 0;
+}
+
+/* Tool parts - Panel styling like TUI with state visualization */
+.message-part.tool-part {
+    background-color: var(--vscode-textCodeBlock-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 12px 0;
+    min-width: 300px; /* Fixed minimum width to prevent dynamic changes */
+    max-width: 100%;
+    width: fit-content; /* Allow content to determine width but respect min-width */
+}
+
+.message-part.tool-part .tool-header {
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--vscode-textPreformat-foreground);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    padding-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.message-part.tool-part .tool-state-indicator {
+    font-size: 12px;
+    font-weight: normal;
+    opacity: 0.8;
+}
+
+/* Tool state specific styling */
+.message-part.tool-part .tool-header.tool-state-pending {
+    color: var(--vscode-descriptionForeground);
+}
+
+.message-part.tool-part .tool-header.tool-state-running {
+    color: var(--vscode-textLink-foreground);
+}
+
+.message-part.tool-part .tool-header.tool-state-completed {
+    color: var(--vscode-terminal-ansiGreen);
+}
+
+.message-part.tool-part .tool-header.tool-state-error {
+    color: var(--vscode-inputValidation-errorForeground);
+}
+
+.message-part.tool-part .tool-output {
+    margin-top: 8px;
+    min-height: 40px; /* Ensure minimum height for content */
+}
+
+.message-part.tool-part .tool-output pre {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 0.9em;
+    line-height: 1.4;
+    overflow-x: auto;
+    min-height: 20px; /* Ensure minimum height for pre elements */
+}
+
+.message-part.tool-part .tool-output code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+    color: var(--vscode-textPreformat-foreground);
+}
+
+.message-part.tool-part .tool-output code.error {
+    color: var(--vscode-inputValidation-errorForeground);
+}
+
+/* Text parts - Clean display for assistant messages */
+.message-part.text-part {
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+.message-part.text-part p {
+    margin: 8px 0;
+}
+
+.message-part.text-part ul,
+.message-part.text-part ol {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.message-part.text-part li {
+    margin: 4px 0;
+}
+
+/* Reasoning parts - Panel background like TUI - HIDDEN by default */
+.message-part.reasoning-part {
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-editorGroup-border);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 12px 0;
+    font-style: italic;
+    color: var(--vscode-descriptionForeground);
+    display: none; /* Hide reasoning parts by default */
+}
+
+.message-part.reasoning-part .reasoning-header {
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--vscode-textPreformat-foreground);
+    border-bottom: 1px solid var(--vscode-editorGroup-border);
+    padding-bottom: 4px;
+}
+
+.message-part.reasoning-part .reasoning-content pre {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 0.9em;
+    line-height: 1.4;
+    overflow-x: auto;
+    color: var(--vscode-descriptionForeground);
+}
+
+/* Generating animation - TUI style shimmer effect */
+.generating-label {
+    animation: shimmer 1.5s ease-in-out infinite;
+    color: var(--vscode-textLink-foreground);
+}
+
+@keyframes shimmer {
+    0%, 100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+/* QUEUED status - TUI style compact design */
+.queued-status {
+    margin-bottom: 8px;
+}
+
+.queued-label {
+    background: var(--vscode-textLink-foreground);
+    color: var(--vscode-editor-background);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    font-weight: bold;
+    display: inline-block;
 }

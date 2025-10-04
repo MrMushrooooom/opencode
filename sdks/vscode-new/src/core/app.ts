@@ -37,7 +37,7 @@ export class OpenCodeApp {
     this.workspacePath = workspacePath
 
     // Initialize core components
-    this.api = new OpenCodeAPI(outputChannel)
+    this.api = new OpenCodeAPI(outputChannel, workspacePath)
     this.serverManager = new ServerManager(outputChannel)
     this.modelManager = new ModelManager(this.api, outputChannel)
     this.sessionManager = new SessionManager(this.api, outputChannel)
@@ -47,7 +47,7 @@ export class OpenCodeApp {
     this.permissionManager = new PermissionManager(outputChannel)
     this.stateManager = new StateManager(outputChannel)
     this.webviewCommManager = new WebViewCommunicationManager(outputChannel)
-    this.eventStreamManager = new EventStreamManager(this.api, outputChannel)
+    this.eventStreamManager = new EventStreamManager(this.api, outputChannel, this.webviewCommManager)
   }
 
   /**
@@ -75,14 +75,11 @@ export class OpenCodeApp {
         this.stateManager.setCurrentModel(currentModel)
       }
 
-      // Load sessions
+      // Load sessions (but don't auto-select one - let user choose or create on first message)
       await this.sessionManager.loadSessions()
       const sessions = await this.sessionManager.getSessions()
-
-      // Set current session if available
-      if (sessions.length > 0) {
-        this.stateManager.setCurrentSession(sessions[0])
-      }
+      
+      this.outputChannel.appendLine(`📋 Loaded ${sessions.length} existing sessions`)
 
       // Start SSE event stream for real-time updates
       await this.eventStreamManager!.startListening(
@@ -104,7 +101,25 @@ export class OpenCodeApp {
         }
       )
 
+      // Set default current session if sessions exist (align with frontend behavior)
+      if (sessions.length > 0 && !this.stateManager.getCurrentSession()) {
+        const defaultSession = sessions[0]
+        this.stateManager.setCurrentSession(defaultSession)
+        this.outputChannel.appendLine(`📝 Set default current session: ${defaultSession.title}`)
+      }
+
       this.outputChannel.appendLine('✅ OpenCode Application initialized successfully')
+      
+      // Update UI after initialization is complete to ensure all data is loaded
+      const webviewPanel = this.webviewCommManager.getWebviewPanel()
+      if (webviewPanel) {
+        this.outputChannel.appendLine(`📡 Updating UI after initialization - panel is available`)
+        webviewPanel.updateUI().catch((error: any) => {
+          this.outputChannel.appendLine(`❌ Failed to update UI after initialization: ${error.message}`)
+        })
+      } else {
+        this.outputChannel.appendLine(`⚠️ WebView panel not available during initialization - UI will be updated when panel is created`)
+      }
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to initialize: ${error.message}`)
       throw error
@@ -113,11 +128,23 @@ export class OpenCodeApp {
 
   /**
    * Send a message to the current session
+   * Following TUI approach: create session if none exists
    */
   async sendMessage(text: string, mode: 'plan' | 'build' = 'plan'): Promise<PromptResponse> {
-    const currentSession = this.stateManager.getCurrentSession()
+    let currentSession = this.stateManager.getCurrentSession()
+    
+    // Create session if none exists (following TUI approach)
     if (!currentSession) {
-      throw new Error('No active session')
+      this.outputChannel.appendLine('📝 No active session, creating new session...')
+      currentSession = await this.sessionManager.createNewSession()
+      this.stateManager.setCurrentSession(currentSession)
+      this.outputChannel.appendLine(`✅ Created new session: ${currentSession.id}`)
+      
+      // Notify frontend about the new session
+      this.webviewCommManager.sendMessage({
+        type: 'sessionCreated',
+        session: currentSession
+      })
     }
 
     try {
@@ -327,6 +354,10 @@ export class OpenCodeApp {
    */
   setWebviewPanel(panel: any): void {
     this.webviewCommManager.setWebviewPanel(panel)
+    this.permissionManager.setWebviewCommManager(this.webviewCommManager)
+    
+    // Don't call updateUI immediately - it will be called after initialization is complete
+    // This prevents sending empty data before models and sessions are loaded
   }
 
   /**
@@ -386,10 +417,10 @@ export class OpenCodeApp {
   }
 
   /**
-   * Respond to the current permission request
+   * Respond to a specific permission request
    */
-  async respondToPermission(response: 'once' | 'always' | 'reject'): Promise<void> {
-    await this.permissionManager.respondToPermission(response)
+  async respondToPermission(permissionId: string, response: 'once' | 'always' | 'reject'): Promise<void> {
+    await this.permissionManager.respondToPermissionById(permissionId, response)
   }
 
   /**

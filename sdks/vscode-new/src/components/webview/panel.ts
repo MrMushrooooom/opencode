@@ -49,9 +49,11 @@ export class OpenCodePanel {
     // Set webview panel reference in app for streaming updates
     this.app.setWebviewPanel(this)
     
-    // Initialize UI with current state (async)
-    this.updateUI().catch(error => {
-      this.outputChannel.appendLine(`❌ Failed to initialize UI: ${error.message}`)
+    // CRITICAL FIX: Call updateUI immediately after setting the panel
+    // This ensures that models, sessions, and messages are loaded and displayed
+    // as soon as the panel is created and linked to the app.
+    this.updateUI().catch((error: any) => {
+      this.outputChannel.appendLine(`❌ Failed to update UI immediately after panel creation: ${error.message}`)
     })
   }
 
@@ -89,7 +91,7 @@ export class OpenCodePanel {
           await this.handleDeleteSession(message.sessionId)
           break
         case 'respondToPermission':
-          await this.handleRespondToPermission(message.response)
+          await this.handleRespondToPermission(message.permissionId, message.response)
           break
         case 'undoToMessage':
           await this.handleUndoToMessage(message.messageId, message.partId)
@@ -128,6 +130,7 @@ export class OpenCodePanel {
    */
   private async handleSendMessage(text: string, mode: 'plan' | 'build' = 'plan'): Promise<void> {
     try {
+      this.outputChannel.appendLine(`📤 Frontend sent message: "${text}" (mode: ${mode})`)
       const response = await this.app.sendMessage(text, mode)
       this.outputChannel.appendLine(`✅ Message sent successfully`)
       
@@ -147,10 +150,15 @@ export class OpenCodePanel {
    */
   private async handleCreateSession(): Promise<void> {
     try {
+      // TUI approach: Clear chat area first for manual session creation
+      this.sendMessageToWebview({
+        type: 'clearChat'
+      })
+      
       const session = await this.app.createNewSession()
       this.outputChannel.appendLine(`✅ New session created: ${session.id}`)
       
-      // Send session created message to webview (no need to call updateUI as it will be handled by sessionCreated)
+      // Send session created message to webview
       this.sendMessageToWebview({
         type: 'sessionCreated',
         session: session
@@ -329,13 +337,14 @@ export class OpenCodePanel {
   /**
    * Handle respond to permission
    */
-  private async handleRespondToPermission(response: 'once' | 'always' | 'reject'): Promise<void> {
+  private async handleRespondToPermission(permissionId: string, response: 'once' | 'always' | 'reject'): Promise<void> {
     try {
-      await this.app.respondToPermission(response)
-      this.outputChannel.appendLine(`✅ Permission response sent: ${response}`)
+      await this.app.respondToPermission(permissionId, response)
+      this.outputChannel.appendLine(`✅ Permission response sent: ${response} for ${permissionId}`)
       
     this.sendMessageToWebview({
         type: 'permissionResponseSuccess',
+        permissionId: permissionId,
         response: response
       })
     } catch (error: any) {
@@ -462,9 +471,17 @@ export class OpenCodePanel {
   }
 
   /**
+   * Send message to webview
+   */
+  sendMessage(message: any): void {
+    this.sendMessageToWebview(message)
+  }
+
+  /**
    * Send streaming update to webview
    */
   sendStreamingUpdate(messageId: string, content: string, partType: string, role?: string): void {
+    this.outputChannel.appendLine(`📡 [Panel] Received streaming update from WebviewComm. messageId: ${messageId}, partType: ${partType}, Content (first 100 chars): ${content.substring(0, 100)}... (length: ${content.length})`)
     this.sendMessageToWebview({
       type: 'streamingUpdate',
       messageId: messageId,
