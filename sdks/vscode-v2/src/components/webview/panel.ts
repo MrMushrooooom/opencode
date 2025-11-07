@@ -33,7 +33,6 @@ export class OpenCodePanel {
 
     // Set initial HTML
     this.webview.webview.html = this.getHtmlForWebview()
-    this.outputChannel.appendLine('🐛 Debug: WebView HTML set')
 
     // Handle messages from webview
     this.webview.webview.onDidReceiveMessage(
@@ -41,7 +40,6 @@ export class OpenCodePanel {
       undefined,
       []
     )
-    this.outputChannel.appendLine('🐛 Debug: WebView message handler set up')
 
     // Handle panel disposal
     this.webview.onDidDispose(() => {
@@ -72,6 +70,13 @@ export class OpenCodePanel {
             await this.handleSendPrompt(message.data.text, message.data.mode)
           } else {
             this.outputChannel.appendLine(`❌ Invalid sendPrompt message: missing text or mode`)
+          }
+          break
+        case 'sendPromptWithImages':
+          if (message.data?.text && message.data?.mode && message.data?.images) {
+            await this.handleSendPromptWithImages(message.data.text, message.data.mode, message.data.images)
+          } else {
+            this.outputChannel.appendLine(`❌ Invalid sendPromptWithImages message: missing text, mode, or images`)
           }
           break
         case 'createSession':
@@ -195,6 +200,39 @@ export class OpenCodePanel {
       
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to send message: ${error.message}`)
+      this.sendMessageToWebview({
+        type: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle send prompt with images
+   */
+  private async handleSendPromptWithImages(text: string, mode: 'plan' | 'build', images: Array<{ data: string; name: string; mime: string }>): Promise<void> {
+    try {
+      this.outputChannel.appendLine(`📤 Frontend sent message with ${images.length} image(s): "${text}" (mode: ${mode})`)
+      
+      // Convert base64 images to opencode.File format
+      const imageAttachments = images.map((image) => {
+        return {
+          type: 'file' as const,
+          filename: image.name,
+          mimeType: image.mime,
+          url: image.data, // Use base64 data URL for image attachments
+          display: image.data, // Store base64 data URL for display
+          path: '', // No file path for uploaded images
+          startIndex: text.length, // Append to end of text
+          endIndex: text.length
+        }
+      })
+      
+      await this.app.sendPromptWithAttachments(text, mode, imageAttachments)
+      this.outputChannel.appendLine(`✅ Message with images sent successfully`)
+      
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to send message with images: ${error.message}`)
       this.sendMessageToWebview({
         type: 'error',
         error: error.message
@@ -468,7 +506,6 @@ export class OpenCodePanel {
   async updateUI(): Promise<void> {
     try {
       const state = await this.app.getFrontendState()
-      this.outputChannel.appendLine(`🐛 Debug: Current state - provider: ${state.currentProvider?.name || 'null'}, model: ${state.currentModel?.name || 'null'}`)
       
       this.sendMessageToWebview({
         type: 'stateUpdate',
@@ -484,7 +521,6 @@ export class OpenCodePanel {
       })
       
       const sessions = await this.app.getSessions()
-      this.outputChannel.appendLine(`📡 Sending ${sessions.length} sessions to webview`)
       this.sendMessageToWebview({
         type: 'sessionsUpdate',
         data: { sessions: sessions }
@@ -493,7 +529,6 @@ export class OpenCodePanel {
       // If we have a current session, also load its messages
       if (state.currentSession) {
         const messages = await this.app.getCurrentSessionMessages()
-        this.outputChannel.appendLine(`📋 Loaded ${messages.length} messages for current session ${state.currentSession.id}`)
         this.sendMessageToWebview({
           type: 'messagesLoaded',
           data: { messages: messages }
@@ -574,27 +609,18 @@ export class OpenCodePanel {
       const extensionPath = path.dirname(__dirname) // Go up from dist to vscode-v2 root
       const templatePath = path.join(extensionPath, 'src', 'components', 'webview', 'dist', 'index.html')
       
-      this.outputChannel.appendLine(`🐛 Debug: Extension path: ${extensionPath}`)
-      this.outputChannel.appendLine(`🐛 Debug: Template path: ${templatePath}`)
-      this.outputChannel.appendLine(`🐛 Debug: Template exists: ${fs.existsSync(templatePath)}`)
-      
       // Read the React app template
       const template = fs.readFileSync(templatePath, 'utf8')
-      this.outputChannel.appendLine(`🐛 Debug: Template loaded, length: ${template.length}`)
       
       // Get webview URI for the dist directory
       const webviewDir = path.dirname(templatePath)
       const webviewUri = this.webview.webview.asWebviewUri(vscode.Uri.file(webviewDir))
-      
-      this.outputChannel.appendLine(`🐛 Debug: Webview URI: ${webviewUri}`)
       
       // Replace bundle.js path with webview URI
       const html = template.replace(
         'src="bundle.js"',
         `src="${webviewUri}/bundle.js"`
       )
-      
-      this.outputChannel.appendLine(`🐛 Debug: HTML processed, bundle.js replaced`)
       
       return html
     } catch (error: any) {

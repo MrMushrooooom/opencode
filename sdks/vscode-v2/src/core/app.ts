@@ -1,13 +1,15 @@
 import type {
   AppStruct,
   StateStruct,
-  MessageStruct
+  MessageStruct,
+  Prompt
 } from '../types/app'
 import * as vscode from 'vscode'
 // @ts-ignore
 import * as opencode from '@opencode-ai/sdk'
 import { StateManager } from './state'
 import { TypeConverter } from './typeConverter'
+import { MessageConverter } from './message'
 
 /**
  * Main OpenCode application controller
@@ -55,7 +57,71 @@ export class OpenCodeApp {
   }
 
   async initializeClient(baseURL: string): Promise<void> {
-    this.client = opencode.createOpencodeClient({ baseUrl: baseURL })
+    // Create custom fetch with request/response logging
+    const originalFetch = globalThis.fetch
+    const customFetch = async (input: Request | string | URL, init?: RequestInit): Promise<Response> => {
+      // Handle Request object: clone it for logging, use original for fetch
+      let requestForLogging: Request | null = null
+      let url = ''
+      let method = ''
+      
+      if (input instanceof Request) {
+        // If input is already a Request, clone it for logging
+        requestForLogging = input.clone()
+        url = input.url
+        method = input.method
+      } else {
+        // If input is string/URL, create Request for logging
+        requestForLogging = new Request(input, init)
+        url = requestForLogging.url
+        method = requestForLogging.method
+      }
+      
+      // Log request (only log POST requests with body, simplified)
+      if (method === 'POST' && requestForLogging.body) {
+        this.outputChannel.appendLine(`🌐 HTTP ${method} ${url}`)
+      } else if (method !== 'GET') {
+        this.outputChannel.appendLine(`🌐 HTTP ${method} ${url}`)
+      }
+      
+      // Use original input for fetch (don't reuse Request object)
+      const response = await originalFetch(input, init)
+      
+      // Log response (only log errors)
+      if (!response.ok) {
+        try {
+          // Clone response to read body without consuming it
+          const clonedResponse = response.clone()
+          const responseText = await clonedResponse.text()
+          let logResponse = responseText
+          
+          // Truncate base64 data URLs in response body
+          if (responseText.includes('data:')) {
+            logResponse = responseText.replace(/data:([^;]+);base64,([^"]{100,})/g, (match, mime, data) => {
+              return `data:${mime};base64,[${data.length} chars truncated]`
+            })
+          }
+          
+          this.outputChannel.appendLine(`❌ HTTP ${response.status} ${response.statusText} ${url}`)
+          if (logResponse.length > 2000) {
+            this.outputChannel.appendLine(`  Response body (truncated): ${logResponse.substring(0, 2000)}...`)
+          } else if (logResponse.length > 0) {
+            this.outputChannel.appendLine(`  Response body: ${logResponse}`)
+          } else {
+            this.outputChannel.appendLine(`  Response body: (empty)`)
+          }
+        } catch (e) {
+          this.outputChannel.appendLine(`❌ HTTP ${response.status} ${response.statusText} ${url} (response logging failed: ${e})`)
+        }
+      }
+      
+      return response
+    }
+    
+    this.client = opencode.createOpencodeClient({ 
+      baseUrl: baseURL,
+      fetch: customFetch
+    })
     this.app.client = this.client
     this.app.isConnected = true
     this.outputChannel.appendLine(`OpenCode client initialized: ${baseURL}`)
@@ -274,10 +340,6 @@ export class OpenCodeApp {
     })
     
     const sessions = response.data || []
-    if (sessions.length > 0) {
-      this.outputChannel.appendLine(`📋 Loaded ${sessions.length} sessions`)
-    }
-    
     return sessions
   }
 
@@ -326,7 +388,7 @@ export class OpenCodeApp {
     this.updateSessionState(mostRecentSession)
     
     this.outputChannel.appendLine(`✅ Loaded most recent session: ${mostRecentSession.id}`)
-  }
+      }
 
   async switchToSession(sessionId: string): Promise<void> {
     if (!this.client) {
@@ -396,7 +458,6 @@ export class OpenCodeApp {
   }
 
     this.app.messages = messages
-    this.outputChannel.appendLine(`📋 Loaded ${this.app.messages.length} messages for session ${sessionId}`)
   }
 
   async updateSession(sessionId: string, title: string): Promise<void> {
@@ -416,7 +477,7 @@ export class OpenCodeApp {
   async deleteSession(sessionId: string): Promise<void> {
     if (!this.client) {
       throw new Error('OpenCode client not initialized')
-    }
+      }
 
     await this.client.session.delete({
       path: { id: sessionId },
@@ -507,6 +568,105 @@ export class OpenCodeApp {
       await this.client.session.prompt(promptData)
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to send prompt: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Send prompt with attachments: creates user message with file attachments, sends to agent, streams response
+   */
+  async sendPromptWithAttachments(text: string, mode: 'plan' | 'build', attachments: Array<{ type: string; filename: string; mimeType: string; url: string; display: string; path: string; startIndex: number; endIndex: number }>): Promise<void> {
+    if (!this.client) {
+      throw new Error('OpenCode client not initialized')
+    }
+
+    if (!this.app.session?.id) {
+      await this.createSession()
+    }
+
+    if (!this.app.session?.id) {
+      throw new Error('Failed to create session')
+    }
+
+    if (!this.app.provider || !this.app.model) {
+      throw new Error('No provider or model selected')
+    }
+
+    // Check if attachments contain images
+    const hasImages = attachments.some(att => att.mimeType.startsWith('image/'))
+    
+    // If there are images, check if the current model supports image input
+    if (hasImages) {
+      const supportsImages = this.app.model.modalities?.input?.includes('image') ?? false
+      if (!supportsImages) {
+        const modelName = this.app.model.name || `${this.app.provider.name}/${this.app.model.id}`
+        const errorMessage = `The selected model "${modelName}" does not support image input. Please switch to a model that supports images (e.g., Claude Opus 4, GPT-4 Vision) before sending images.`
+        
+        this.outputChannel.appendLine(`⚠️ ${errorMessage}`)
+        this.sendToWebView('error', { error: errorMessage })
+        throw new Error(errorMessage)
+      }
+    }
+
+    const messageId = this.generateMessageId()
+    const now = Date.now()
+    
+    // Convert attachments to opencode.File format for prompt
+    const promptAttachments: opencode.File[] = attachments.map(att => ({
+      type: att.type as any,
+      filename: att.filename,
+      mimeType: att.mimeType,
+      url: att.url || att.display, // Use display (base64) as url if no url provided
+      display: att.display,
+      path: att.path,
+      startIndex: att.startIndex,
+      endIndex: att.endIndex,
+      status: 'modified' as const,
+      added: 0,
+      removed: 0
+    }))
+    
+
+    // Use MessageConverter to create message structure with attachments
+    const prompt: Prompt = {
+      text: text,
+      attachments: promptAttachments
+    }
+
+    const userMessage = await MessageConverter.promptToMessage(prompt, messageId, this.app.session.id)
+    
+    // Update message info with correct time format
+    userMessage.info.time = { created: now }
+    
+    this.insertMessageByID(userMessage)
+    this.sendToWebView('messageUpdated', { messageId, message: userMessage })
+
+    const agent = this.app.agents.find(a => a.name === mode)
+    if (!agent) {
+      throw new Error(`Agent not found: ${mode}`)
+  }
+
+    // Convert message parts to session prompt parts
+    const sessionParts = MessageConverter.messageToSessionParams(userMessage)
+    
+    const promptData = {
+      path: { id: this.app.session.id },
+      body: {
+        messageID: messageId,
+        model: {
+          providerID: this.app.provider.id,
+          modelID: this.app.model.id
+        },
+        agent: agent.name,
+        parts: sessionParts
+      },
+      query: { directory: this.workspacePath }
+    }
+    
+    try {
+      await this.client.session.prompt(promptData)
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to send prompt with attachments: ${error.message}`)
       throw error
     }
   }
@@ -1018,6 +1178,9 @@ export class OpenCodeApp {
         case 'session.idle':
           this.handleSessionIdle(event)
           break
+        case 'session.error':
+          this.handleSessionError(event)
+          break
         case 'permission.updated':
           this.handlePermissionUpdated(event)
           break
@@ -1118,7 +1281,7 @@ export class OpenCodeApp {
             partId: part.id,
             message: this.app.messages[messageIndex]
           })
-        }
+  }
       }
     }
   }
@@ -1146,7 +1309,7 @@ export class OpenCodeApp {
     
     this.app.session = session
     this.sendSessionUpdate(session)
-    }
+  }
 
   private handleSessionDeleted(event: opencode.EventSessionDeleted): void {
     const session = event.properties.info
@@ -1159,7 +1322,42 @@ export class OpenCodeApp {
   }
 
   private handleSessionIdle(event: opencode.EventSessionIdle): void {
+    // Clear streaming state when session becomes idle
+    if (this.isStreaming) {
+      this.isStreaming = false
+      this.sendToWebView('streamingCompleted', { messageId: '' })
+    }
     this.sendToWebView('sessionIdle', { sessionID: event.properties.sessionID })
+  }
+
+  /**
+   * Handle session error events
+   * Extracts error information and notifies frontend
+   */
+  private handleSessionError(event: opencode.EventSessionError): void {
+    const error = event.properties.error
+    const sessionID = event.properties.sessionID
+    let errorMessage = 'An error occurred'
+    
+    if (error) {
+      // Extract error message based on error type
+      if ('message' in error && typeof error.message === 'string') {
+        errorMessage = error.message
+      } else if ('data' in error && error.data && typeof error.data === 'object' && 'message' in error.data) {
+        errorMessage = (error.data as any).message || errorMessage
+      }
+      
+      this.outputChannel.appendLine(`❌ Session error: ${errorMessage}`)
+    }
+    
+    // Clear streaming state on error
+    if (this.isStreaming) {
+      this.isStreaming = false
+      this.sendToWebView('streamingCompleted', { messageId: '' })
+    }
+    
+    // Send error to frontend
+    this.sendToWebView('error', { error: errorMessage })
   }
 
   private handlePermissionUpdated(event: opencode.EventPermissionUpdated): void {
@@ -1192,7 +1390,7 @@ export class OpenCodeApp {
     this.outputChannel.appendLine(`✅ Permission ${permissionID} replied`)
     
     this.sendToWebView('permissionReplied', { permissionID })
-  }
+    }
 
   /**
    * Respond to permission request: grant or reject file operations

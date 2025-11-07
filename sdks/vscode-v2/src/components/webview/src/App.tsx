@@ -1,5 +1,5 @@
 import React from 'react'
-import { Layout, Typography, Space, Button, Card, Alert } from 'antd'
+import { Layout, Typography, Space, Button, Card } from 'antd'
 import { useAppStore, useSessions, useCurrentSession, useMessages, useStreaming, useMode, useStatus, useFileChanges, useCurrentProvider, useCurrentModel, useCurrentPermission } from './store'
 import { webViewService } from './services/webviewService'
 import { ChatArea } from './components/Chat/ChatArea'
@@ -38,6 +38,9 @@ export const App: React.FC = () => {
   const setCurrentPermission = useAppStore(state => state.setCurrentPermission)
   const removePermission = useAppStore(state => state.removePermission)
   const setUndoRedoState = useAppStore(state => state.setUndoRedoState)
+
+  // Notification state for small messages above input
+  const [notification, setNotification] = React.useState<{ message: string; type: 'info' | 'warning' } | null>(null)
 
   // Initialize message handling
   React.useEffect(() => {
@@ -160,6 +163,13 @@ export const App: React.FC = () => {
           useAppStore.getState().updateQueuedMessages()
           break
           
+        case 'sessionIdle':
+          // Clear streaming state when session becomes idle
+          setStreaming(false)
+          setStatus('ready')
+          useAppStore.getState().updateQueuedMessages()
+          break
+          
         case 'providersLoaded':
           useAppStore.getState().setProviders(message.data.providers)
           break
@@ -188,8 +198,16 @@ export const App: React.FC = () => {
           break
           
         case 'error':
-          setError(message.data.message)
-          setStatus('error')
+          // Handle both formats: { data: { error: ... } } and { error: ... }
+          const errorMessage = message.data?.error || message.error || message.data?.message || message.message || 'An error occurred'
+          
+          setNotification({ 
+            message: errorMessage, 
+            type: 'info' 
+          })
+          setTimeout(() => setNotification(null), 4000)
+          
+          setStatus('ready')
           break
           
         case 'statusUpdate':
@@ -310,16 +328,20 @@ export const App: React.FC = () => {
           />
         </div>
 
-        {/* Error Display */}
-        {status === 'error' && (
-          <Alert
-            message="Error"
-            description={useAppStore.getState().error}
-            type="error"
-            closable
-            onClose={() => setError(null)}
-            style={{ marginBottom: '16px' }}
-          />
+        {/* Small notification above input */}
+        {notification && (
+          <div style={{
+            marginBottom: '8px',
+            padding: '4px 10px',
+            background: '#2d2d30',
+            border: '1px solid #3e3e42',
+            borderRadius: '3px',
+            color: '#cccccc',
+            fontSize: '11px',
+            textAlign: 'center'
+          }}>
+            {notification.message}
+          </div>
         )}
 
         {/* Input Area */}

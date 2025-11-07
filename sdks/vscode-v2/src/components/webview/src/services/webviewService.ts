@@ -90,6 +90,16 @@ class WebViewServiceImpl implements WebViewService {
   }
 
   /**
+   * Send user prompt with images
+   */
+  sendUserPromptWithImages(text: string, mode: 'plan' | 'build', images: Array<{ data: string; name: string; mime: string }>): void {
+    this.sendMessage({
+      type: 'sendPromptWithImages',
+      data: { text, mode, images }
+    })
+  }
+
+  /**
    * Switch to different session
    */
   switchSession(sessionId: string): void {

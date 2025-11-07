@@ -79,31 +79,36 @@ export class MessageConverter {
         type: 'file',
         filename: attachment.filename || attachment.display,
         mime: attachment.mimeType || 'text/plain',
-        url: attachment.url || '',
-        source: {
+        url: attachment.url || ''
+      }
+
+      // Only set source for local file references (path is not empty)
+      // Uploaded images (path is empty) don't need source
+      if (attachment.path) {
+        filePart.source = {
           type: attachment.type === 'symbol' ? 'symbol' : 'file',
-          path: attachment.path || '',
+          path: attachment.path,
           text: {
             start: attachment.startIndex,
             end: attachment.endIndex,
             value: attachment.display
           }
         }
-      }
 
-      // Add symbol-specific fields
-      if (attachment.type === 'symbol' && attachment.symbolInfo) {
-        filePart.source.kind = attachment.symbolInfo.kind
-        filePart.source.name = attachment.symbolInfo.name
-        filePart.source.range = {
-          start: {
-            line: attachment.symbolInfo.range.start.line,
-            character: attachment.symbolInfo.range.start.character
-          },
-          end: {
-            line: attachment.symbolInfo.range.end.line,
-            character: attachment.symbolInfo.range.end.character
+        // Add symbol-specific fields
+        if (attachment.type === 'symbol' && attachment.symbolInfo) {
+          filePart.source.kind = attachment.symbolInfo.kind
+          filePart.source.name = attachment.symbolInfo.name
+          filePart.source.range = {
+            start: {
+              line: attachment.symbolInfo.range.start.line,
+              character: attachment.symbolInfo.range.start.character
+            },
+            end: {
+              line: attachment.symbolInfo.range.end.line,
+              character: attachment.symbolInfo.range.end.character
       }
+          }
         }
       }
 
@@ -156,6 +161,28 @@ export class MessageConverter {
 
         case 'file':
           const filePart = part as opencode.FilePart
+          
+          // Handle uploaded images (no source) vs local file references (with source)
+          if (!filePart.source || !filePart.source.path) {
+            // Uploaded image: use URL as display, empty path
+            const attachment: opencode.File = {
+              type: 'file',
+              path: '',
+              status: 'modified',
+              added: 0,
+              removed: 0,
+              display: filePart.url || filePart.filename,
+              startIndex: 0,
+              endIndex: 0,
+              filename: filePart.filename,
+              mimeType: filePart.mime,
+              url: filePart.url
+            }
+            attachments.push(attachment)
+            break
+          }
+          
+          // Local file reference: include source information
           const attachment: opencode.File = {
             type: filePart.source.type === 'symbol' ? 'symbol' : 'file',
             path: filePart.source.path,
@@ -168,8 +195,8 @@ export class MessageConverter {
             filename: filePart.filename,
             mimeType: filePart.mime,
             url: filePart.url
-    }
-    
+  }
+
           // Add symbol-specific information
           if (filePart.source.type === 'symbol') {
             attachment.symbolInfo = {
@@ -223,6 +250,43 @@ export class MessageConverter {
 
         case 'file':
           const filePart = part as opencode.FilePart
+          
+          // Handle uploaded images (no source) vs local file references (with source)
+          if (!filePart.source || !filePart.source.path) {
+            // Uploaded image: follow ACP Agent implementation
+            // Reference: packages/opencode/src/acp/agent.ts:505-511
+            // ACP Agent only sets: type, url, mime (no id, no filename, no source)
+            
+            // Validate data URL format: data:[mime];base64,[data]
+            if (!filePart.url || !filePart.url.startsWith('data:')) {
+              throw new Error(`Invalid data URL format for uploaded image: URL must start with "data:"`)
+            }
+            
+            const dataUrlMatch = filePart.url.match(/^data:([^;]+);base64,(.+)$/)
+            if (!dataUrlMatch) {
+              throw new Error(`Invalid data URL format for uploaded image: expected "data:[mime];base64,[data]", got: ${filePart.url.substring(0, 100)}...`)
+            }
+            
+            const [, urlMime, base64Data] = dataUrlMatch
+            
+            // Use MIME type from data URL (detected from actual image content)
+            // This ensures the MIME type matches the actual image format
+            const actualMime = urlMime || filePart.mime
+            
+            const filePartInput: opencode.FilePartInput = {
+              type: 'file',
+              mime: actualMime,
+              url: filePart.url
+              // No id field (ACP Agent doesn't set it)
+              // No filename field (ACP Agent doesn't set it)
+              // No source field (ACP Agent doesn't set it)
+            }
+            
+            parts.push(filePartInput)
+            break
+          }
+          
+          // Local file reference: include source
           let source: opencode.FilePartSourceUnionParam
 
           if (filePart.source.type === 'file') {

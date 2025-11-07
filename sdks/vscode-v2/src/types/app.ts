@@ -81,7 +81,17 @@ export interface StateStruct {
  */
 export interface Prompt {
   text: string
-  attachments: opencode.File[]
+  attachments: Array<opencode.File & {
+    type?: string
+    filename?: string
+    mimeType?: string
+    url?: string
+    display?: string
+    startIndex?: number
+    endIndex?: number
+    name?: string
+    symbolInfo?: any
+  }>
 }
 
 /**
