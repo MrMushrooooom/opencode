@@ -1,5 +1,6 @@
 import * as opencode from '@opencode-ai/sdk'
 import type { MessageStruct, Prompt } from '../types/app'
+import { IdGenerator } from './idGenerator'
 
 /**
  * Message conversion utilities for transforming between different message formats
@@ -37,7 +38,7 @@ export class MessageConverter {
 
     const parts: any[] = [
       {
-        id: this.generatePartId(),
+        id: IdGenerator.generatePartId(),
         messageID: messageId,
         sessionID: sessionId,
             type: 'text',
@@ -57,7 +58,7 @@ export class MessageConverter {
 
       if (attachment.type === 'agent') {
         parts.push({
-          id: this.generatePartId(),
+          id: IdGenerator.generatePartId(),
           messageID: messageId,
           sessionID: sessionId,
           type: 'agent',
@@ -73,7 +74,7 @@ export class MessageConverter {
 
       // File attachment
       const filePart: any = {
-        id: this.generatePartId(),
+        id: IdGenerator.generatePartId(),
         messageID: messageId,
         sessionID: sessionId,
         type: 'file',
@@ -350,9 +351,5 @@ export class MessageConverter {
     }
 
     return parts
-  }
-
-  private static generatePartId(): string {
-    return `part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   }
 }

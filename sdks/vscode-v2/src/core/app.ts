@@ -10,6 +10,7 @@ import * as opencode from '@opencode-ai/sdk'
 import { StateManager } from './state'
 import { TypeConverter } from './typeConverter'
 import { MessageConverter } from './message'
+import { IdGenerator } from './idGenerator'
 
 /**
  * Main OpenCode application controller
@@ -26,10 +27,6 @@ export class OpenCodeApp {
   private abortController?: AbortController
   private isStreaming: boolean = false
   private revertingSessionId: string | null = null
-  
-  // ID generation: maintains unique identifiers for messages, parts, sessions
-  private lastTimestamp = 0
-  private counter = 0
 
   constructor(outputChannel: vscode.OutputChannel, workspacePath: string, context: vscode.ExtensionContext) {
     this.outputChannel = outputChannel
@@ -55,6 +52,8 @@ export class OpenCodeApp {
       isServerRunning: false
     }
   }
+
+  // ==================== Initialization ====================
 
   async initializeClient(baseURL: string): Promise<void> {
     // Create custom fetch with request/response logging
@@ -253,8 +252,8 @@ export class OpenCodeApp {
           selectedModel = defaultModel
           this.outputChannel.appendLine(`Selected model from internal priority (Anthropic): ${anthropicProvider.name}/${defaultModel.name}`)
         }
-      }
     }
+  }
 
     // Priority 4: First available
     if (!selectedProvider && this.app.providers.length > 0) {
@@ -309,6 +308,8 @@ export class OpenCodeApp {
     this.outputChannel.appendLine('Permissions initialized (managed via event stream)')
   }
 
+  // ==================== Session Management ====================
+
   async createSession(): Promise<opencode.Session> {
     if (!this.client) {
       throw new Error('OpenCode client not initialized')
@@ -362,8 +363,8 @@ export class OpenCodeApp {
     }
     
     await this.loadMostRecentSession()
-  }
-  
+    }
+
   private async loadMostRecentSession(): Promise<void> {
     const sessions = await this.getSessions()
     
@@ -409,6 +410,8 @@ export class OpenCodeApp {
 
     this.outputChannel.appendLine(`✅ Switched to session: ${sessionId}`)
   }
+
+  // ==================== Model Management ====================
 
   async switchModel(providerId: string, modelId: string): Promise<void> {
     if (!this.client) {
@@ -491,6 +494,112 @@ export class OpenCodeApp {
       this.app.session = null
       this.app.messages = []
       this.updateSessionState(null)
+  }
+  }
+
+  // ==================== Message Handling ====================
+
+  /**
+   * Check if session history contains any images
+   * Returns true if any message in the session history has image parts
+   */
+  private hasImagesInHistory(): boolean {
+    for (const message of this.app.messages) {
+      for (const part of message.parts) {
+        if (part.type === 'file') {
+          const filePart = part as opencode.FilePart
+          // Check if it's an image (not text/plain or directory)
+          if (filePart.mime && filePart.mime.startsWith('image/')) {
+            return true
+          }
+        }
+      }
+    }
+    return false
+  }
+
+  /**
+   * Ensure session exists, create if needed
+   * Throws error if session creation fails
+   */
+  private async ensureSession(): Promise<void> {
+    if (!this.app.session?.id) {
+      await this.createSession()
+    }
+
+    if (!this.app.session?.id) {
+      throw new Error('Failed to create session')
+    }
+  }
+
+  /**
+   * Insert message and notify frontend
+   */
+  private insertAndNotifyMessage(userMessage: MessageStruct): void {
+    this.insertMessageByID(userMessage)
+    this.sendToWebView('messageUpdated', { messageId: userMessage.info.id, message: userMessage })
+  }
+
+  /**
+   * Prepare prompt data for SDK call
+   * Converts user message to session prompt parameters
+   */
+  private preparePromptData(messageId: string, mode: 'plan' | 'build', userMessage: MessageStruct): {
+    path: { id: string }
+    body: {
+      messageID: string
+      model: { providerID: string; modelID: string }
+      agent: string
+      parts: Array<opencode.TextPartInput | opencode.FilePartInput | opencode.AgentPartInput>
+    }
+    query: { directory: string }
+  } {
+    const agent = this.app.agents.find(a => a.name === mode)
+    if (!agent) {
+      throw new Error(`Agent not found: ${mode}`)
+    }
+
+    // Convert message parts to session prompt parts
+    const sessionParts = MessageConverter.messageToSessionParams(userMessage)
+
+    return {
+      path: { id: this.app.session!.id },
+      body: {
+        messageID: messageId,
+        model: {
+          providerID: this.app.provider!.id,
+          modelID: this.app.model!.id
+        },
+        agent: agent.name,
+        parts: sessionParts
+      },
+      query: { directory: this.workspacePath }
+    }
+  }
+
+  /**
+   * Validate if current model supports image input
+   * Checks both current attachments and session history for images
+   * Throws error if images are found but model doesn't support them
+   */
+  private validateModelCapability(attachments: Array<{ mimeType: string }>): void {
+    // Check if current attachments contain images
+    const hasImagesInAttachments = attachments.some(att => att.mimeType.startsWith('image/'))
+    
+    // Check if session history contains images
+    const hasImagesInSessionHistory = this.hasImagesInHistory()
+    
+    // If there are images (either in attachments or history), check if the current model supports image input
+    if (hasImagesInAttachments || hasImagesInSessionHistory) {
+      const supportsImages = this.app.model?.modalities?.input?.includes('image') ?? false
+      if (!supportsImages) {
+        const modelName = this.app.model?.name || (this.app.provider ? `${this.app.provider.name}/${this.app.model?.id}` : 'Unknown')
+        const errorMessage = `The selected model "${modelName}" does not support image input. Please switch to a model that supports images (e.g., Claude Opus 4, GPT-4 Vision) before sending images.`
+        
+        this.outputChannel.appendLine(`⚠️ ${errorMessage}`)
+        this.sendToWebView('error', { error: errorMessage })
+        throw new Error(errorMessage)
+      }
     }
   }
 
@@ -502,26 +611,23 @@ export class OpenCodeApp {
       throw new Error('OpenCode client not initialized')
     }
 
-    if (!this.app.session?.id) {
-      await this.createSession()
-    }
-
-    if (!this.app.session?.id) {
-      throw new Error('Failed to create session')
-    }
+    await this.ensureSession()
 
     if (!this.app.provider || !this.app.model) {
       throw new Error('No provider or model selected')
     }
 
-    const messageId = this.generateMessageId()
-    const partId = this.generatePartId()
+    // Validate model capability (check both current attachments and session history)
+    this.validateModelCapability([])
+
+    const messageId = IdGenerator.generateMessageId()
+    const partId = IdGenerator.generatePartId()
     const now = Date.now()
     
     const userMessage: MessageStruct = {
       info: {
         id: messageId,
-        sessionID: this.app.session.id,
+        sessionID: this.app.session!.id,
         role: 'user',
         time: { created: now }
       } as opencode.UserMessage,
@@ -530,39 +636,15 @@ export class OpenCodeApp {
         text: text,
         id: partId,
         messageID: messageId,
-        sessionID: this.app.session.id,
+        sessionID: this.app.session!.id,
         synthetic: false,
         time: { start: now, end: now }
       } as opencode.TextPart]
     }
     
-    this.insertMessageByID(userMessage)
-    this.sendToWebView('messageUpdated', { messageId, message: userMessage })
+    this.insertAndNotifyMessage(userMessage)
 
-    const agent = this.app.agents.find(a => a.name === mode)
-    if (!agent) {
-      throw new Error(`Agent not found: ${mode}`)
-    }
-    
-    const promptData = {
-      path: { id: this.app.session.id },
-      body: {
-        messageID: messageId,
-        model: {
-          providerID: this.app.provider.id,
-          modelID: this.app.model.id
-        },
-        agent: agent.name,
-        parts: [{
-          type: 'text',
-          text: text,
-          id: partId,
-          synthetic: false,
-          time: { start: now, end: now }
-        } as opencode.TextPartInput]
-      },
-      query: { directory: this.workspacePath }
-    }
+    const promptData = this.preparePromptData(messageId, mode, userMessage)
     
     try {
       await this.client.session.prompt(promptData)
@@ -580,35 +662,16 @@ export class OpenCodeApp {
       throw new Error('OpenCode client not initialized')
     }
 
-    if (!this.app.session?.id) {
-      await this.createSession()
-    }
-
-    if (!this.app.session?.id) {
-      throw new Error('Failed to create session')
-    }
+    await this.ensureSession()
 
     if (!this.app.provider || !this.app.model) {
       throw new Error('No provider or model selected')
     }
 
-    // Check if attachments contain images
-    const hasImages = attachments.some(att => att.mimeType.startsWith('image/'))
-    
-    // If there are images, check if the current model supports image input
-    if (hasImages) {
-      const supportsImages = this.app.model.modalities?.input?.includes('image') ?? false
-      if (!supportsImages) {
-        const modelName = this.app.model.name || `${this.app.provider.name}/${this.app.model.id}`
-        const errorMessage = `The selected model "${modelName}" does not support image input. Please switch to a model that supports images (e.g., Claude Opus 4, GPT-4 Vision) before sending images.`
-        
-        this.outputChannel.appendLine(`⚠️ ${errorMessage}`)
-        this.sendToWebView('error', { error: errorMessage })
-        throw new Error(errorMessage)
-      }
-    }
+    // Validate model capability for attachments
+    this.validateModelCapability(attachments)
 
-    const messageId = this.generateMessageId()
+    const messageId = IdGenerator.generateMessageId()
     const now = Date.now()
     
     // Convert attachments to opencode.File format for prompt
@@ -633,35 +696,14 @@ export class OpenCodeApp {
       attachments: promptAttachments
     }
 
-    const userMessage = await MessageConverter.promptToMessage(prompt, messageId, this.app.session.id)
+    const userMessage = await MessageConverter.promptToMessage(prompt, messageId, this.app.session!.id)
     
     // Update message info with correct time format
     userMessage.info.time = { created: now }
     
-    this.insertMessageByID(userMessage)
-    this.sendToWebView('messageUpdated', { messageId, message: userMessage })
+    this.insertAndNotifyMessage(userMessage)
 
-    const agent = this.app.agents.find(a => a.name === mode)
-    if (!agent) {
-      throw new Error(`Agent not found: ${mode}`)
-  }
-
-    // Convert message parts to session prompt parts
-    const sessionParts = MessageConverter.messageToSessionParams(userMessage)
-    
-    const promptData = {
-      path: { id: this.app.session.id },
-      body: {
-        messageID: messageId,
-        model: {
-          providerID: this.app.provider.id,
-          modelID: this.app.model.id
-        },
-        agent: agent.name,
-        parts: sessionParts
-      },
-      query: { directory: this.workspacePath }
-    }
+    const promptData = this.preparePromptData(messageId, mode, userMessage)
     
     try {
       await this.client.session.prompt(promptData)
@@ -701,7 +743,7 @@ export class OpenCodeApp {
         if (response.data) {
           this.app.session = response.data
           this.outputChannel.appendLine(`🔍 Updated session with revert state: ${response.data.revert ? JSON.stringify(response.data.revert) : 'none'}`)
-          
+      
           await this.loadSessionMessages(sessionId)
           this.outputChannel.appendLine(`📋 Reloaded ${this.app.messages.length} messages for revert`)
           
@@ -730,8 +772,8 @@ export class OpenCodeApp {
         throw new Error('No provider or model selected')
       }
 
-      const newMessageId = this.generateMessageId()
-      const partId = this.generatePartId()
+      const newMessageId = IdGenerator.generateMessageId()
+      const partId = IdGenerator.generatePartId()
       const now = Date.now()
       
       const userMessage: MessageStruct = {
@@ -783,6 +825,8 @@ export class OpenCodeApp {
     }
   }
 
+  // ==================== Permission Management ====================
+
   async grantPermission(permissionId: string): Promise<void> {
     if (!this.client) {
       throw new Error('OpenCode client not initialized')
@@ -819,55 +863,6 @@ export class OpenCodeApp {
     this.stateManager.updateAgentUsage(agentName)
   }
 
-
-  /**
-   * Generate unique message ID
-   */
-  private generateMessageId(): string {
-    return this.generateID('msg')
-  }
-
-  /**
-   * Generate unique part ID
-   */
-  private generatePartId(): string {
-    return this.generateID('prt')
-  }
-
-  /**
-   * Generate unique session ID
-   */
-  private generateSessionId(): string {
-    return this.generateID('ses')
-  }
-
-  /**
-   * Generate unique ID: timestamp + counter + random suffix
-   * Format ensures chronological ordering via string comparison
-   */
-  private generateID(prefix: string): string {
-    const currentTimestamp = Date.now()
-    
-    if (currentTimestamp !== this.lastTimestamp) {
-      this.lastTimestamp = currentTimestamp
-      this.counter = 0
-    }
-    this.counter++
-    
-    const now = BigInt(currentTimestamp) * BigInt(0x1000) + BigInt(this.counter)
-    
-    const timeBytes = Buffer.alloc(6)
-    for (let i = 0; i < 6; i++) {
-      timeBytes[i] = Number((now >> BigInt(40 - 8 * i)) & BigInt(0xff))
-    }
-    const timeHex = timeBytes.toString('hex')
-    
-    // Generate random base62 suffix (14 chars)
-    const randomBase62 = this.randomBase62(14)
-    
-    return `${prefix}_${timeHex}${randomBase62}`
-  }
-
   /**
    * Insert message maintaining chronological order via ID comparison
    */
@@ -885,21 +880,6 @@ export class OpenCodeApp {
     
     this.app.messages.splice(insertIndex, 0, newMessage)
   }
-  
-
-  /**
-   * Generate random base62 string
-   * Characters: 0-9, A-Z, a-z
-   */
-  private randomBase62(length: number): string {
-    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-    let result = ''
-    for (let i = 0; i < length; i++) {
-      result += chars[Math.floor(Math.random() * 62)]
-    }
-    return result
-  }
-  
 
   /**
    * Update model usage tracking
@@ -916,6 +896,8 @@ export class OpenCodeApp {
   private updateAgentUsage(agentName: string): void {
     this.stateManager.updateAgentUsage(agentName)
   }
+
+  // ==================== State Management ====================
 
   getApp(): AppStruct {
     return { ...this.app }
@@ -1080,6 +1062,8 @@ export class OpenCodeApp {
     return this.app.messages
   }
 
+  // ==================== Event Stream Management ====================
+
   async startEventStream(): Promise<void> {
     if (this.isStreaming) {
       this.outputChannel.appendLine('Event stream already listening')
@@ -1150,6 +1134,8 @@ export class OpenCodeApp {
     }
   }
 
+  // ==================== Event Handlers ====================
+
   /**
    * Handle individual events from SSE stream
    */
@@ -1190,7 +1176,11 @@ export class OpenCodeApp {
         case 'server.connected':
           this.outputChannel.appendLine(`🔗 Server connected`)
           break
+        case 'file.edited':
+          // Silently handle file.edited events (VSCode has its own file watching mechanism)
+          break
         default:
+          // Log unhandled events for debugging (some events like session.diff may not be in SDK types yet)
           this.outputChannel.appendLine(`❓ Unhandled event: ${event.type}`)
       }
     } catch (error: any) {
@@ -1390,7 +1380,7 @@ export class OpenCodeApp {
     this.outputChannel.appendLine(`✅ Permission ${permissionID} replied`)
     
     this.sendToWebView('permissionReplied', { permissionID })
-    }
+  }
 
   /**
    * Respond to permission request: grant or reject file operations
@@ -1450,7 +1440,8 @@ export class OpenCodeApp {
     return this.isStreaming
   }
 
-  // WebView Communication
+  // ==================== WebView Communication ====================
+
   setWebviewPanel(panel: any): void {
     this.webviewPanel = panel
     this.outputChannel.appendLine('WebView panel set')
@@ -1492,6 +1483,8 @@ export class OpenCodeApp {
   isWebViewAvailable(): boolean {
     return this.webviewPanel !== null
   }
+
+  // ==================== Cleanup ====================
 
   dispose(): void {
     if (this.eventStream) {

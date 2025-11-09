@@ -45,6 +45,17 @@ export const App: React.FC = () => {
   // Initialize message handling
   React.useEffect(() => {
     const handleMessage = (message: any) => {
+      /**
+       * Clear streaming state and reset UI to ready state
+       * Called when streaming completes, session becomes idle, or an error occurs
+       * Ensures consistent state cleanup across all stream termination scenarios
+       */
+      const clearStreamingState = () => {
+        setStreaming(false)
+        setStatus('ready')
+        useAppStore.getState().updateQueuedMessages()
+      }
+
       switch (message.type) {
         case 'sessionsLoaded':
           const loadedSessions = message.data.sessions && Array.isArray(message.data.sessions) ? message.data.sessions : []
@@ -157,17 +168,11 @@ export const App: React.FC = () => {
           break
           
         case 'streamingCompleted':
-          setStreaming(false)
-          setStatus('ready')
-          // Recalculate queued messages when streaming completes
-          useAppStore.getState().updateQueuedMessages()
+          clearStreamingState()
           break
           
         case 'sessionIdle':
-          // Clear streaming state when session becomes idle
-          setStreaming(false)
-          setStatus('ready')
-          useAppStore.getState().updateQueuedMessages()
+          clearStreamingState()
           break
           
         case 'providersLoaded':
@@ -207,7 +212,33 @@ export const App: React.FC = () => {
           })
           setTimeout(() => setNotification(null), 4000)
           
-          setStatus('ready')
+          // Mark the last empty assistant message as completed to hide "Generating..."
+          // Use getState() to get the latest messages, not the closure value
+          const currentMessages = useAppStore.getState().messages
+          const lastAssistantMessage = [...currentMessages]
+            .reverse()
+            .find(msg => msg.info.role === 'assistant' && 
+              (!msg.info.time.completed || msg.info.time.completed === 0) &&
+              (msg.parts.length === 0 || !msg.parts.some((part: any) => 
+                part.type === 'text' || part.type === 'reasoning' || part.type === 'tool'
+              )))
+          
+          if (lastAssistantMessage) {
+            // Mark message as completed by setting time.completed to current timestamp
+            const now = Date.now() / 1000
+            updateMessage(lastAssistantMessage.info.id, {
+              ...lastAssistantMessage,
+              info: {
+                ...lastAssistantMessage.info,
+                time: {
+                  ...lastAssistantMessage.info.time,
+                  completed: now
+                }
+              }
+            })
+          }
+          
+          clearStreamingState()
           break
           
         case 'statusUpdate':

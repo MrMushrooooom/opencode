@@ -30,14 +30,19 @@ export const InputArea: React.FC<InputAreaProps> = ({
   const [inputValue, setInputValue] = useState('')
   const [isComposing, setIsComposing] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Array<{ data: string; name: string; mime: string }>>([])
+  const [imageError, setImageError] = useState<string | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const handleSend = () => {
     const text = inputValue.trim()
     if (!text || disabled) return
 
-    // Send prompt with images if any
-    webViewService.sendUserPromptWithImages(text, mode, selectedImages)
+    // Send prompt with images if any, otherwise send regular prompt
+    if (selectedImages.length > 0) {
+      webViewService.sendUserPromptWithImages(text, mode, selectedImages)
+    } else {
+      webViewService.sendUserPrompt(text, mode)
+    }
     
     setInputValue('')
     setSelectedImages([])
@@ -65,13 +70,16 @@ export const InputArea: React.FC<InputAreaProps> = ({
   /**
    * Detect actual image format from base64 data URL
    * Uses magic bytes to determine the real format, not file extension
+   * Returns null if format cannot be detected or is not supported
    */
-  const detectImageMimeType = (dataUrl: string): string => {
+  const detectImageMimeType = (dataUrl: string): string | null => {
     // Extract base64 data
     const base64Match = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
-    if (!base64Match) return 'image/png' // fallback
+    if (!base64Match) return null
     
     const base64Data = base64Match[2]
+    if (!base64Data || base64Data.length < 4) return null
+    
     // Decode first few bytes to check magic bytes
     const binaryString = atob(base64Data.substring(0, 12))
     const bytes = new Uint8Array(binaryString.length)
@@ -79,14 +87,13 @@ export const InputArea: React.FC<InputAreaProps> = ({
       bytes[i] = binaryString.charCodeAt(i)
     }
     
-    // Check magic bytes for different image formats
+    // Check magic bytes for supported image formats
     // PNG: 89 50 4E 47 0D 0A 1A 0A
     if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
       return 'image/png'
     }
     // JPEG: FF D8 (SOI - Start of Image)
     // JPEG files start with FF D8, followed by various markers (FF E0 for JFIF, FF E1 for EXIF, etc.)
-    // We only check the first two bytes to be more accurate
     if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xD8) {
       return 'image/jpeg'
     }
@@ -104,58 +111,90 @@ export const InputArea: React.FC<InputAreaProps> = ({
         }
       }
     }
-    // SVG: check for XML declaration or <svg
-    if (base64Data.length > 100) {
-      const svgCheck = atob(base64Data.substring(0, 100)).toLowerCase()
-      if (svgCheck.includes('<svg') || svgCheck.includes('<?xml')) {
-        return 'image/svg+xml'
-      }
-    }
     
-    // Fallback to original MIME type from data URL
-    return base64Match[1] || 'image/png'
+    // Format not supported or cannot be detected
+    return null
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
+    // Clear previous error
+    setImageError(null)
+
     const imageFiles = Array.from(files).filter(file => {
       const type = file.type.toLowerCase()
-      return type.startsWith('image/') && (
-        type === 'image/png' ||
-        type === 'image/jpeg' ||
-        type === 'image/jpg' ||
-        type === 'image/gif' ||
-        type === 'image/webp' ||
-        type === 'image/svg+xml'
-      )
+      return type.startsWith('image/')
     })
 
+    const supportedFormats = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+    const formatNames = ['PNG', 'JPEG', 'GIF', 'WebP']
+    // LLM API typically has a 20MB limit per image (base64 encoded)
+    // We use a conservative 15MB limit to account for base64 encoding overhead
+    const MAX_IMAGE_SIZE = 15 * 1024 * 1024 // 15MB
+
     imageFiles.forEach(file => {
+      // Check file size before reading
+      if (file.size > MAX_IMAGE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
+        setImageError(`Image "${file.name}" is too large (${sizeMB}MB). Maximum size: 15MB`)
+        return
+      }
+
       const reader = new FileReader()
       reader.onload = (event) => {
-        let data = event.target?.result as string
+        const data = event.target?.result as string
+        
+        // Check base64 data size (data URL includes "data:mime;base64," prefix)
+        const dataUrlMatch = data.match(/^data:([^;]+);base64,(.+)$/)
+        if (!dataUrlMatch) {
+          setImageError(`Invalid image data format for "${file.name}"`)
+          return
+        }
+        
+        const base64Data = dataUrlMatch[2]
+        // Base64 encoding increases size by ~33%, so we check the decoded size
+        const estimatedSize = (base64Data.length * 3) / 4
+        if (estimatedSize > MAX_IMAGE_SIZE) {
+          const sizeMB = (estimatedSize / (1024 * 1024)).toFixed(2)
+          setImageError(`Image "${file.name}" is too large (${sizeMB}MB). Maximum size: 15MB`)
+          return
+        }
+        
         // Detect actual MIME type from image data (not file extension)
         const actualMime = detectImageMimeType(data)
         
+        // Validate format
+        if (!actualMime) {
+          setImageError(`Unable to detect image format for "${file.name}". Supported formats: ${formatNames.join(', ')}`)
+          return
+        }
+        
+        if (!supportedFormats.includes(actualMime)) {
+          setImageError(`Unsupported image format for "${file.name}". Supported formats: ${formatNames.join(', ')}`)
+          return
+        }
+        
+        const [, originalMime] = dataUrlMatch
+        let finalData = data
+        
         // Update data URL with correct MIME type if it differs
-        // FileReader may use file.type which can be incorrect
-        const dataUrlMatch = data.match(/^data:([^;]+);base64,(.+)$/)
-        if (dataUrlMatch) {
-          const [, originalMime, base64Data] = dataUrlMatch
-          if (originalMime !== actualMime) {
-            // Reconstruct data URL with correct MIME type
-            data = `data:${actualMime};base64,${base64Data}`
-          }
+        if (originalMime !== actualMime) {
+          finalData = `data:${actualMime};base64,${base64Data}`
         }
         
         setSelectedImages(prev => [...prev, {
-          data,
+          data: finalData,
           name: file.name,
           mime: actualMime // Use detected MIME type instead of file.type
         }])
       }
+      
+      reader.onerror = () => {
+        setImageError(`Failed to read image file "${file.name}"`)
+      }
+      
       reader.readAsDataURL(file)
     })
 
@@ -176,6 +215,40 @@ export const InputArea: React.FC<InputAreaProps> = ({
       padding: '16px',
       position: 'relative'
     }}>
+      {/* Error message */}
+      {imageError && (
+        <div style={{
+          marginBottom: '8px',
+          padding: '4px 10px',
+          background: '#2d2d30',
+          border: '1px solid #3e3e42',
+          borderRadius: '3px',
+          color: '#cccccc',
+          fontSize: '11px',
+          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <span style={{ flex: 1 }}>{imageError}</span>
+          <button
+            onClick={() => setImageError(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#cccccc',
+              cursor: 'pointer',
+              padding: '0 4px',
+              fontSize: '14px',
+              lineHeight: '1',
+              marginLeft: '8px'
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Mode selector and controls - single row with space-between */}
       <div style={{
         display: 'flex',
@@ -255,7 +328,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml"
+            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
             multiple
             style={{ display: 'none' }}
             onChange={handleFileChange}

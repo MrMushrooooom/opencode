@@ -5,6 +5,8 @@ import { Message, Part } from '../../types'
 import { useCurrentPermission, useAppStore } from '../../store'
 import { webViewService } from '../../services/webviewService'
 import { renderToolOutput } from './toolRenderer'
+import { ImageThumbnail } from './ImageThumbnail'
+import { ImagePreviewModal } from './ImagePreviewModal'
 
 const { Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -137,6 +139,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const isEditing = editingMessageId === message.info.id
   const [editText, setEditText] = useState(() => extractTextContent())
   const textAreaRef = useRef<any>(null)
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt?: string; filename?: string } | null>(null)
 
   // Update edit text when entering edit mode
   useEffect(() => {
@@ -159,8 +162,73 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     return `${displayHours}:${displayMinutes} ${ampm}`
   }
 
+  /**
+   * Check if a part is an image file
+   */
+  const isImagePart = (part: Part): boolean => {
+    if (part.type !== 'file') return false
+    const filePart = part as any
+    return filePart.mime?.startsWith('image/') ?? false
+  }
+
+  /**
+   * Classify message parts into categories
+   */
+  const classifyParts = () => {
+    const imageParts: Part[] = []
+    const textParts: Part[] = []
+    const otherParts: Part[] = []
+
+    message.parts.forEach(part => {
+      if (isImagePart(part)) {
+        imageParts.push(part)
+      } else if (part.type === 'text') {
+        textParts.push(part)
+      } else {
+        otherParts.push(part)
+      }
+    })
+
+    return { imageParts, textParts, otherParts }
+  }
+
   const renderMessagePart = (part: Part, index: number, isLastPart: boolean) => {
     switch (part.type) {
+      case 'file':
+        const filePart = part as any
+        // Only render images in renderMessagePart (for LLM messages if needed)
+        // User messages handle images separately in the main render
+        if (isImagePart(part)) {
+          return (
+            <div key={index} style={{ margin: '8px 0' }}>
+              <ImageThumbnail
+                src={filePart.url || filePart.display || ''}
+                alt={filePart.filename}
+                filename={filePart.filename}
+                onPreview={() => setPreviewImage({
+                  src: filePart.url || filePart.display || '',
+                  alt: filePart.filename,
+                  filename: filePart.filename
+                })}
+              />
+            </div>
+          )
+        }
+        // Non-image files: show filename or placeholder
+        return (
+          <div key={index} style={{ 
+            color: '#888888',
+            fontSize: '12px',
+            margin: '8px 0',
+            padding: '8px',
+            background: '#1a1a1a',
+            borderRadius: '4px',
+            border: '1px solid #3e3e42'
+          }}>
+            📄 {filePart.filename || 'File'}
+          </div>
+        )
+
       case 'text':
         const textPart = part as any
         return (
@@ -450,6 +518,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     }
 
     // Normal view
+    const { imageParts, textParts, otherParts } = classifyParts()
+    const hasRenderableContent = imageParts.length > 0 || textParts.length > 0 || otherParts.length > 0
+
     return (
       <div style={{ marginTop: messageSpacing }}>
         <div style={{
@@ -462,21 +533,58 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         }}>
           {/* User message content */}
           <div style={{ color: '#cccccc', fontSize: '14px', lineHeight: '1.5' }}>
-            {message.parts.map((part, index) => {
-              const isLastPart = index === message.parts.length - 1
-              return <div key={`user-part-${index}`}>{renderMessagePart(part, index, isLastPart)}</div>
+            {/* Image parts - displayed at top */}
+            {imageParts.length > 0 && (
+              <div style={{
+                marginBottom: textParts.length > 0 || otherParts.length > 0 ? '12px' : '0',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                {imageParts.map((part, index) => {
+                  const filePart = part as any
+                  return (
+                    <ImageThumbnail
+                      key={`image-${index}-${part.id}`}
+                      src={filePart.url || filePart.display || ''}
+                      alt={filePart.filename}
+                      filename={filePart.filename}
+                      onPreview={() => setPreviewImage({
+                        src: filePart.url || filePart.display || '',
+                        alt: filePart.filename,
+                        filename: filePart.filename
+                      })}
+                    />
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Text parts */}
+            {textParts.length > 0 && (
+              <div>
+                {textParts.map((part, index) => {
+                  const isLastPart = index === textParts.length - 1 && otherParts.length === 0
+                  return <div key={`text-part-${index}`}>{renderMessagePart(part, index, isLastPart)}</div>
+                })}
+              </div>
+            )}
+
+            {/* Other parts (reasoning, tool, etc.) */}
+            {otherParts.map((part, index) => {
+              const isLastPart = index === otherParts.length - 1
+              return <div key={`other-part-${index}`}>{renderMessagePart(part, index, isLastPart)}</div>
             })}
+
             {/* Show placeholder if no renderable parts */}
-            {message.parts.length === 0 || !message.parts.some(part => 
-              part.type === 'text' || part.type === 'reasoning' || part.type === 'tool'
-            ) ? (
+            {!hasRenderableContent && (
               <div style={{ 
                 color: '#888888',
                 fontStyle: 'italic'
               }}>
                 No message content
               </div>
-            ) : null}
+            )}
           </div>
           
           {/* User message metadata */}
@@ -522,6 +630,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             </Space>
           </div>
         </div>
+        
+        {/* Image preview modal */}
+        <ImagePreviewModal
+          visible={previewImage !== null}
+          src={previewImage?.src || ''}
+          alt={previewImage?.alt}
+          filename={previewImage?.filename}
+          onClose={() => setPreviewImage(null)}
+        />
       </div>
     )
   }
@@ -551,10 +668,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           const isLastPart = index === message.parts.length - 1
           return <div key={`assistant-part-${index}-${part.id || 'unknown'}`}>{renderMessagePart(part, index, isLastPart)}</div>
         })}
-        {/* Show "Generating..." for empty assistant messages */}
-        {message.parts.length === 0 || !message.parts.some(part => 
+        {/* Show "Generating..." for empty assistant messages that are not yet completed */}
+        {!isCompleted && (message.parts.length === 0 || !message.parts.some(part => 
           part.type === 'text' || part.type === 'reasoning' || part.type === 'tool'
-        ) ? (
+        )) ? (
           <div style={{ 
             color: '#888888',
             fontSize: '14px',
@@ -594,6 +711,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           </div>
         )}
       </div>
+      
+      {/* Image preview modal */}
+      <ImagePreviewModal
+        visible={previewImage !== null}
+        src={previewImage?.src || ''}
+        alt={previewImage?.alt}
+        filename={previewImage?.filename}
+        onClose={() => setPreviewImage(null)}
+      />
     </div>
   )
 }
