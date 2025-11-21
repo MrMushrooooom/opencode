@@ -11,6 +11,7 @@ import { StateManager } from './state'
 import { TypeConverter } from './typeConverter'
 import { MessageConverter } from './message'
 import { IdGenerator } from './idGenerator'
+import { FileChangeExtractor } from './fileChangeExtractor'
 
 /**
  * Main OpenCode application controller
@@ -19,6 +20,7 @@ import { IdGenerator } from './idGenerator'
 export class OpenCodeApp {
   private app: AppStruct
   private stateManager: StateManager
+  private fileChangeExtractor: FileChangeExtractor
   private client: opencode.OpencodeClient | null = null
   private outputChannel: vscode.OutputChannel
   private workspacePath: string
@@ -33,6 +35,10 @@ export class OpenCodeApp {
     this.workspacePath = workspacePath
 
     this.stateManager = new StateManager(workspacePath, context)
+    this.fileChangeExtractor = new FileChangeExtractor(
+      this.outputChannel,
+      (type, data) => this.sendToWebView(type, data)
+    )
 
     this.app = {
       project: null,
@@ -462,6 +468,7 @@ export class OpenCodeApp {
 
     this.app.messages = messages
   }
+
 
   async updateSession(sessionId: string, title: string): Promise<void> {
     if (!this.client) {
@@ -1140,8 +1147,8 @@ export class OpenCodeApp {
    * Handle individual events from SSE stream
    */
   private handleEvent(event: opencode.Event): void {
-    // Only log important events
-    if (event.type !== 'message.part.updated') {
+    // Only log important events (skip frequent message.updated events)
+    if (event.type !== 'message.part.updated' && event.type !== 'message.updated') {
       this.outputChannel.appendLine(`📨 Received event: ${event.type}`)
     }
     try {
@@ -1180,7 +1187,7 @@ export class OpenCodeApp {
           // Silently handle file.edited events (VSCode has its own file watching mechanism)
           break
         default:
-          // Log unhandled events for debugging (some events like session.diff may not be in SDK types yet)
+          // Log unhandled events for debugging
           this.outputChannel.appendLine(`❓ Unhandled event: ${event.type}`)
       }
     } catch (error: any) {
@@ -1200,6 +1207,7 @@ export class OpenCodeApp {
       this.app.messages[messageIndex].info = message
       
       // Only send messageUpdated for assistant messages that have content
+      // Skip logging to reduce noise (message.updated events are frequent during streaming)
       if (message.role === 'assistant' && this.app.messages[messageIndex].parts.length > 0) {
         this.sendToWebView('messageUpdated', { 
           messageId: message.id,
@@ -1258,6 +1266,9 @@ export class OpenCodeApp {
       } else {
         this.app.messages[messageIndex].parts.push(part)
   }
+
+      // File changes are now extracted on-demand in the frontend (similar to TUI)
+      // No need to send fileChanges events - frontend reads directly from tool part metadata
 
       // Send messagePartUpdated for assistant messages with actual content
       if (this.app.messages[messageIndex].info.role === 'assistant') {

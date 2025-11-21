@@ -47,15 +47,19 @@ export interface FrontendPart {
 
 /**
  * File change representation for build mode
- * Simplified structure for file change display
+ * Enhanced structure with line statistics and message association
  */
 export interface FrontendFileChange {
   readonly filePath: string
   readonly type: 'create' | 'modify' | 'delete'
-  readonly content?: string
+  readonly addedLines: number
+  readonly removedLines: number
   readonly diff?: string
-  readonly preview?: string
-  readonly lineCount?: number
+  readonly originalContent?: string
+  readonly modifiedContent?: string
+  readonly messageId: string
+  readonly partId: string
+  readonly toolName: string
 }
 
 /**
@@ -78,6 +82,7 @@ export interface WebViewService {
   postMessage(message: WebViewMessage): void
   onMessage(handler: (message: any) => void): void
   showAgentSelector(): void
+  openFile(filePath: string): void
 }
 
 /**
@@ -112,7 +117,6 @@ export interface FrontendAppState {
   readonly error: string | null
   readonly editingMessageId: string | null
   
-  readonly fileChanges: readonly FrontendFileChange[]
   readonly canUndo: boolean
   readonly canRedo: boolean
   
@@ -151,7 +155,6 @@ export interface FrontendAppState {
   setStatus: (status: 'ready' | 'sending' | 'generating' | 'error') => void
   setError: (error: string | null) => void
   
-  setFileChanges: (fileChanges: readonly FrontendFileChange[]) => void
   setUndoRedoState: (canUndo: boolean, canRedo: boolean) => void
   
   setShowThinkingBlocks: (show: boolean) => void

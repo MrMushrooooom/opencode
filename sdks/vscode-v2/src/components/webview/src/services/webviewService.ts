@@ -79,6 +79,13 @@ class WebViewServiceImpl implements WebViewService {
     })
   }
 
+  openFile(filePath: string): void {
+    this.sendMessage({
+      type: 'openFile',
+      data: { filePath }
+    })
+  }
+
   /**
    * Send user prompt
    */

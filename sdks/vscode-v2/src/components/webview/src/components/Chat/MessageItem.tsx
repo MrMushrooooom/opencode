@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Typography, Space, Tag, Button, Input, Modal } from 'antd'
-import { ToolOutlined, EditOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { Typography, Space, Button, Input, Modal, Tag } from 'antd'
+import { EditOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { Message, Part } from '../../types'
 import { useCurrentPermission, useAppStore } from '../../store'
 import { webViewService } from '../../services/webviewService'
-import { renderToolOutput } from './toolRenderer'
 import { ImageThumbnail } from './ImageThumbnail'
 import { ImagePreviewModal } from './ImagePreviewModal'
+import { ToolPartCard } from './ToolPartCard'
+import { ToolInlineDisplay } from './ToolInlineDisplay'
 
 const { Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -270,162 +271,41 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         const toolPart = part as any
         const state = toolPart.state
         const status = state?.status || 'unknown'
-        const isCompleted = status === 'completed'
-        const isError = status === 'error'
-        
-        // Build tool title with input parameters for better context
         const toolName = toolPart.tool || 'Tool'
-        let toolTitle = toolName
-        if (state?.input && typeof state.input === 'object') {
-          const input = state.input as Record<string, any>
-          // Extract relevant parameter for different tools
-          if (toolName === 'read' && input.filePath) {
-            toolTitle = `${toolName} ${input.filePath}`
-          } else if (toolName === 'glob' && input.pattern) {
-            toolTitle = `${toolName} ${input.pattern}`
-          } else if (toolName === 'list' && input.directory) {
-            toolTitle = `${toolName} ${input.directory}`
-          } else if (toolName === 'bash' && input.description) {
-            toolTitle = `${toolName} ${input.description}`
-          } else if (toolName === 'edit' && input.filePath) {
-            toolTitle = `${toolName} ${input.filePath}`
-          } else {
-            // Generic: show first parameter
-            const keys = Object.keys(input)
-            if (keys.length > 0) {
-              const firstKey = keys[0]
-              const firstValue = input[firstKey]
-              if (typeof firstValue === 'string') {
-                toolTitle = `${toolName} ${firstValue.substring(0, 50)}`
-              }
-            }
-          }
-        }
+        const toolInput = (state?.input && typeof state.input === 'object') ? state.input as Record<string, any> : {}
+        const toolOutput = state?.output
+        const toolMetadata = state?.metadata
+        const toolError = state?.error
         
-        // Extract output preview based on tool type for consistent display
-        let outputPreview = ''
-        if (isCompleted && state?.output) {
-          const output = state.output
-          
-          // Use tool renderer for consistent display logic
-          if (typeof output === 'string') {
-            outputPreview = renderToolOutput(toolName, output, state?.metadata)
-          } else {
-            outputPreview = JSON.stringify(output, null, 2)
-          }
+        // Use inline display for lightweight tools (read, grep, glob)
+        if (toolName === 'read' || toolName === 'grep' || toolName === 'glob') {
+          return (
+            <ToolInlineDisplay
+              key={index}
+              toolName={toolName}
+              toolInput={toolInput}
+              toolOutput={toolOutput}
+              toolMetadata={toolMetadata}
+              toolStatus={status as 'pending' | 'running' | 'completed' | 'error'}
+              toolError={toolError}
+            />
+          )
         }
         
         return (
-          <div
+          <ToolPartCard
             key={index}
-            style={{
-              background: 'rgba(82, 196, 26, 0.05)',
-              border: '1px solid rgba(82, 196, 26, 0.2)',
-              margin: '8px 0',
-              padding: '12px',
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-            }}
-          >
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              <Space>
-                <ToolOutlined style={{ color: '#52c41a', fontSize: '14px' }} />
-                <Text style={{ color: '#cccccc', fontSize: '12px', fontFamily: 'monospace' }}>
-                  {toolTitle}
-                </Text>
-                {(!isError || !state?.error) && (
-                  <>
-                    <Tag 
-                      color={
-                        isCompleted ? 'green' :
-                        status === 'running' ? 'blue' : 'default'
-                      }
-                      style={{
-                        fontSize: '10px',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        animation: status === 'running' ? 'running-pulse 2s ease-in-out infinite' : 'none'
-                      }}
-                    >
-                      {status === 'running' ? 'running' : status}
-                    </Tag>
-                    {status === 'running' && (
-                      <style>{`
-                        @keyframes running-pulse {
-                          0% { opacity: 1; }
-                          50% { opacity: 0.5; }
-                          100% { opacity: 1; }
-                        }
-                      `}</style>
-                    )}
-                  </>
-                )}
-              </Space>
-              
-              {isCompleted && outputPreview && (
-                <div style={{
-                  color: '#888888',
-                  fontSize: '12px',
-                  fontFamily: 'monospace',
-                  background: 'rgba(0, 0, 0, 0.2)',
-                  padding: '8px',
-                  borderRadius: '4px',
-                  maxHeight: '300px',
-                  overflow: 'auto',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word'
-                }}>
-                  {outputPreview}
-                </div>
-              )}
-              
-              {isError && state?.error && !state.error.includes('rejected') && (
-                <div style={{
-                  color: '#888888',
-                  fontSize: '11px'
-                }}>
-                  {state.error}
-                </div>
-              )}
-              
-              {/* Permission request UI - show when bash command is running and permission is required */}
-              {status === 'running' && currentPermission && toolName === 'bash' && (
-                <div style={{
-                  marginTop: '10px',
-                  padding: '10px',
-                  background: 'rgba(0, 0, 0, 0.2)',
-                  borderRadius: '4px'
-                }}>
-                  <Text style={{ color: '#cccccc', fontSize: '11px', display: 'block', marginBottom: '6px' }}>
-                    {currentPermission.title || 'Permission required'}
-                  </Text>
-                  <Space size={4}>
-                    <Button
-                      size="small"
-                      style={{ fontSize: '11px', height: '22px', padding: '0 8px' }}
-                      onClick={() => handlePermissionRespond('once')}
-                    >
-                      Run Once
-                    </Button>
-                    <Button
-                      size="small"
-                      style={{ fontSize: '11px', height: '22px', padding: '0 8px' }}
-                      onClick={() => handlePermissionRespond('always')}
-                    >
-                      Always Allow
-                    </Button>
-                    <Button
-                      size="small"
-                      style={{ fontSize: '11px', height: '22px', padding: '0 8px' }}
-                      onClick={() => handlePermissionRespond('reject')}
-                    >
-                      Reject
-                    </Button>
-                  </Space>
-                </div>
-              )}
-            </Space>
-          </div>
+            toolPart={part}
+            toolName={toolName}
+            toolInput={toolInput}
+            toolStatus={status as 'running' | 'completed' | 'error'}
+            toolOutput={typeof toolOutput === 'string' ? toolOutput : undefined}
+            toolMetadata={toolMetadata}
+            toolError={toolError}
+            currentPermission={currentPermission}
+            currentSessionId={currentSessionId}
+            onPermissionRespond={handlePermissionRespond}
+          />
         )
 
       case 'step-start':

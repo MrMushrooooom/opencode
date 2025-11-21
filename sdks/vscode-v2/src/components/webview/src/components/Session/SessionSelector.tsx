@@ -186,14 +186,7 @@ export const SessionSelector: React.FC = () => {
   }
 
   const dropdownContent = (
-    <div style={{ 
-      background: '#252526',
-      border: '1px solid #3e3e42',
-      borderRadius: '4px',
-      width: '320px',
-      maxHeight: '400px',
-      overflowY: 'auto'
-    }}>
+    <div className="session-dropdown-content">
       {/* New Session option */}
       <div
         onClick={() => handleSelectSession('new')}
@@ -250,10 +243,6 @@ export const SessionSelector: React.FC = () => {
         trigger={['click']}
         placement="bottomLeft"
         dropdownRender={() => dropdownContent}
-        overlayStyle={{
-          maxHeight: '400px',
-          overflowY: 'auto'
-        }}
       >
         <Button 
           icon={<MenuOutlined />}

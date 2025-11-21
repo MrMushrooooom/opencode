@@ -94,6 +94,17 @@ body {
   border-color: #3e3e42 !important;
 }
 
+/* Session dropdown content - ensure max height and scrolling */
+.session-dropdown-content {
+  background: #252526 !important;
+  border: 1px solid #3e3e42 !important;
+  border-radius: 4px !important;
+  width: 320px !important;
+  max-height: 300px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

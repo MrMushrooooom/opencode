@@ -1,10 +1,9 @@
 import React from 'react'
 import { Layout, Typography, Space, Button, Card } from 'antd'
-import { useAppStore, useSessions, useCurrentSession, useMessages, useStreaming, useMode, useStatus, useFileChanges, useCurrentProvider, useCurrentModel, useCurrentPermission } from './store'
+import { useAppStore, useSessions, useCurrentSession, useMessages, useStreaming, useMode, useStatus, useCurrentProvider, useCurrentModel, useCurrentPermission } from './store'
 import { webViewService } from './services/webviewService'
 import { ChatArea } from './components/Chat/ChatArea'
 import { InputArea } from './components/Chat/InputArea'
-import { FileChanges } from './components/BuildMode/FileChanges'
 
 const { Content } = Layout
 
@@ -20,7 +19,6 @@ export const App: React.FC = () => {
   const queuedMessages = useAppStore(state => state.queuedMessages)
   const mode = useMode()
   const status = useStatus()
-  const fileChanges = useFileChanges()
   const currentProvider = useCurrentProvider()
   const currentModel = useCurrentModel()
   const currentPermission = useCurrentPermission()
@@ -34,7 +32,6 @@ export const App: React.FC = () => {
   const addMessage = useAppStore(state => state.addMessage)
   const updateMessage = useAppStore(state => state.updateMessage)
   const updateMessagePart = useAppStore(state => state.updateMessagePart)
-  const setFileChanges = useAppStore(state => state.setFileChanges)
   const setCurrentPermission = useAppStore(state => state.setCurrentPermission)
   const removePermission = useAppStore(state => state.removePermission)
   const setUndoRedoState = useAppStore(state => state.setUndoRedoState)
@@ -194,10 +191,6 @@ export const App: React.FC = () => {
           setMode(message.data.mode)
           break
           
-        case 'fileChangesUpdated':
-          setFileChanges(message.data.fileChanges)
-          break
-          
         case 'undoRedoStateUpdated':
           setUndoRedoState(message.data.canUndo, message.data.canRedo)
           break
@@ -335,20 +328,6 @@ export const App: React.FC = () => {
         display: 'flex',
         flexDirection: 'column'
       }}>
-        {/* Build Mode Controls */}
-        {mode === 'build' && fileChanges.length > 0 && (
-          <Card 
-            size="small" 
-            style={{ 
-              marginBottom: '16px',
-              background: '#252526',
-              border: '1px solid #3e3e42'
-            }}
-          >
-            <FileChanges fileChanges={fileChanges} />
-          </Card>
-        )}
-
         {/* Chat Area */}
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <ChatArea 

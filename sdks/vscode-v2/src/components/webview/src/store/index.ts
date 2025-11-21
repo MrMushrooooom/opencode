@@ -6,7 +6,6 @@ import type {
   Model,
   Agent,
   Message,
-  FrontendFileChange,
   FrontendPart,
   Permission
 } from '../types'
@@ -47,7 +46,6 @@ export const useAppStore = create<FrontendAppState>((set, get) => ({
   editingMessageId: null,
   
   // Build mode specific
-  fileChanges: [],
   canUndo: false,
   canRedo: false,
   
@@ -179,8 +177,6 @@ export const useAppStore = create<FrontendAppState>((set, get) => ({
   
   setError: (error: string | null) => set({ error }),
   
-  setFileChanges: (fileChanges: readonly FrontendFileChange[]) => set({ fileChanges }),
-  
   setUndoRedoState: (canUndo: boolean, canRedo: boolean) => set({ canUndo, canRedo }),
   
   setShowThinkingBlocks: (show: boolean) => set({ showThinkingBlocks: show }),
@@ -208,7 +204,6 @@ export const useAppStore = create<FrontendAppState>((set, get) => ({
     status: 'ready',
     error: null,
     editingMessageId: null,
-    fileChanges: [],
     canUndo: false,
     canRedo: false,
     showThinkingBlocks: false,
@@ -231,7 +226,6 @@ export const useCurrentProvider = () => useAppStore(state => state.currentProvid
 export const useCurrentModel = () => useAppStore(state => state.currentModel)
 export const useMode = () => useAppStore(state => state.mode)
 export const useStatus = () => useAppStore(state => state.status)
-export const useFileChanges = () => useAppStore(state => state.fileChanges)
 export const useUndoRedoState = () => useAppStore(state => ({
   canUndo: state.canUndo,
   canRedo: state.canRedo

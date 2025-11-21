@@ -163,6 +163,22 @@ export class OpenCodePanel {
             await this.app.revertToMessage(sessionId, messageId, content, mode, shouldRevert)
           }
           break
+        case 'openFile':
+          // Handle open file request
+          if (message.data?.filePath) {
+            const filePath = message.data.filePath
+            try {
+              const uri = vscode.Uri.file(filePath)
+              await vscode.window.showTextDocument(uri, {
+                preview: false  // 禁用预览模式，确保在新标签页中打开，不会被替换
+              })
+              this.outputChannel.appendLine(`✅ Opened file: ${filePath}`)
+            } catch (error: any) {
+              this.outputChannel.appendLine(`❌ Failed to open file ${filePath}: ${error.message}`)
+              vscode.window.showErrorMessage(`Failed to open file: ${error.message}`)
+            }
+          }
+          break
         default:
           this.outputChannel.appendLine(`⚠️ Unknown message type: ${message.type}`)
       }

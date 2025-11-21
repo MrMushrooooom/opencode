@@ -66,9 +66,9 @@ export const FileChanges: React.FC<FileChangesProps> = ({ fileChanges }) => {
               <Tag color={getChangeColor(change.type)}>
                 {change.type}
               </Tag>
-              {change.lineCount && (
+              {(change.addedLines > 0 || change.removedLines > 0) && (
                 <Text style={{ color: '#888888', fontSize: '11px' }}>
-                  {change.lineCount} lines
+                  +{change.addedLines} -{change.removedLines}
                 </Text>
               )}
             </Space>
