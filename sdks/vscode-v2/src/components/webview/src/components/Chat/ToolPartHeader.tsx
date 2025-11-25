@@ -1,6 +1,6 @@
 import React from 'react'
 import { Typography, Space } from 'antd'
-import { ToolOutlined, CodeOutlined } from '@ant-design/icons'
+import { ToolOutlined, CodeOutlined, CheckSquareOutlined } from '@ant-design/icons'
 import { getFileIcon } from '../../utils/fileIcon'
 import { extractFileChangeFromToolPart } from '../../utils/fileChangeExtractor'
 import { webViewService } from '../../services/webviewService'
@@ -40,6 +40,63 @@ export const ToolPartHeader: React.FC<ToolPartHeaderProps> = ({
     // Extract command name (first word, before space or any argument)
     const parts = command.trim().split(/\s+/)
     return parts[0] || null
+  }
+  
+  // For todo tools (todowrite/todoread), show todo list header
+  if (toolName === 'todowrite' || toolName === 'todoread') {
+    // Unified data acquisition: always from toolInput (consistent with UI/Web)
+    const todos = toolInput?.todos || []
+    const incompleteCount = todos.filter((t: any) => t.status !== 'completed' && t.status !== 'cancelled').length
+    const isProcessing = toolStatus === 'pending' || toolStatus === 'running'
+    
+    return (
+      <div style={{
+        padding: '10px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottom: '1px solid #3e3e42'
+      }}>
+        <Space size="small">
+          <CheckSquareOutlined 
+            style={{ 
+              color: '#52c41a', 
+              fontSize: '14px',
+              animation: isProcessing ? 'blink 2s ease-in-out infinite' : 'none'
+            }} 
+          />
+          <Text 
+            style={{ 
+              color: '#cccccc', 
+              fontSize: '12px', 
+              fontFamily: 'monospace',
+              animation: isProcessing ? 'blink 2s ease-in-out infinite' : 'none'
+            }}
+          >
+            Todo List
+          </Text>
+          {incompleteCount > 0 && (
+            <Text 
+              style={{ 
+                color: '#888888', 
+                fontSize: '11px'
+              }}
+            >
+              {incompleteCount} {incompleteCount === 1 ? 'todo' : 'todos'}
+            </Text>
+          )}
+        </Space>
+        {isProcessing && (
+          <style>{`
+            @keyframes blink {
+              0% { opacity: 1; }
+              50% { opacity: 0.5; }
+              100% { opacity: 1; }
+            }
+          `}</style>
+        )}
+      </div>
+    )
   }
   
   // For bash tool, show command name in header

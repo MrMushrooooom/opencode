@@ -97,9 +97,24 @@ export const useAppStore = create<FrontendAppState>((set, get) => ({
   
   setMessages: (messages: readonly Message[]) => set({ messages }),
   
-  addMessage: (message: Message) => set((state) => ({
-    messages: [...state.messages, message]
-  })),
+  addMessage: (message: Message) => set((state) => {
+    // Insert message maintaining chronological order via ID comparison
+    // This ensures updateQueuedMessages logic works correctly
+    const newID = message.info.id
+    const messages = [...state.messages]
+    
+    let insertIndex = messages.length
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const existingID = messages[i].info.id
+      if (existingID < newID) {
+        insertIndex = i + 1
+        break
+      }
+    }
+    
+    messages.splice(insertIndex, 0, message)
+    return { messages }
+  }),
   
   updateMessage: (messageId: string, updates: Partial<Message>) => set((state) => ({
     messages: state.messages.map(message =>

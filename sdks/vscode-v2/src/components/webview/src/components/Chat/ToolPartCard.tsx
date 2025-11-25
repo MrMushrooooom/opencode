@@ -44,6 +44,7 @@ export const ToolPartCard: React.FC<ToolPartCardProps> = ({
       />
       <ToolPartContent
         toolName={toolName}
+        toolInput={toolInput}
         toolOutput={toolOutput}
         toolMetadata={toolMetadata}
         toolStatus={toolStatus}

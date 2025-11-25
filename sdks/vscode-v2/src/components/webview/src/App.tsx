@@ -138,6 +138,10 @@ export const App: React.FC = () => {
               // Add new message
               addMessage(message.data.message)
             }
+            
+            // Recalculate queued messages when messages are updated
+            // This ensures queued status is correct when assistant messages are created/updated
+            useAppStore.getState().updateQueuedMessages()
           }
           break
           

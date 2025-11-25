@@ -11,7 +11,7 @@ import * as fs from 'fs'
  */
 export class OpenCodePanel {
   private app: OpenCodeApp
-  private webview: vscode.WebviewPanel
+  private webviewPanel: vscode.WebviewPanel
   private outputChannel: vscode.OutputChannel
   private disposed: boolean = false
   private isInErrorState: boolean = false
@@ -21,7 +21,7 @@ export class OpenCodePanel {
     this.outputChannel = outputChannel
 
     // Create webview panel
-    this.webview = vscode.window.createWebviewPanel(
+    this.webviewPanel = vscode.window.createWebviewPanel(
       'opencode-v2-assistant',
       'OpenCode Assistant',
       vscode.ViewColumn.One,
@@ -32,17 +32,17 @@ export class OpenCodePanel {
     )
 
     // Set initial HTML
-    this.webview.webview.html = this.getHtmlForWebview()
+    this.webviewPanel.webview.html = this.getHtmlForWebview()
 
     // Handle messages from webview
-    this.webview.webview.onDidReceiveMessage(
+    this.webviewPanel.webview.onDidReceiveMessage(
       (message) => this.handleMessage(message),
       undefined,
       []
     )
 
     // Handle panel disposal
-    this.webview.onDidDispose(() => {
+    this.webviewPanel.onDidDispose(() => {
       this.disposed = true
       // Clear the webview panel reference in app
       this.app.clearWebviewPanel()
@@ -568,7 +568,7 @@ export class OpenCodePanel {
   dispose(): void {
     if (!this.disposed) {
       this.disposed = true
-      this.webview.dispose()
+      this.webviewPanel.dispose()
       this.outputChannel.appendLine('📡 WebView panel disposed')
     }
   }
@@ -578,7 +578,7 @@ export class OpenCodePanel {
    */
   show(): void {
     if (!this.disposed) {
-      this.webview.reveal()
+      this.webviewPanel.reveal()
     }
   }
 
@@ -587,7 +587,7 @@ export class OpenCodePanel {
    */
   sendMessageToWebview(message: any): void {
     if (!this.disposed) {
-      this.webview.webview.postMessage(message)
+      this.webviewPanel.webview.postMessage(message)
     }
   }
 
@@ -630,7 +630,7 @@ export class OpenCodePanel {
       
       // Get webview URI for the dist directory
       const webviewDir = path.dirname(templatePath)
-      const webviewUri = this.webview.webview.asWebviewUri(vscode.Uri.file(webviewDir))
+      const webviewUri = this.webviewPanel.webview.asWebviewUri(vscode.Uri.file(webviewDir))
       
       // Replace bundle.js path with webview URI
       const html = template.replace(

@@ -1,14 +1,16 @@
 import React from 'react'
 import { Typography, Space, Button } from 'antd'
 import { ToolDiff } from './ToolDiff'
-import { CommandOutput } from './CommandOutput'
+import { ToolCommandOutput } from './ToolCommandOutput'
+import { ToolTodoList } from './ToolTodoList'
+import { ToolGenericOutput } from './ToolGenericOutput'
 import { extractFileChangeFromToolPart } from '../../utils/fileChangeExtractor'
-import { renderToolOutput } from './toolRenderer'
 
 const { Text } = Typography
 
 interface ToolPartContentProps {
   toolName: string
+  toolInput?: Record<string, any>
   toolOutput?: string
   toolMetadata?: any
   toolStatus: 'pending' | 'running' | 'completed' | 'error'
@@ -21,6 +23,7 @@ interface ToolPartContentProps {
 
 export const ToolPartContent: React.FC<ToolPartContentProps> = ({
   toolName,
+  toolInput,
   toolOutput,
   toolMetadata,
   toolStatus,
@@ -42,6 +45,15 @@ export const ToolPartContent: React.FC<ToolPartContentProps> = ({
     )
   }
   
+  // For todo tools, show todo list in all states (pending/running/completed)
+  if (toolName === 'todowrite' || toolName === 'todoread') {
+    // Unified data acquisition: always from toolInput (consistent with UI/Web)
+    const todos = toolInput?.todos || []
+    if (todos.length > 0) {
+      return <ToolTodoList todos={todos} toolStatus={toolStatus} />
+    }
+  }
+  
   if (toolStatus === 'completed') {
     const fileChange = extractFileChangeFromToolPart(toolPart)
     
@@ -53,28 +65,30 @@ export const ToolPartContent: React.FC<ToolPartContentProps> = ({
       const command = toolPart?.state?.input?.command
       const output = toolOutput || toolMetadata?.output || ''
       if (command && typeof command === 'string') {
-        return <CommandOutput command={command} output={output} />
+        return <ToolCommandOutput command={command} output={output} />
       }
     }
     
     if (toolOutput) {
-      const outputPreview = typeof toolOutput === 'string' 
-        ? renderToolOutput(toolName, toolOutput, toolMetadata)
-        : JSON.stringify(toolOutput, null, 2)
-      
-      if (outputPreview) {
+      if (typeof toolOutput === 'string') {
         return (
-          <div style={{
-            padding: '12px',
-            color: '#888888',
-            fontSize: '12px',
-            fontFamily: 'monospace',
-            background: 'rgba(0, 0, 0, 0.2)',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word'
-          }}>
-            {outputPreview}
-          </div>
+          <ToolGenericOutput
+            toolName={toolName}
+            toolOutput={toolOutput}
+            toolMetadata={toolMetadata}
+          />
+        )
+      }
+      
+      // Handle non-string output (e.g., JSON objects)
+      const jsonOutput = JSON.stringify(toolOutput, null, 2)
+      if (jsonOutput) {
+        return (
+          <ToolGenericOutput
+            toolName={toolName}
+            toolOutput={jsonOutput}
+            toolMetadata={toolMetadata}
+          />
         )
       }
     }

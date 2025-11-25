@@ -1,16 +1,21 @@
 import React, { useState } from 'react'
 
-interface CommandOutputProps {
-  command: string
-  output: string
+interface ToolGenericOutputProps {
+  toolName: string
+  toolOutput: string
+  toolMetadata?: any
 }
 
-export const CommandOutput: React.FC<CommandOutputProps> = ({ command, output }) => {
+export const ToolGenericOutput: React.FC<ToolGenericOutputProps> = ({
+  toolName,
+  toolOutput,
+  toolMetadata
+}) => {
   const [expanded, setExpanded] = useState(false)
   
-  const outputLines = output.split('\n')
-  const hasMoreLines = outputLines.length > 5
-  const displayLines = expanded ? outputLines : outputLines.slice(0, 5)
+  const outputLines = toolOutput.split('\n')
+  const hasMoreLines = outputLines.length > 10
+  const displayLines = expanded ? outputLines : outputLines.slice(0, 10)
   
   return (
     <div
@@ -33,9 +38,6 @@ export const CommandOutput: React.FC<CommandOutputProps> = ({ command, output })
         transition: 'max-height 0.3s ease'
       }}
     >
-      <div style={{ color: '#888888', marginBottom: '8px', userSelect: 'none' }}>
-        $ {command}
-      </div>
       <div>
         {displayLines.join('\n')}
       </div>
