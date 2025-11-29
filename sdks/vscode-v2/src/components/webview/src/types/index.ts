@@ -5,7 +5,7 @@
 
 // Import API types directly - no need for re-export
 // @ts-ignore
-import type { Provider, Model, Session, Agent, Message, Permission, Part } from '@opencode-ai/sdk'
+import type { Provider, Model, Session, Agent, Message, Permission, Part } from "@opencode-ai/sdk"
 
 // Re-export API types for convenience
 export type { Provider, Model, Session, Agent, Message, Part }
@@ -15,17 +15,17 @@ export type { Provider, Model, Session, Agent, Message, Part }
  * These are specific to the frontend UI and don't exist in API types
  */
 export interface FrontendTextPart {
-  readonly type: 'text'
+  readonly type: "text"
   readonly content: string
 }
 
 export interface FrontendReasoningPart {
-  readonly type: 'reasoning'
+  readonly type: "reasoning"
   readonly content: string
 }
 
 export interface FrontendToolPart {
-  readonly type: 'tool'
+  readonly type: "tool"
   readonly tool: {
     readonly name: string
     readonly input: unknown
@@ -35,7 +35,7 @@ export interface FrontendToolPart {
 }
 
 export interface FrontendPart {
-  readonly type: 'text' | 'reasoning' | 'tool'
+  readonly type: "text" | "reasoning" | "tool"
   readonly content?: string
   readonly tool?: {
     readonly name: string
@@ -51,7 +51,7 @@ export interface FrontendPart {
  */
 export interface FrontendFileChange {
   readonly filePath: string
-  readonly type: 'create' | 'modify' | 'delete'
+  readonly type: "create" | "modify" | "delete"
   readonly addedLines: number
   readonly removedLines: number
   readonly diff?: string
@@ -95,72 +95,72 @@ export interface FrontendAppState {
   readonly providers: readonly Provider[]
   readonly currentProvider: Provider | null
   readonly currentModel: Model | null
-  
+
   readonly agents: readonly Agent[]
   readonly currentAgent: Agent | null
-  
+
   readonly sessions: readonly Session[]
   readonly currentSession: Session | null
-  
+
   readonly permissions: readonly any[]
   readonly currentPermission: any | null
-  
+
   readonly messages: readonly Message[]
   readonly isStreaming: boolean
   readonly streamingMessageId?: string
   readonly currentStreamingMessage?: string
   readonly queuedMessages: readonly string[] // Message IDs that are queued
-  
+
   // UI state (frontend-specific)
-  readonly mode: 'plan' | 'build'
-  readonly status: 'ready' | 'sending' | 'generating' | 'error'
+  readonly mode: "plan" | "build"
+  readonly status: "ready" | "sending" | "generating" | "error"
   readonly error: string | null
   readonly editingMessageId: string | null
-  
+
   readonly canUndo: boolean
   readonly canRedo: boolean
-  
+
   // UI settings (frontend-specific)
   readonly showThinkingBlocks: boolean
   readonly showToolDetails: boolean
-  
+
   // Store methods
   setSessions: (sessions: readonly Session[]) => void
   setCurrentSession: (session: Session | null) => void
   addSession: (session: Session) => void
-  
+
   setPermissions: (permissions: readonly any[]) => void
   addPermission: (permission: any) => void
   removePermission: (permissionId: string) => void
   setCurrentPermission: (permission: any | null) => void
-  
+
   setMessages: (messages: readonly Message[]) => void
   addMessage: (message: Message) => void
   updateMessage: (messageId: string, updates: Partial<Message>) => void
   updateMessagePart: (messageId: string, part: FrontendPart) => void
   clearMessages: () => void
-  
+
   setStreaming: (isStreaming: boolean, messageId?: string) => void
   setQueuedMessages: (queuedMessages: readonly string[]) => void
   updateQueuedMessages: () => void
-  
+
   setProviders: (providers: readonly Provider[]) => void
   setCurrentProvider: (provider: Provider | null) => void
   setCurrentModel: (model: Model | null) => void
-  
+
   setAgents: (agents: readonly Agent[]) => void
   setCurrentAgent: (agent: Agent | null) => void
-  
-  setMode: (mode: 'plan' | 'build') => void
-  setStatus: (status: 'ready' | 'sending' | 'generating' | 'error') => void
+
+  setMode: (mode: "plan" | "build") => void
+  setStatus: (status: "ready" | "sending" | "generating" | "error") => void
   setError: (error: string | null) => void
-  
+
   setUndoRedoState: (canUndo: boolean, canRedo: boolean) => void
-  
+
   setShowThinkingBlocks: (show: boolean) => void
   setShowToolDetails: (show: boolean) => void
-  
+
   setEditingMessageId: (messageId: string | null) => void
-  
+
   reset: () => void
 }

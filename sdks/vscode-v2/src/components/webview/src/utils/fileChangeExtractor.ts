@@ -6,7 +6,7 @@
 export interface FileChangeInfo {
   filePath: string // Display path (may be normalized)
   absolutePath: string // Absolute path for opening file
-  type: 'create' | 'modify' | 'delete'
+  type: "create" | "modify" | "delete"
   addedLines: number
   removedLines: number
   diff?: string
@@ -19,14 +19,14 @@ export interface FileChangeInfo {
  * Returns null if no file changes found
  */
 export function extractFileChangeFromToolPart(part: any): FileChangeInfo | null {
-  if (part.type !== 'tool') {
+  if (part.type !== "tool") {
     return null
   }
 
   const toolPart = part as any
   const state = toolPart.state
 
-  if (!state || state.status !== 'completed') {
+  if (!state || state.status !== "completed") {
     return null
   }
 
@@ -38,12 +38,12 @@ export function extractFileChangeFromToolPart(part: any): FileChangeInfo | null 
   }
 
   switch (toolName) {
-    case 'edit':
+    case "edit":
       return extractFromEditTool(part, metadata)
-    case 'patch':
+    case "patch":
       // TODO: Parse unified diff for patch tool
       return null
-    case 'write':
+    case "write":
       return extractFromWriteTool(part, metadata, state.input)
     default:
       return null
@@ -80,21 +80,21 @@ function extractFromEditTool(part: any, metadata: any): FileChangeInfo | null {
     removedLines,
     diff: diff || undefined,
     originalContent: filediff.before || undefined,
-    modifiedContent: filediff.after || undefined
+    modifiedContent: filediff.after || undefined,
   }
 }
 
 /**
  * Determine change type based on before/after content
  */
-function determineChangeType(before: string | undefined, after: string | undefined): 'create' | 'modify' | 'delete' {
-  if (!before || before.trim() === '') {
-    return 'create'
+function determineChangeType(before: string | undefined, after: string | undefined): "create" | "modify" | "delete" {
+  if (!before || before.trim() === "") {
+    return "create"
   }
-  if (!after || after.trim() === '') {
-    return 'delete'
+  if (!after || after.trim() === "") {
+    return "delete"
   }
-  return 'modify'
+  return "modify"
 }
 
 /**
@@ -109,12 +109,12 @@ function extractFromWriteTool(part: any, metadata: any, input: any): FileChangeI
 
   const exists = metadata.exists === true
   const content = input?.content
-  if (typeof content !== 'string') {
+  if (typeof content !== "string") {
     return null
   }
 
   const normalizedPath = normalizePath(filepath)
-  const lines = content.split('\n')
+  const lines = content.split("\n")
   const addedLines = lines.length
   const removedLines = 0
 
@@ -126,12 +126,12 @@ function extractFromWriteTool(part: any, metadata: any, input: any): FileChangeI
   return {
     filePath: normalizedPath, // For display
     absolutePath: filepath, // Original absolute path for opening file
-    type: exists ? 'modify' : 'create',
+    type: exists ? "modify" : "create",
     addedLines,
     removedLines,
     diff,
     originalContent: undefined, // Write tool doesn't provide original content
-    modifiedContent: content
+    modifiedContent: content,
   }
 }
 
@@ -140,20 +140,20 @@ function extractFromWriteTool(part: any, metadata: any, input: any): FileChangeI
  * All content is shown as additions (green background)
  */
 function generateWriteDiff(filePath: string, content: string): string {
-  const lines = content.split('\n')
+  const lines = content.split("\n")
   const lineCount = lines.length
-  
+
   // Generate unified diff header
   // Format: @@ -start,count +start,count @@
   // For write tool: all lines are additions, so old start is 0,0 and new start is 1,lineCount
   const hunkHeader = `@@ -0,0 +1,${lineCount} @@`
-  
+
   // Format each line with + prefix (addition)
-  const diffLines = lines.map(line => `+${line}`)
-  
+  const diffLines = lines.map((line) => `+${line}`)
+
   // Combine into unified diff format
   const relativePath = normalizePath(filePath)
-  return `--- a/${relativePath}\n+++ b/${relativePath}\n${hunkHeader}\n${diffLines.join('\n')}`
+  return `--- a/${relativePath}\n+++ b/${relativePath}\n${hunkHeader}\n${diffLines.join("\n")}`
 }
 
 /**
@@ -161,9 +161,8 @@ function generateWriteDiff(filePath: string, content: string): string {
  */
 function normalizePath(filePath: string): string {
   // Remove leading slash if present
-  if (filePath.startsWith('/')) {
+  if (filePath.startsWith("/")) {
     return filePath.substring(1)
   }
   return filePath
 }
-

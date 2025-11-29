@@ -1,5 +1,5 @@
 // @ts-ignore
-import * as opencode from '@opencode-ai/sdk'
+import * as opencode from "@opencode-ai/sdk"
 
 /**
  * Message structure combining Message info with Parts array
@@ -20,20 +20,20 @@ export interface AppStruct {
   agents: opencode.Agent[]
   providers: opencode.Provider[]
   config: opencode.Config | null
-  client: opencode.OpencodeClient | null  // Fixed: was any | null
-  
+  client: opencode.OpencodeClient | null // Fixed: was any | null
+
   // Session and messages
   session: opencode.Session | null
   messages: MessageStruct[]
-  
+
   // Provider and model selection
   provider: opencode.Provider | null
   model: opencode.Model | null
-  
+
   // Permissions
   permissions: opencode.Permission[]
   currentPermission: opencode.Permission | null
-  
+
   // VSCode-specific state
   workspacePath: string
   isConnected: boolean
@@ -49,28 +49,28 @@ export interface StateStruct {
   // User preferences
   theme: string
   agent: string
-  provider: string  // Only store ID, not full object
-  model: string     // Only store ID, not full object
-  
+  provider: string // Only store ID, not full object
+  model: string // Only store ID, not full object
+
   // Agent model mapping for storing preferred model per agent
   agentModel: Record<string, AgentModel>
-  
+
   // Recently used tracking for models and agents
   recentlyUsedModels: ModelUsage[]
   recentlyUsedAgents: AgentUsage[]
-  
+
   // Message history for prompt autocomplete
   messageHistory: Prompt[]
-  
+
   // UI settings
   showToolDetails: boolean
   showThinkingBlocks: boolean
-  
+
   // VSCode-specific settings
   workspacePath: string
   autoStartServer: boolean
   serverPort: number
-  
+
   // Session management
   currentSessionId?: string
 }
@@ -81,17 +81,19 @@ export interface StateStruct {
  */
 export interface Prompt {
   text: string
-  attachments: Array<opencode.File & {
-    type?: string
-    filename?: string
-    mimeType?: string
-    url?: string
-    display?: string
-    startIndex?: number
-    endIndex?: number
-    name?: string
-    symbolInfo?: any
-  }>
+  attachments: Array<
+    opencode.File & {
+      type?: string
+      filename?: string
+      mimeType?: string
+      url?: string
+      display?: string
+      startIndex?: number
+      endIndex?: number
+      name?: string
+      symbolInfo?: any
+    }
+  >
 }
 
 /**
@@ -129,7 +131,7 @@ export interface AgentModel {
 export interface FileChange {
   // File object from OpenCode API
   file: opencode.File
-  
+
   // VSCode-specific UI enhancements
   diff?: string
   preview?: string

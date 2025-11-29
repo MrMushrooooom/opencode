@@ -1,53 +1,53 @@
-const path = require('path')
-const HtmlWebpackPlugin = require('html-webpack-plugin')
+const path = require("path")
+const HtmlWebpackPlugin = require("html-webpack-plugin")
 
 module.exports = {
-  entry: './src/index.tsx',
+  entry: "./src/index.tsx",
   output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: 'bundle.js',
-    clean: true
+    path: path.resolve(__dirname, "dist"),
+    filename: "bundle.js",
+    clean: true,
   },
   resolve: {
-    extensions: ['.tsx', '.ts', '.js', '.jsx'],
+    extensions: [".tsx", ".ts", ".js", ".jsx"],
     alias: {
-      '@': path.resolve(__dirname, 'src'),
-      '@backend': path.resolve(__dirname, '../../../')
-    }
+      "@": path.resolve(__dirname, "src"),
+      "@backend": path.resolve(__dirname, "../../../"),
+    },
   },
   module: {
     rules: [
       {
         test: /\.tsx?$/,
         use: {
-          loader: 'ts-loader',
+          loader: "ts-loader",
           options: {
             transpileOnly: true,
             compilerOptions: {
-              noEmit: false
-            }
-          }
+              noEmit: false,
+            },
+          },
         },
-        exclude: /node_modules/
+        exclude: /node_modules/,
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader']
-      }
-    ]
+        use: ["style-loader", "css-loader"],
+      },
+    ],
   },
   plugins: [
     new HtmlWebpackPlugin({
-      template: './public/index.html',
-      filename: 'index.html'
-    })
+      template: "./public/index.html",
+      filename: "index.html",
+    }),
   ],
   devServer: {
     static: {
-      directory: path.join(__dirname, 'dist')
+      directory: path.join(__dirname, "dist"),
     },
     compress: true,
     port: 3000,
-    hot: true
-  }
+    hot: true,
+  },
 }
