@@ -1,33 +1,27 @@
-import React, { useState } from 'react'
-import { Input, Button, Select, Space } from 'antd'
-import { SendOutlined, CameraOutlined } from '@ant-design/icons'
-import { webViewService } from '../../services/webviewService'
-import { useAppStore } from '../../store'
-import { SessionSelector } from '../Session/SessionSelector'
-import { ModelSelector } from '../Model/ModelSelector'
+import React, { useState } from "react"
+import { Input, Button, Select, Space } from "antd"
+import { SendOutlined, CameraOutlined } from "@ant-design/icons"
+import { webViewService } from "../../services/webviewService"
+import { useAppStore } from "../../store"
+import { SessionSelector } from "../Session/SessionSelector"
+import { ModelSelector } from "../Model/ModelSelector"
 
 const { TextArea } = Input
 
 interface InputAreaProps {
   onSendPrompt: (text: string) => void
-  mode: 'plan' | 'build'
-  onModeChange: (mode: 'plan' | 'build') => void
+  mode: "plan" | "build"
+  onModeChange: (mode: "plan" | "build") => void
   disabled: boolean
-  status: 'ready' | 'sending' | 'generating' | 'error'
+  status: "ready" | "sending" | "generating" | "error"
 }
 
 /**
  * Input area component for user message input and mode selection
  * Redesigned with Cursor-inspired clean and minimal aesthetic
  */
-export const InputArea: React.FC<InputAreaProps> = ({
-  onSendPrompt,
-  mode,
-  onModeChange,
-  disabled,
-  status
-}) => {
-  const [inputValue, setInputValue] = useState('')
+export const InputArea: React.FC<InputAreaProps> = ({ onSendPrompt, mode, onModeChange, disabled, status }) => {
+  const [inputValue, setInputValue] = useState("")
   const [isComposing, setIsComposing] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Array<{ data: string; name: string; mime: string }>>([])
   const [imageError, setImageError] = useState<string | null>(null)
@@ -43,13 +37,13 @@ export const InputArea: React.FC<InputAreaProps> = ({
     } else {
       webViewService.sendUserPrompt(text, mode)
     }
-    
-    setInputValue('')
+
+    setInputValue("")
     setSelectedImages([])
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+    if (e.key === "Enter" && !e.shiftKey && !isComposing) {
       e.preventDefault()
       handleSend()
     }
@@ -76,42 +70,42 @@ export const InputArea: React.FC<InputAreaProps> = ({
     // Extract base64 data
     const base64Match = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
     if (!base64Match) return null
-    
+
     const base64Data = base64Match[2]
     if (!base64Data || base64Data.length < 4) return null
-    
+
     // Decode first few bytes to check magic bytes
     const binaryString = atob(base64Data.substring(0, 12))
     const bytes = new Uint8Array(binaryString.length)
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i)
     }
-    
+
     // Check magic bytes for supported image formats
     // PNG: 89 50 4E 47 0D 0A 1A 0A
-    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
-      return 'image/png'
+    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+      return "image/png"
     }
     // JPEG: FF D8 (SOI - Start of Image)
     // JPEG files start with FF D8, followed by various markers (FF E0 for JFIF, FF E1 for EXIF, etc.)
-    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xD8) {
-      return 'image/jpeg'
+    if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+      return "image/jpeg"
     }
     // GIF: 47 49 46 38 (GIF8)
     if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
-      return 'image/gif'
+      return "image/gif"
     }
     // WebP: RIFF...WEBP
     if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
       // Check for WEBP signature at offset 8
       if (base64Data.length > 20) {
         const webpCheck = atob(base64Data.substring(16, 24))
-        if (webpCheck.includes('WEBP')) {
-          return 'image/webp'
+        if (webpCheck.includes("WEBP")) {
+          return "image/webp"
         }
       }
     }
-    
+
     // Format not supported or cannot be detected
     return null
   }
@@ -123,18 +117,18 @@ export const InputArea: React.FC<InputAreaProps> = ({
     // Clear previous error
     setImageError(null)
 
-    const imageFiles = Array.from(files).filter(file => {
+    const imageFiles = Array.from(files).filter((file) => {
       const type = file.type.toLowerCase()
-      return type.startsWith('image/')
+      return type.startsWith("image/")
     })
 
-    const supportedFormats = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
-    const formatNames = ['PNG', 'JPEG', 'GIF', 'WebP']
+    const supportedFormats = ["image/png", "image/jpeg", "image/gif", "image/webp"]
+    const formatNames = ["PNG", "JPEG", "GIF", "WebP"]
     // LLM API typically has a 20MB limit per image (base64 encoded)
     // We use a conservative 15MB limit to account for base64 encoding overhead
     const MAX_IMAGE_SIZE = 15 * 1024 * 1024 // 15MB
 
-    imageFiles.forEach(file => {
+    imageFiles.forEach((file) => {
       // Check file size before reading
       if (file.size > MAX_IMAGE_SIZE) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
@@ -145,14 +139,14 @@ export const InputArea: React.FC<InputAreaProps> = ({
       const reader = new FileReader()
       reader.onload = (event) => {
         const data = event.target?.result as string
-        
+
         // Check base64 data size (data URL includes "data:mime;base64," prefix)
         const dataUrlMatch = data.match(/^data:([^;]+);base64,(.+)$/)
         if (!dataUrlMatch) {
           setImageError(`Invalid image data format for "${file.name}"`)
           return
         }
-        
+
         const base64Data = dataUrlMatch[2]
         // Base64 encoding increases size by ~33%, so we check the decoded size
         const estimatedSize = (base64Data.length * 3) / 4
@@ -161,87 +155,96 @@ export const InputArea: React.FC<InputAreaProps> = ({
           setImageError(`Image "${file.name}" is too large (${sizeMB}MB). Maximum size: 15MB`)
           return
         }
-        
+
         // Detect actual MIME type from image data (not file extension)
         const actualMime = detectImageMimeType(data)
-        
+
         // Validate format
         if (!actualMime) {
-          setImageError(`Unable to detect image format for "${file.name}". Supported formats: ${formatNames.join(', ')}`)
+          setImageError(
+            `Unable to detect image format for "${file.name}". Supported formats: ${formatNames.join(", ")}`,
+          )
           return
         }
-        
+
         if (!supportedFormats.includes(actualMime)) {
-          setImageError(`Unsupported image format for "${file.name}". Supported formats: ${formatNames.join(', ')}`)
+          setImageError(`Unsupported image format for "${file.name}". Supported formats: ${formatNames.join(", ")}`)
           return
         }
-        
+
         const [, originalMime] = dataUrlMatch
         let finalData = data
-        
+
         // Update data URL with correct MIME type if it differs
         if (originalMime !== actualMime) {
           finalData = `data:${actualMime};base64,${base64Data}`
         }
-        
-        setSelectedImages(prev => [...prev, {
-          data: finalData,
-          name: file.name,
-          mime: actualMime // Use detected MIME type instead of file.type
-        }])
+
+        setSelectedImages((prev) => [
+          ...prev,
+          {
+            data: finalData,
+            name: file.name,
+            mime: actualMime, // Use detected MIME type instead of file.type
+          },
+        ])
       }
-      
+
       reader.onerror = () => {
         setImageError(`Failed to read image file "${file.name}"`)
       }
-      
+
       reader.readAsDataURL(file)
     })
 
     // Reset input
     if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+      fileInputRef.current.value = ""
     }
   }
 
   const removeImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index))
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index))
   }
 
   return (
-    <div style={{
-      background: '#1e1e1e',
-      borderTop: '1px solid #3e3e42',
-      padding: '16px',
-      position: 'relative'
-    }}>
+    <div
+      style={{
+        background: "#1e1e1e",
+        borderTop: "1px solid #3e3e42",
+        padding: "16px",
+        position: "relative",
+      }}
+    >
       {/* Error message */}
       {imageError && (
-        <div style={{
-          marginBottom: '8px',
-          padding: '4px 10px',
-          background: '#2d2d30',
-          border: '1px solid #3e3e42',
-          borderRadius: '3px',
-          color: '#cccccc',
-          fontSize: '11px',
-          textAlign: 'center',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
+        <div
+          style={{
+            marginBottom: "8px",
+            padding: "4px 10px",
+            background: "#2d2d30",
+            border: "1px solid #3e3e42",
+            borderRadius: "3px",
+            color: "#cccccc",
+            fontSize: "11px",
+            textAlign: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <span style={{ flex: 1 }}>{imageError}</span>
           <button
             onClick={() => setImageError(null)}
             style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#cccccc',
-              cursor: 'pointer',
-              padding: '0 4px',
-              fontSize: '14px',
-              lineHeight: '1',
-              marginLeft: '8px'
+              background: "transparent",
+              border: "none",
+              color: "#cccccc",
+              cursor: "pointer",
+              padding: "0 4px",
+              fontSize: "14px",
+              lineHeight: "1",
+              marginLeft: "8px",
             }}
           >
             ×
@@ -250,106 +253,116 @@ export const InputArea: React.FC<InputAreaProps> = ({
       )}
 
       {/* Mode selector and controls - single row with space-between */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '12px',
-        gap: '8px'
-      }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "12px",
+          gap: "8px",
+        }}
+      >
         {/* Left side: Mode selector */}
-        <div style={{
-          display: 'flex',
-          background: '#2d2d30',
-          borderRadius: '6px',
-          padding: '2px',
-          border: '1px solid #3e3e42'
-        }}>
+        <div
+          style={{
+            display: "flex",
+            background: "#2d2d30",
+            borderRadius: "6px",
+            padding: "2px",
+            border: "1px solid #3e3e42",
+          }}
+        >
           <button
-            onClick={() => onModeChange('plan')}
+            onClick={() => onModeChange("plan")}
             style={{
-              padding: '6px 12px',
-              borderRadius: '4px',
-              border: 'none',
-              background: mode === 'plan' ? '#1890ff' : 'transparent',
-              color: mode === 'plan' ? '#ffffff' : '#cccccc',
-              fontSize: '12px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              padding: "6px 12px",
+              borderRadius: "4px",
+              border: "none",
+              background: mode === "plan" ? "#1890ff" : "transparent",
+              color: mode === "plan" ? "#ffffff" : "#cccccc",
+              fontSize: "12px",
+              fontWeight: "500",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
             }}
           >
             Plan
           </button>
           <button
-            onClick={() => onModeChange('build')}
+            onClick={() => onModeChange("build")}
             style={{
-              padding: '6px 12px',
-              borderRadius: '4px',
-              border: 'none',
-              background: mode === 'build' ? '#52c41a' : 'transparent',
-              color: mode === 'build' ? '#ffffff' : '#cccccc',
-              fontSize: '12px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              padding: "6px 12px",
+              borderRadius: "4px",
+              border: "none",
+              background: mode === "build" ? "#52c41a" : "transparent",
+              color: mode === "build" ? "#ffffff" : "#cccccc",
+              fontSize: "12px",
+              fontWeight: "500",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
             }}
           >
             Build
           </button>
         </div>
-        
+
         {/* Right side: Session and Model selectors */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
           <SessionSelector />
           <ModelSelector />
         </div>
       </div>
 
       {/* Main input area */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: '8px',
-        background: '#252526',
-        border: '1px solid #3e3e42',
-        borderRadius: '8px',
-        padding: '12px',
-        transition: 'border-color 0.2s ease'
-      }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-end",
+          gap: "8px",
+          background: "#252526",
+          border: "1px solid #3e3e42",
+          borderRadius: "8px",
+          padding: "12px",
+          transition: "border-color 0.2s ease",
+        }}
+      >
         {/* Image upload button */}
-        <div style={{
-          marginRight: '8px'
-        }}>
+        <div
+          style={{
+            marginRight: "8px",
+          }}
+        >
           <input
             ref={fileInputRef}
             type="file"
             accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
             multiple
-            style={{ display: 'none' }}
+            style={{ display: "none" }}
             onChange={handleFileChange}
           />
           <button
             onClick={handleImageUpload}
             disabled={disabled}
             style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#888888',
-              cursor: disabled ? 'not-allowed' : 'pointer',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: 'color 0.2s ease'
+              background: "transparent",
+              border: "none",
+              color: "#888888",
+              cursor: disabled ? "not-allowed" : "pointer",
+              padding: "4px",
+              borderRadius: "4px",
+              transition: "color 0.2s ease",
             }}
-            onMouseEnter={(e) => !disabled && (e.currentTarget.style.color = '#cccccc')}
-            onMouseLeave={(e) => e.currentTarget.style.color = '#888888'}
+            onMouseEnter={(e) => !disabled && (e.currentTarget.style.color = "#cccccc")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#888888")}
             title="Upload image"
           >
-            <CameraOutlined style={{ fontSize: '16px' }} />
+            <CameraOutlined style={{ fontSize: "16px" }} />
           </button>
         </div>
 
@@ -365,13 +378,13 @@ export const InputArea: React.FC<InputAreaProps> = ({
           autoSize={{ minRows: 1, maxRows: 6 }}
           style={{
             flex: 1,
-            background: 'transparent',
-            border: 'none',
-            color: '#cccccc',
-            fontSize: '14px',
-            lineHeight: '1.5',
-            resize: 'none',
-            boxShadow: 'none'
+            background: "transparent",
+            border: "none",
+            color: "#cccccc",
+            fontSize: "14px",
+            lineHeight: "1.5",
+            resize: "none",
+            boxShadow: "none",
           }}
         />
 
@@ -380,76 +393,78 @@ export const InputArea: React.FC<InputAreaProps> = ({
           onClick={handleSend}
           disabled={!inputValue.trim() || disabled}
           style={{
-            background: inputValue.trim() ? '#1890ff' : '#3e3e42',
-            border: 'none',
-            borderRadius: '6px',
-            color: '#ffffff',
-            padding: '8px 12px',
-            cursor: inputValue.trim() ? 'pointer' : 'not-allowed',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '12px',
-            fontWeight: '500'
+            background: inputValue.trim() ? "#1890ff" : "#3e3e42",
+            border: "none",
+            borderRadius: "6px",
+            color: "#ffffff",
+            padding: "8px 12px",
+            cursor: inputValue.trim() ? "pointer" : "not-allowed",
+            transition: "all 0.2s ease",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            fontSize: "12px",
+            fontWeight: "500",
           }}
         >
-          <SendOutlined style={{ fontSize: '14px' }} />
+          <SendOutlined style={{ fontSize: "14px" }} />
           Send
         </button>
       </div>
 
       {/* Image previews */}
       {selectedImages.length > 0 && (
-        <div style={{
-          marginTop: '8px',
-          display: 'flex',
-          gap: '8px',
-          flexWrap: 'wrap',
-          padding: '8px',
-          background: '#2d2d30',
-          borderRadius: '6px',
-          border: '1px solid #3e3e42'
-        }}>
+        <div
+          style={{
+            marginTop: "8px",
+            display: "flex",
+            gap: "8px",
+            flexWrap: "wrap",
+            padding: "8px",
+            background: "#2d2d30",
+            borderRadius: "6px",
+            border: "1px solid #3e3e42",
+          }}
+        >
           {selectedImages.map((image, index) => (
             <div
               key={index}
               style={{
-                position: 'relative',
-                width: '60px',
-                height: '60px',
-                borderRadius: '4px',
-                overflow: 'hidden',
-                border: '1px solid #3e3e42'
+                position: "relative",
+                width: "60px",
+                height: "60px",
+                borderRadius: "4px",
+                overflow: "hidden",
+                border: "1px solid #3e3e42",
               }}
             >
               <img
                 src={image.data}
                 alt={image.name}
                 style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover'
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
                 }}
               />
               <button
                 onClick={() => removeImage(index)}
                 style={{
-                  position: 'absolute',
-                  top: '2px',
-                  right: '2px',
-                  background: 'rgba(0, 0, 0, 0.6)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '18px',
-                  height: '18px',
-                  color: '#ffffff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '12px',
-                  lineHeight: '1'
+                  position: "absolute",
+                  top: "2px",
+                  right: "2px",
+                  background: "rgba(0, 0, 0, 0.6)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "18px",
+                  height: "18px",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "12px",
+                  lineHeight: "1",
                 }}
                 title="Remove image"
               >
@@ -461,12 +476,14 @@ export const InputArea: React.FC<InputAreaProps> = ({
       )}
 
       {/* Helper text */}
-      <div style={{
-        marginTop: '8px',
-        fontSize: '11px',
-        color: '#666666',
-        textAlign: 'center'
-      }}>
+      <div
+        style={{
+          marginTop: "8px",
+          fontSize: "11px",
+          color: "#666666",
+          textAlign: "center",
+        }}
+      >
         Press Enter to send, Shift+Enter for new line
       </div>
     </div>

@@ -1,12 +1,12 @@
-import * as vscode from 'vscode'
-import * as path from 'path'
+import * as vscode from "vscode"
+import * as path from "path"
 
 /**
  * File change information extracted from tool metadata
  */
 export interface ExtractedFileChange {
   filePath: string
-  type: 'create' | 'modify' | 'delete'
+  type: "create" | "modify" | "delete"
   addedLines: number
   removedLines: number
   diff?: string
@@ -24,7 +24,7 @@ export interface ExtractedFileChange {
 export class FileChangeExtractor {
   constructor(
     private outputChannel: vscode.OutputChannel,
-    private sendToWebView: (type: string, data: any) => void
+    private sendToWebView: (type: string, data: any) => void,
   ) {}
 
   /**
@@ -32,14 +32,14 @@ export class FileChangeExtractor {
    * Returns array of file changes or null if no changes found
    */
   extractFromTool(part: any, messageId: string): ExtractedFileChange[] | null {
-    if (part.type !== 'tool') {
+    if (part.type !== "tool") {
       return null
     }
 
     const toolPart = part as any
     const state = toolPart.state
 
-    if (!state || state.status !== 'completed') {
+    if (!state || state.status !== "completed") {
       return null
     }
 
@@ -51,11 +51,11 @@ export class FileChangeExtractor {
     }
 
     switch (toolName) {
-      case 'edit':
+      case "edit":
         return this.extractFromEditTool(part, messageId, metadata)
-      case 'patch':
+      case "patch":
         return this.extractFromPatchTool(part, messageId, metadata)
-      case 'write':
+      case "write":
         return this.extractFromWriteTool(part, messageId, metadata)
       default:
         return null
@@ -66,11 +66,7 @@ export class FileChangeExtractor {
    * Extract file changes from edit tool metadata
    * Edit tool provides: metadata.filediff and metadata.diff
    */
-  private extractFromEditTool(
-    part: any,
-    messageId: string,
-    metadata: any
-  ): ExtractedFileChange[] | null {
+  private extractFromEditTool(part: any, messageId: string, metadata: any): ExtractedFileChange[] | null {
     const filediff = metadata.filediff
     const diff = metadata.diff
 
@@ -89,7 +85,7 @@ export class FileChangeExtractor {
     const removedLines = filediff.deletions || 0
 
     this.outputChannel.appendLine(
-      `📝 Extracted file change: ${normalizedPath} (${changeType}, +${addedLines}/-${removedLines})`
+      `📝 Extracted file change: ${normalizedPath} (${changeType}, +${addedLines}/-${removedLines})`,
     )
 
     return [
@@ -101,10 +97,10 @@ export class FileChangeExtractor {
         diff: diff || undefined,
         originalContent: filediff.before || undefined,
         modifiedContent: filediff.after || undefined,
-        toolName: 'edit',
+        toolName: "edit",
         messageId,
-        partId: part.id
-      }
+        partId: part.id,
+      },
     ]
   }
 
@@ -113,14 +109,10 @@ export class FileChangeExtractor {
    * Patch tool provides: metadata.diff (unified diff format, may contain multiple files)
    * TODO: Parse unified diff to extract individual file changes
    */
-  private extractFromPatchTool(
-    part: any,
-    messageId: string,
-    metadata: any
-  ): ExtractedFileChange[] | null {
+  private extractFromPatchTool(part: any, messageId: string, metadata: any): ExtractedFileChange[] | null {
     const diff = metadata.diff
 
-    if (!diff || typeof diff !== 'string') {
+    if (!diff || typeof diff !== "string") {
       return null
     }
 
@@ -133,11 +125,7 @@ export class FileChangeExtractor {
    * Write tool provides: metadata.exists (file existed before) and metadata.filepath
    * TODO: Calculate diff by reading file content
    */
-  private extractFromWriteTool(
-    part: any,
-    messageId: string,
-    metadata: any
-  ): ExtractedFileChange[] | null {
+  private extractFromWriteTool(part: any, messageId: string, metadata: any): ExtractedFileChange[] | null {
     const filePath = metadata.filepath
     const exists = metadata.exists
 
@@ -152,14 +140,14 @@ export class FileChangeExtractor {
   /**
    * Determine change type based on before/after content
    */
-  private determineChangeType(before: string | undefined, after: string | undefined): 'create' | 'modify' | 'delete' {
-    if (!before || before.trim() === '') {
-      return 'create'
+  private determineChangeType(before: string | undefined, after: string | undefined): "create" | "modify" | "delete" {
+    if (!before || before.trim() === "") {
+      return "create"
     }
-    if (!after || after.trim() === '') {
-      return 'delete'
+    if (!after || after.trim() === "") {
+      return "delete"
     }
-    return 'modify'
+    return "modify"
   }
 
   /**
@@ -169,4 +157,3 @@ export class FileChangeExtractor {
     return path.normalize(filePath)
   }
 }
-

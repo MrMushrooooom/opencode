@@ -1,4 +1,4 @@
-import * as opencode from '@opencode-ai/sdk'
+import * as opencode from "@opencode-ai/sdk"
 
 /**
  * Frontend-compatible type definitions
@@ -28,7 +28,7 @@ export interface FrontendProvider {
 export interface FrontendAgent {
   readonly name: string
   readonly description: string
-  readonly mode: 'plan' | 'build'
+  readonly mode: "plan" | "build"
 }
 
 /**
@@ -44,7 +44,7 @@ export class TypeConverter {
       id: session.id,
       title: session.title,
       createdAt: session.time.created,
-      updatedAt: session.time.updated
+      updatedAt: session.time.updated,
     }
   }
 
@@ -55,7 +55,7 @@ export class TypeConverter {
     return {
       id: model.id,
       name: model.name,
-      providerID: model.providerID
+      providerID: model.providerID,
     }
   }
 
@@ -66,7 +66,7 @@ export class TypeConverter {
     return {
       id: provider.id,
       name: provider.name,
-      models: provider.models.map(model => this.modelToFrontend(model))
+      models: provider.models.map((model) => this.modelToFrontend(model)),
     }
   }
 
@@ -77,20 +77,20 @@ export class TypeConverter {
     return {
       name: agent.name,
       description: agent.description,
-      mode: agent.mode as 'plan' | 'build'
+      mode: agent.mode as "plan" | "build",
     }
   }
 
   static sessionsToFrontend(sessions: readonly opencode.Session[]): readonly FrontendSession[] {
-    return sessions.map(session => this.sessionToFrontend(session))
+    return sessions.map((session) => this.sessionToFrontend(session))
   }
 
   static providersToFrontend(providers: readonly opencode.Provider[]): readonly FrontendProvider[] {
-    return providers.map(provider => this.providerToFrontend(provider))
+    return providers.map((provider) => this.providerToFrontend(provider))
   }
 
   static agentsToFrontend(agents: readonly opencode.Agent[]): readonly FrontendAgent[] {
-    return agents.map(agent => this.agentToFrontend(agent))
+    return agents.map((agent) => this.agentToFrontend(agent))
   }
 
   /**

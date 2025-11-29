@@ -1,9 +1,20 @@
-import React from 'react'
-import { Layout, Typography, Space, Button, Card } from 'antd'
-import { useAppStore, useSessions, useCurrentSession, useMessages, useStreaming, useMode, useStatus, useCurrentProvider, useCurrentModel, useCurrentPermission } from './store'
-import { webViewService } from './services/webviewService'
-import { ChatArea } from './components/Chat/ChatArea'
-import { InputArea } from './components/Chat/InputArea'
+import React from "react"
+import { Layout, Typography, Space, Button, Card } from "antd"
+import {
+  useAppStore,
+  useSessions,
+  useCurrentSession,
+  useMessages,
+  useStreaming,
+  useMode,
+  useStatus,
+  useCurrentProvider,
+  useCurrentModel,
+  useCurrentPermission,
+} from "./store"
+import { webViewService } from "./services/webviewService"
+import { ChatArea } from "./components/Chat/ChatArea"
+import { InputArea } from "./components/Chat/InputArea"
 
 const { Content } = Layout
 
@@ -16,28 +27,28 @@ export const App: React.FC = () => {
   const currentSession = useCurrentSession()
   const messages = useMessages()
   const { isStreaming } = useStreaming()
-  const queuedMessages = useAppStore(state => state.queuedMessages)
+  const queuedMessages = useAppStore((state) => state.queuedMessages)
   const mode = useMode()
   const status = useStatus()
   const currentProvider = useCurrentProvider()
   const currentModel = useCurrentModel()
   const currentPermission = useCurrentPermission()
-  
+
   // Get store methods using proper Zustand pattern
-  const setCurrentSession = useAppStore(state => state.setCurrentSession)
-  const setMode = useAppStore(state => state.setMode)
-  const setStatus = useAppStore(state => state.setStatus)
-  const setError = useAppStore(state => state.setError)
-  const setStreaming = useAppStore(state => state.setStreaming)
-  const addMessage = useAppStore(state => state.addMessage)
-  const updateMessage = useAppStore(state => state.updateMessage)
-  const updateMessagePart = useAppStore(state => state.updateMessagePart)
-  const setCurrentPermission = useAppStore(state => state.setCurrentPermission)
-  const removePermission = useAppStore(state => state.removePermission)
-  const setUndoRedoState = useAppStore(state => state.setUndoRedoState)
+  const setCurrentSession = useAppStore((state) => state.setCurrentSession)
+  const setMode = useAppStore((state) => state.setMode)
+  const setStatus = useAppStore((state) => state.setStatus)
+  const setError = useAppStore((state) => state.setError)
+  const setStreaming = useAppStore((state) => state.setStreaming)
+  const addMessage = useAppStore((state) => state.addMessage)
+  const updateMessage = useAppStore((state) => state.updateMessage)
+  const updateMessagePart = useAppStore((state) => state.updateMessagePart)
+  const setCurrentPermission = useAppStore((state) => state.setCurrentPermission)
+  const removePermission = useAppStore((state) => state.removePermission)
+  const setUndoRedoState = useAppStore((state) => state.setUndoRedoState)
 
   // Notification state for small messages above input
-  const [notification, setNotification] = React.useState<{ message: string; type: 'info' | 'warning' } | null>(null)
+  const [notification, setNotification] = React.useState<{ message: string; type: "info" | "warning" } | null>(null)
 
   // Initialize message handling
   React.useEffect(() => {
@@ -49,22 +60,23 @@ export const App: React.FC = () => {
        */
       const clearStreamingState = () => {
         setStreaming(false)
-        setStatus('ready')
+        setStatus("ready")
         useAppStore.getState().updateQueuedMessages()
       }
 
       switch (message.type) {
-        case 'sessionsLoaded':
-          const loadedSessions = message.data.sessions && Array.isArray(message.data.sessions) ? message.data.sessions : []
+        case "sessionsLoaded":
+          const loadedSessions =
+            message.data.sessions && Array.isArray(message.data.sessions) ? message.data.sessions : []
           useAppStore.getState().setSessions(loadedSessions)
           break
-          
-        case 'sessionCreated':
+
+        case "sessionCreated":
           useAppStore.getState().addSession(message.data.session)
           setCurrentSession(message.data.session)
           break
-        
-        case 'sessionUpdated':
+
+        case "sessionUpdated":
           // Update specific session in the list
           // message.data format: { sessionId, updates: { title? } }
           if (message.data?.sessionId && message.data?.updates) {
@@ -72,14 +84,14 @@ export const App: React.FC = () => {
             // No need to update individual session here
           }
           break
-          
-        case 'sessionSwitched':
+
+        case "sessionSwitched":
           setCurrentSession(message.data.session)
           // Ensure messages is an array
           const messages = message.data.messages || []
           webViewService.sendMessage({
-            type: 'debug',
-            data: { message: `[Frontend] sessionSwitched: received ${messages.length} messages` }
+            type: "debug",
+            data: { message: `[Frontend] sessionSwitched: received ${messages.length} messages` },
           })
           useAppStore.getState().setMessages(messages)
           // Scroll to bottom after session switch
@@ -90,13 +102,14 @@ export const App: React.FC = () => {
             }
           }, 100)
           break
-          
-        case 'messagesLoaded':
-          const loadedMessages = message.data?.messages && Array.isArray(message.data.messages) ? message.data.messages : []
+
+        case "messagesLoaded":
+          const loadedMessages =
+            message.data?.messages && Array.isArray(message.data.messages) ? message.data.messages : []
           useAppStore.getState().setMessages(loadedMessages)
           break
-          
-        case 'permissionRequest':
+
+        case "permissionRequest":
           // Handle permission request from backend
           const permission = message.data.permission || message.data
           if (permission && permission.id) {
@@ -104,8 +117,8 @@ export const App: React.FC = () => {
             setCurrentPermission(permission)
           }
           break
-          
-        case 'permissionReplied':
+
+        case "permissionReplied":
           // Handle permission replied event - remove the permission
           const permissionID = message.data?.permissionID || message.data?.id
           if (permissionID) {
@@ -115,22 +128,22 @@ export const App: React.FC = () => {
             }
           }
           break
-          
-        case 'messageAdded':
+
+        case "messageAdded":
           addMessage(message.data.message)
           // Check if this message should be queued
-          if (message.data.message.info.role === 'user') {
+          if (message.data.message.info.role === "user") {
             const { updateQueuedMessages } = useAppStore.getState()
             updateQueuedMessages()
           }
           break
-          
-        case 'messageUpdated':
+
+        case "messageUpdated":
           // Update or add message with full data from backend
           if (message.data.message) {
             const { messages } = useAppStore.getState()
-            const existingMessage = messages.find(m => m.info.id === message.data.messageId)
-            
+            const existingMessage = messages.find((m) => m.info.id === message.data.messageId)
+
             if (existingMessage) {
               // Update existing message
               updateMessage(message.data.messageId, message.data.message)
@@ -138,19 +151,19 @@ export const App: React.FC = () => {
               // Add new message
               addMessage(message.data.message)
             }
-            
+
             // Recalculate queued messages when messages are updated
             // This ensures queued status is correct when assistant messages are created/updated
             useAppStore.getState().updateQueuedMessages()
           }
           break
-          
-        case 'messagePartUpdated':
+
+        case "messagePartUpdated":
           // Handle part updates (for bash output, tool results, etc.)
           if (message.data.message) {
             const { messages } = useAppStore.getState()
-            const existingMessage = messages.find(m => m.info.id === message.data.messageId)
-            
+            const existingMessage = messages.find((m) => m.info.id === message.data.messageId)
+
             if (existingMessage) {
               // Update message with new part data
               updateMessage(message.data.messageId, message.data.message)
@@ -158,29 +171,29 @@ export const App: React.FC = () => {
               // Add new message if it doesn't exist yet
               addMessage(message.data.message)
             }
-            
+
             // Recalculate queued messages when assistant messages are updated
             useAppStore.getState().updateQueuedMessages()
           }
           break
-          
-        case 'streamingStarted':
+
+        case "streamingStarted":
           // No longer needed - MessageItem handles "Generating..." display
           break
-          
-        case 'streamingCompleted':
+
+        case "streamingCompleted":
           clearStreamingState()
           break
-          
-        case 'sessionIdle':
+
+        case "sessionIdle":
           clearStreamingState()
           break
-          
-        case 'providersLoaded':
+
+        case "providersLoaded":
           useAppStore.getState().setProviders(message.data.providers)
           break
-          
-        case 'modelChanged':
+
+        case "modelChanged":
           // Update both provider and model to maintain consistency
           // Provider may change when switching models (e.g., anthropic -> opencode)
           if (message.data.provider !== undefined) {
@@ -190,36 +203,41 @@ export const App: React.FC = () => {
             useAppStore.getState().setCurrentModel(message.data.model)
           }
           break
-          
-        case 'modeChanged':
+
+        case "modeChanged":
           setMode(message.data.mode)
           break
-          
-        case 'undoRedoStateUpdated':
+
+        case "undoRedoStateUpdated":
           setUndoRedoState(message.data.canUndo, message.data.canRedo)
           break
-          
-        case 'error':
+
+        case "error":
           // Handle both formats: { data: { error: ... } } and { error: ... }
-          const errorMessage = message.data?.error || message.error || message.data?.message || message.message || 'An error occurred'
-          
-          setNotification({ 
-            message: errorMessage, 
-            type: 'info' 
+          const errorMessage =
+            message.data?.error || message.error || message.data?.message || message.message || "An error occurred"
+
+          setNotification({
+            message: errorMessage,
+            type: "info",
           })
           setTimeout(() => setNotification(null), 4000)
-          
+
           // Mark the last empty assistant message as completed to hide "Generating..."
           // Use getState() to get the latest messages, not the closure value
           const currentMessages = useAppStore.getState().messages
           const lastAssistantMessage = [...currentMessages]
             .reverse()
-            .find(msg => msg.info.role === 'assistant' && 
-              (!msg.info.time.completed || msg.info.time.completed === 0) &&
-              (msg.parts.length === 0 || !msg.parts.some((part: any) => 
-                part.type === 'text' || part.type === 'reasoning' || part.type === 'tool'
-              )))
-          
+            .find(
+              (msg) =>
+                msg.info.role === "assistant" &&
+                (!msg.info.time.completed || msg.info.time.completed === 0) &&
+                (msg.parts.length === 0 ||
+                  !msg.parts.some(
+                    (part: any) => part.type === "text" || part.type === "reasoning" || part.type === "tool",
+                  )),
+            )
+
           if (lastAssistantMessage) {
             // Mark message as completed by setting time.completed to current timestamp
             const now = Date.now() / 1000
@@ -229,20 +247,20 @@ export const App: React.FC = () => {
                 ...lastAssistantMessage.info,
                 time: {
                   ...lastAssistantMessage.info.time,
-                  completed: now
-                }
-              }
+                  completed: now,
+                },
+              },
             })
           }
-          
+
           clearStreamingState()
           break
-          
-        case 'statusUpdate':
+
+        case "statusUpdate":
           setStatus(message.data.status)
           break
-          
-        case 'stateUpdate':
+
+        case "stateUpdate":
           // Update the entire state from backend
           const state = message.data.state
           useAppStore.getState().setProviders(state.providers)
@@ -258,8 +276,8 @@ export const App: React.FC = () => {
             useAppStore.getState().setError(state.error)
           }
           break
-          
-        case 'modelsUpdate':
+
+        case "modelsUpdate":
           // Update models list - models is already a flat array from getAvailableModels()
           // We need to group them by provider
           const providersMap = new Map()
@@ -270,7 +288,7 @@ export const App: React.FC = () => {
                 providersMap.set(model.providerId, {
                   id: model.providerId,
                   name: model.providerName || model.providerId, // Fallback to providerId if name missing
-                  models: {}
+                  models: {},
                 })
               }
               providersMap.get(model.providerId).models[model.id] = model
@@ -278,72 +296,80 @@ export const App: React.FC = () => {
           }
           useAppStore.getState().setProviders(Array.from(providersMap.values()))
           break
-          
-        case 'sessionsUpdate':
+
+        case "sessionsUpdate":
           // Update sessions list
-          const sessions = message.data && message.data.sessions && Array.isArray(message.data.sessions) ? message.data.sessions : []
+          const sessions =
+            message.data && message.data.sessions && Array.isArray(message.data.sessions) ? message.data.sessions : []
           useAppStore.getState().setSessions(sessions)
           break
 
-        case 'revertConfirmationResult':
+        case "revertConfirmationResult":
           // Handle revert confirmation result from VSCode native dialog
-          if (message.data?.requestId && message.data?.sessionId && message.data?.messageId && message.data?.content !== undefined && message.data?.mode && message.data?.selection) {
+          if (
+            message.data?.requestId &&
+            message.data?.sessionId &&
+            message.data?.messageId &&
+            message.data?.content !== undefined &&
+            message.data?.mode &&
+            message.data?.selection
+          ) {
             const { requestId, sessionId, messageId, content, mode, selection } = message.data
-            
+
             // Only proceed if user didn't cancel
-            if (selection !== 'Cancel') {
-              const shouldRevert = selection === 'Continue and revert'
-              
+            if (selection !== "Cancel") {
+              const shouldRevert = selection === "Continue and revert"
+
               // Send revertToMessage request
               webViewService.sendMessage({
-                type: 'revertToMessage',
+                type: "revertToMessage",
                 data: {
                   sessionId,
                   messageId,
                   content,
                   shouldRevert,
-                  mode
-                }
+                  mode,
+                },
               })
             }
-            
+
             // Notify MessageItem that confirmation is complete (for cleanup)
             // This is handled by the component's internal state management
           }
           break
-          
+
         default:
-          console.warn('Unknown message type:', message.type)
+          console.warn("Unknown message type:", message.type)
       }
     }
 
     webViewService.onMessage(handleMessage)
-    
+
     // Request initial data
-    webViewService.sendMessage({ type: 'initialize' })
+    webViewService.sendMessage({ type: "initialize" })
   }, [])
 
   const handleSendPrompt = (text: string) => {
     if (!text.trim() || isStreaming) return
-    
-    setStatus('sending')
+
+    setStatus("sending")
     webViewService.sendUserPrompt(text, mode)
   }
 
-  const handleModeChange = (newMode: 'plan' | 'build') => {
+  const handleModeChange = (newMode: "plan" | "build") => {
     setMode(newMode)
     webViewService.sendMessage({
-      type: 'changeMode',
-      data: { mode: newMode }
+      type: "changeMode",
+      data: { mode: newMode },
     })
   }
 
-  const handlePermissionRespond = (response: 'once' | 'always' | 'reject') => {
+  const handlePermissionRespond = (response: "once" | "always" | "reject") => {
     if (!currentPermission) return
-    
-    const sessionID = currentSession?.id || ''
+
+    const sessionID = currentSession?.id || ""
     const permissionID = currentPermission.id
-    
+
     // Send response to backend
     // The permission will be removed when permission.replied event is received
     webViewService.respondToPermission(sessionID, permissionID, response)
@@ -351,51 +377,54 @@ export const App: React.FC = () => {
 
   return (
     <>
-      <Layout style={{ height: '100vh', background: '#1e1e1e' }}>
-      <Content style={{ 
-        background: '#1e1e1e',
-        padding: '16px',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-        {/* Chat Area */}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <ChatArea 
-            messages={messages}
-            isStreaming={isStreaming}
-            currentSession={currentSession}
-            queuedMessages={queuedMessages}
-          />
-        </div>
-
-        {/* Small notification above input */}
-        {notification && (
-          <div style={{
-            marginBottom: '8px',
-            padding: '4px 10px',
-            background: '#2d2d30',
-            border: '1px solid #3e3e42',
-            borderRadius: '3px',
-            color: '#cccccc',
-            fontSize: '11px',
-            textAlign: 'center'
-          }}>
-            {notification.message}
+      <Layout style={{ height: "100vh", background: "#1e1e1e" }}>
+        <Content
+          style={{
+            background: "#1e1e1e",
+            padding: "16px",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Chat Area */}
+          <div style={{ flex: 1, overflow: "hidden" }}>
+            <ChatArea
+              messages={messages}
+              isStreaming={isStreaming}
+              currentSession={currentSession}
+              queuedMessages={queuedMessages}
+            />
           </div>
-        )}
 
-        {/* Input Area */}
-        <InputArea
-          onSendPrompt={handleSendPrompt}
-          mode={mode}
-          onModeChange={handleModeChange}
-          disabled={false}
-          status={status}
-        />
-      </Content>
-    </Layout>
+          {/* Small notification above input */}
+          {notification && (
+            <div
+              style={{
+                marginBottom: "8px",
+                padding: "4px 10px",
+                background: "#2d2d30",
+                border: "1px solid #3e3e42",
+                borderRadius: "3px",
+                color: "#cccccc",
+                fontSize: "11px",
+                textAlign: "center",
+              }}
+            >
+              {notification.message}
+            </div>
+          )}
 
+          {/* Input Area */}
+          <InputArea
+            onSendPrompt={handleSendPrompt}
+            mode={mode}
+            onModeChange={handleModeChange}
+            disabled={false}
+            status={status}
+          />
+        </Content>
+      </Layout>
     </>
   )
 }

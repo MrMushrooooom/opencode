@@ -1,5 +1,5 @@
-import React from 'react'
-import { Modal } from 'antd'
+import React from "react"
+import { Modal } from "antd"
 
 interface ImagePreviewModalProps {
   visible: boolean
@@ -13,13 +13,7 @@ interface ImagePreviewModalProps {
  * Image preview modal component for displaying full-size images
  * Shows a large image in a modal with click-to-close functionality
  */
-export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
-  visible,
-  src,
-  alt,
-  filename,
-  onClose
-}) => {
+export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ visible, src, alt, filename, onClose }) => {
   const handleCancel = () => {
     onClose()
   }
@@ -32,43 +26,43 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
       centered
       width="90vw"
       style={{
-        maxWidth: '1200px'
+        maxWidth: "1200px",
       }}
       styles={{
         body: {
-          padding: '20px',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          background: '#1e1e1e'
-        }
+          padding: "20px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          background: "#1e1e1e",
+        },
       }}
     >
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          maxWidth: '100%'
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          maxWidth: "100%",
         }}
       >
         <img
           src={src}
-          alt={alt || filename || 'Image'}
+          alt={alt || filename || "Image"}
           style={{
-            maxWidth: '100%',
-            maxHeight: '80vh',
-            objectFit: 'contain',
-            borderRadius: '8px'
+            maxWidth: "100%",
+            maxHeight: "80vh",
+            objectFit: "contain",
+            borderRadius: "8px",
           }}
         />
         {filename && (
           <div
             style={{
-              marginTop: '12px',
-              color: '#888888',
-              fontSize: '12px',
-              textAlign: 'center'
+              marginTop: "12px",
+              color: "#888888",
+              fontSize: "12px",
+              textAlign: "center",
             }}
           >
             {filename}
@@ -78,4 +72,3 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
     </Modal>
   )
 }
-

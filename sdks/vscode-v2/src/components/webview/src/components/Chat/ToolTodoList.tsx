@@ -1,126 +1,133 @@
-import React from 'react'
+import React from "react"
 
 interface Todo {
   id: string
   content: string
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+  status: "pending" | "in_progress" | "completed" | "cancelled"
   priority?: string
 }
 
 interface ToolTodoListProps {
   todos: Todo[]
-  toolStatus: 'pending' | 'running' | 'completed' | 'error'
+  toolStatus: "pending" | "running" | "completed" | "error"
 }
 
 export const ToolTodoList: React.FC<ToolTodoListProps> = ({ todos, toolStatus }) => {
   if (!todos || todos.length === 0) {
     return (
-      <div style={{
-        padding: '12px',
-        color: '#888888',
-        fontSize: '12px'
-      }}>
+      <div
+        style={{
+          padding: "12px",
+          color: "#888888",
+          fontSize: "12px",
+        }}
+      >
         No tasks
       </div>
     )
   }
 
   const shouldShowBlink = (todoStatus: string): boolean => {
-    return todoStatus === 'in_progress' && 
-           (toolStatus === 'pending' || toolStatus === 'running')
+    return todoStatus === "in_progress" && (toolStatus === "pending" || toolStatus === "running")
   }
 
-  const hasBlinkingTodo = todos.some(todo => shouldShowBlink(todo.status))
+  const hasBlinkingTodo = todos.some((todo) => shouldShowBlink(todo.status))
 
   const getStatusIcon = (status: string): React.ReactNode => {
     switch (status) {
-      case 'completed':
-        return '✓'
-      case 'in_progress':
+      case "completed":
+        return "✓"
+      case "in_progress":
         // Use CSS to create circle with inner dot
         return (
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '12px',
-            height: '12px',
-            border: '1px solid #cccccc',
-            borderRadius: '50%',
-            position: 'relative'
-          }}>
-            <span style={{
-              width: '4px',
-              height: '4px',
-              backgroundColor: '#cccccc',
-              borderRadius: '50%',
-              display: 'block'
-            }} />
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "12px",
+              height: "12px",
+              border: "1px solid #cccccc",
+              borderRadius: "50%",
+              position: "relative",
+            }}
+          >
+            <span
+              style={{
+                width: "4px",
+                height: "4px",
+                backgroundColor: "#cccccc",
+                borderRadius: "50%",
+                display: "block",
+              }}
+            />
           </span>
         )
-      case 'cancelled':
-        return '⊘'
+      case "cancelled":
+        return "⊘"
       default:
-        return '○'
+        return "○"
     }
   }
 
   const getStatusStyle = (status: string) => {
     const baseStyle: React.CSSProperties = {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      padding: '4px 8px',
-      marginBottom: '4px',
-      borderRadius: '2px',
-      fontSize: '12px',
-      lineHeight: '20px'
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "4px 8px",
+      marginBottom: "4px",
+      borderRadius: "2px",
+      fontSize: "12px",
+      lineHeight: "20px",
     }
 
     switch (status) {
-      case 'completed':
+      case "completed":
         return {
           ...baseStyle,
-          color: '#666666',
-          textDecoration: 'line-through'
+          color: "#666666",
+          textDecoration: "line-through",
         }
-      case 'in_progress':
+      case "in_progress":
         return {
           ...baseStyle,
-          color: '#cccccc',
-          backgroundColor: 'transparent'
+          color: "#cccccc",
+          backgroundColor: "transparent",
         }
-      case 'cancelled':
+      case "cancelled":
         return {
           ...baseStyle,
-          color: '#666666',
-          textDecoration: 'line-through'
+          color: "#666666",
+          textDecoration: "line-through",
         }
       default:
         return {
           ...baseStyle,
-          color: '#666666'
+          color: "#666666",
         }
     }
   }
 
   const getIconColor = (status: string): string => {
     switch (status) {
-      case 'completed':
-        return '#52c41a'
-      case 'in_progress':
-        return '#cccccc'
-      case 'cancelled':
-        return '#888888'
+      case "completed":
+        return "#52c41a"
+      case "in_progress":
+        return "#cccccc"
+      case "cancelled":
+        return "#888888"
       default:
-        return '#888888'
+        return "#888888"
     }
   }
 
   return (
-    <div style={{
-      padding: '12px'
-    }}>
+    <div
+      style={{
+        padding: "12px",
+      }}
+    >
       {todos.map((todo) => {
         const statusStyle = getStatusStyle(todo.status)
         const iconColor = getIconColor(todo.status)
@@ -131,25 +138,29 @@ export const ToolTodoList: React.FC<ToolTodoListProps> = ({ todos, toolStatus })
             key={todo.id}
             style={{
               ...statusStyle,
-              animation: shouldBlink ? 'blink 2s ease-in-out infinite' : 'none'
+              animation: shouldBlink ? "blink 2s ease-in-out infinite" : "none",
             }}
           >
-            <span style={{
-              color: iconColor,
-              fontSize: '14px',
-              fontWeight: 'bold',
-              minWidth: '16px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              animation: shouldBlink ? 'blink 2s ease-in-out infinite' : 'none'
-            }}>
+            <span
+              style={{
+                color: iconColor,
+                fontSize: "14px",
+                fontWeight: "bold",
+                minWidth: "16px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                animation: shouldBlink ? "blink 2s ease-in-out infinite" : "none",
+              }}
+            >
               {getStatusIcon(todo.status)}
             </span>
-            <span style={{
-              flex: 1,
-              wordBreak: 'break-word'
-            }}>
+            <span
+              style={{
+                flex: 1,
+                wordBreak: "break-word",
+              }}
+            >
               {todo.content}
             </span>
           </div>
@@ -167,4 +178,3 @@ export const ToolTodoList: React.FC<ToolTodoListProps> = ({ todos, toolStatus })
     </div>
   )
 }
-

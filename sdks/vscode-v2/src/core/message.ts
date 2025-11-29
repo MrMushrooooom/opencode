@@ -1,34 +1,32 @@
-import * as opencode from '@opencode-ai/sdk'
-import type { MessageStruct, Prompt } from '../types/app'
-import { IdGenerator } from './idGenerator'
+import * as opencode from "@opencode-ai/sdk"
+import type { MessageStruct, Prompt } from "../types/app"
+import { IdGenerator } from "./idGenerator"
 
 /**
  * Message conversion utilities for transforming between different message formats
  * Converts between Prompt, MessageStruct, and session parameters
  */
 export class MessageConverter {
-
   /**
    * Convert Prompt to MessageStruct with text and file attachments
    */
   static async promptToMessage(prompt: Prompt, messageId: string, sessionId: string): Promise<MessageStruct> {
-    
     const now = Date.now()
-    
+
     const messageInfo: any = {
       id: messageId,
       sessionID: sessionId,
-      role: 'user',
+      role: "user",
       time: {
-        created: now / 1000
-      }
+        created: now / 1000,
+      },
     }
 
     let text = prompt.text
-    const textAttachments = prompt.attachments.filter(att => att.type === 'text')
-    
+    const textAttachments = prompt.attachments.filter((att) => att.type === "text")
+
     textAttachments.sort((a, b) => a.startIndex - b.startIndex)
-    
+
     for (const att of textAttachments) {
       if (att.startIndex > att.endIndex || att.endIndex > text.length) {
         continue
@@ -41,33 +39,33 @@ export class MessageConverter {
         id: IdGenerator.generatePartId(),
         messageID: messageId,
         sessionID: sessionId,
-            type: 'text',
+        type: "text",
         text: text,
         synthetic: false,
         time: {
           start: now / 1000,
-          end: now / 1000
-        }
-      }
+          end: now / 1000,
+        },
+      },
     ]
 
     for (const attachment of prompt.attachments) {
-      if (attachment.type === 'text') {
+      if (attachment.type === "text") {
         continue // Already processed above
       }
 
-      if (attachment.type === 'agent') {
+      if (attachment.type === "agent") {
         parts.push({
           id: IdGenerator.generatePartId(),
           messageID: messageId,
           sessionID: sessionId,
-          type: 'agent',
-          name: attachment.name || 'agent',
+          type: "agent",
+          name: attachment.name || "agent",
           source: {
             value: attachment.display,
             start: attachment.startIndex,
-            end: attachment.endIndex
-          }
+            end: attachment.endIndex,
+          },
         } as opencode.AgentPart)
         continue
       }
@@ -77,38 +75,38 @@ export class MessageConverter {
         id: IdGenerator.generatePartId(),
         messageID: messageId,
         sessionID: sessionId,
-        type: 'file',
+        type: "file",
         filename: attachment.filename || attachment.display,
-        mime: attachment.mimeType || 'text/plain',
-        url: attachment.url || ''
+        mime: attachment.mimeType || "text/plain",
+        url: attachment.url || "",
       }
 
       // Only set source for local file references (path is not empty)
       // Uploaded images (path is empty) don't need source
       if (attachment.path) {
         filePart.source = {
-          type: attachment.type === 'symbol' ? 'symbol' : 'file',
+          type: attachment.type === "symbol" ? "symbol" : "file",
           path: attachment.path,
           text: {
             start: attachment.startIndex,
             end: attachment.endIndex,
-            value: attachment.display
-          }
+            value: attachment.display,
+          },
         }
 
         // Add symbol-specific fields
-        if (attachment.type === 'symbol' && attachment.symbolInfo) {
+        if (attachment.type === "symbol" && attachment.symbolInfo) {
           filePart.source.kind = attachment.symbolInfo.kind
           filePart.source.name = attachment.symbolInfo.name
           filePart.source.range = {
             start: {
               line: attachment.symbolInfo.range.start.line,
-              character: attachment.symbolInfo.range.start.character
+              character: attachment.symbolInfo.range.start.character,
             },
             end: {
               line: attachment.symbolInfo.range.end.line,
-              character: attachment.symbolInfo.range.end.character
-      }
+              character: attachment.symbolInfo.range.end.character,
+            },
           }
         }
       }
@@ -118,7 +116,7 @@ export class MessageConverter {
 
     return {
       info: messageInfo,
-      parts: parts
+      parts: parts,
     }
   }
 
@@ -126,28 +124,28 @@ export class MessageConverter {
    * Convert MessageStruct to Prompt: extracts text and attachments
    */
   static messageToPrompt(message: MessageStruct): Prompt | null {
-    if (message.info.role !== 'user') {
+    if (message.info.role !== "user") {
       return null
     }
 
-    let text = ''
+    let text = ""
     const attachments: opencode.File[] = []
 
     for (const part of message.parts) {
       switch (part.type) {
-        case 'text':
+        case "text":
           const textPart = part as opencode.TextPart
           if (!textPart.synthetic) {
-            text += textPart.text + ' '
+            text += textPart.text + " "
           }
           break
 
-        case 'agent':
+        case "agent":
           const agentPart = part as opencode.AgentPart
           attachments.push({
-            type: 'agent',
-            path: '',
-            status: 'modified',
+            type: "agent",
+            path: "",
+            status: "modified",
             added: 0,
             removed: 0,
             display: agentPart.source.value,
@@ -155,21 +153,21 @@ export class MessageConverter {
             endIndex: agentPart.source.end,
             name: agentPart.name,
             filename: agentPart.name,
-            mimeType: 'text/plain',
-            url: ''
+            mimeType: "text/plain",
+            url: "",
           })
           break
 
-        case 'file':
+        case "file":
           const filePart = part as opencode.FilePart
-          
+
           // Handle uploaded images (no source) vs local file references (with source)
           if (!filePart.source || !filePart.source.path) {
             // Uploaded image: use URL as display, empty path
             const attachment: opencode.File = {
-              type: 'file',
-              path: '',
-              status: 'modified',
+              type: "file",
+              path: "",
+              status: "modified",
               added: 0,
               removed: 0,
               display: filePart.url || filePart.filename,
@@ -177,17 +175,17 @@ export class MessageConverter {
               endIndex: 0,
               filename: filePart.filename,
               mimeType: filePart.mime,
-              url: filePart.url
+              url: filePart.url,
             }
             attachments.push(attachment)
             break
           }
-          
+
           // Local file reference: include source information
           const attachment: opencode.File = {
-            type: filePart.source.type === 'symbol' ? 'symbol' : 'file',
+            type: filePart.source.type === "symbol" ? "symbol" : "file",
             path: filePart.source.path,
-            status: 'modified',
+            status: "modified",
             added: 0,
             removed: 0,
             display: filePart.source.text.value,
@@ -195,24 +193,24 @@ export class MessageConverter {
             endIndex: filePart.source.text.end,
             filename: filePart.filename,
             mimeType: filePart.mime,
-            url: filePart.url
-  }
+            url: filePart.url,
+          }
 
           // Add symbol-specific information
-          if (filePart.source.type === 'symbol') {
+          if (filePart.source.type === "symbol") {
             attachment.symbolInfo = {
-              name: filePart.source.name || '',
+              name: filePart.source.name || "",
               kind: filePart.source.kind || 0,
               range: {
                 start: {
                   line: filePart.source.range?.start.line || 0,
-                  character: filePart.source.range?.start.character || 0
+                  character: filePart.source.range?.start.character || 0,
                 },
                 end: {
                   line: filePart.source.range?.end.line || 0,
-                  character: filePart.source.range?.end.character || 0
-                }
-              }
+                  character: filePart.source.range?.end.character || 0,
+                },
+              },
             }
           }
 
@@ -223,7 +221,7 @@ export class MessageConverter {
 
     return {
       text: text.trim(),
-      attachments: attachments
+      attachments: attachments,
     }
   }
 
@@ -235,116 +233,118 @@ export class MessageConverter {
 
     for (const part of message.parts) {
       switch (part.type) {
-        case 'text':
+        case "text":
           const textPart = part as opencode.TextPart
           parts.push({
             id: textPart.id,
-            type: 'text',
+            type: "text",
             text: textPart.text,
             synthetic: textPart.synthetic,
             time: {
               start: textPart.time.start,
-              end: textPart.time.end
-            }
+              end: textPart.time.end,
+            },
           } as opencode.TextPartInput)
           break
 
-        case 'file':
+        case "file":
           const filePart = part as opencode.FilePart
-          
+
           // Handle uploaded images (no source) vs local file references (with source)
           if (!filePart.source || !filePart.source.path) {
             // Uploaded image: follow ACP Agent implementation
             // Reference: packages/opencode/src/acp/agent.ts:505-511
             // ACP Agent only sets: type, url, mime (no id, no filename, no source)
-            
+
             // Validate data URL format: data:[mime];base64,[data]
-            if (!filePart.url || !filePart.url.startsWith('data:')) {
+            if (!filePart.url || !filePart.url.startsWith("data:")) {
               throw new Error(`Invalid data URL format for uploaded image: URL must start with "data:"`)
             }
-            
+
             const dataUrlMatch = filePart.url.match(/^data:([^;]+);base64,(.+)$/)
             if (!dataUrlMatch) {
-              throw new Error(`Invalid data URL format for uploaded image: expected "data:[mime];base64,[data]", got: ${filePart.url.substring(0, 100)}...`)
+              throw new Error(
+                `Invalid data URL format for uploaded image: expected "data:[mime];base64,[data]", got: ${filePart.url.substring(0, 100)}...`,
+              )
             }
-            
+
             const [, urlMime, base64Data] = dataUrlMatch
-            
+
             // Use MIME type from data URL (detected from actual image content)
             // This ensures the MIME type matches the actual image format
             const actualMime = urlMime || filePart.mime
-            
+
             const filePartInput: opencode.FilePartInput = {
-              type: 'file',
+              type: "file",
               mime: actualMime,
-              url: filePart.url
+              url: filePart.url,
               // No id field (ACP Agent doesn't set it)
               // No filename field (ACP Agent doesn't set it)
               // No source field (ACP Agent doesn't set it)
             }
-            
+
             parts.push(filePartInput)
             break
           }
-          
+
           // Local file reference: include source
           let source: opencode.FilePartSourceUnionParam
 
-          if (filePart.source.type === 'file') {
+          if (filePart.source.type === "file") {
             source = {
-              type: 'file',
+              type: "file",
               path: filePart.source.path,
               text: {
                 start: filePart.source.text.start,
                 end: filePart.source.text.end,
-                value: filePart.source.text.value
-              }
+                value: filePart.source.text.value,
+              },
             } as opencode.FileSourceParam
-        } else {
+          } else {
             source = {
-              type: 'symbol',
+              type: "symbol",
               path: filePart.source.path,
-              name: filePart.source.name || '',
+              name: filePart.source.name || "",
               kind: filePart.source.kind || 0,
               range: {
                 start: {
                   line: filePart.source.range?.start.line || 0,
-                  character: filePart.source.range?.start.character || 0
+                  character: filePart.source.range?.start.character || 0,
                 },
                 end: {
                   line: filePart.source.range?.end.line || 0,
-                  character: filePart.source.range?.end.character || 0
-                }
+                  character: filePart.source.range?.end.character || 0,
+                },
               },
               text: {
                 start: filePart.source.text.start,
                 end: filePart.source.text.end,
-                value: filePart.source.text.value
-              }
+                value: filePart.source.text.value,
+              },
             } as opencode.SymbolSourceParam
           }
 
           parts.push({
             id: filePart.id,
-            type: 'file',
+            type: "file",
             mime: filePart.mime,
             url: filePart.url,
             filename: filePart.filename,
-            source: source
+            source: source,
           } as opencode.FilePartInput)
           break
 
-        case 'agent':
+        case "agent":
           const agentPart = part as opencode.AgentPart
           parts.push({
             id: agentPart.id,
-            type: 'agent',
+            type: "agent",
             name: agentPart.name,
             source: {
               value: agentPart.source.value,
               start: agentPart.source.start,
-              end: agentPart.source.end
-            }
+              end: agentPart.source.end,
+            },
           } as opencode.AgentPartInput)
           break
       }

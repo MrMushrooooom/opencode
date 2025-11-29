@@ -1,4 +1,4 @@
-import { WebViewMessage, WebViewService } from '../types'
+import { WebViewMessage, WebViewService } from "../types"
 
 /**
  * WebView communication service
@@ -12,15 +12,15 @@ class WebViewServiceImpl implements WebViewService {
   constructor() {
     // Initialize VSCode API - use existing instance if available
     this.vscode = (window as any).vscodeAPI || (window as any).acquireVsCodeApi?.()
-    
+
     if (!this.vscode) {
-      console.warn('VSCode API not available - running in development mode')
+      console.warn("VSCode API not available - running in development mode")
     }
 
     // Listen for messages from VSCode extension
-    window.addEventListener('message', (event) => {
+    window.addEventListener("message", (event) => {
       const message = event.data as WebViewMessage
-      this.messageHandlers.forEach(handler => handler(message))
+      this.messageHandlers.forEach((handler) => handler(message))
     })
   }
 
@@ -32,7 +32,7 @@ class WebViewServiceImpl implements WebViewService {
     if (this.vscode) {
       this.vscode.postMessage(message)
     } else {
-      console.log('Development mode - would send message:', message)
+      console.log("Development mode - would send message:", message)
     }
   }
 
@@ -53,35 +53,39 @@ class WebViewServiceImpl implements WebViewService {
 
   openFile(filePath: string): void {
     this.sendMessage({
-      type: 'openFile',
-      data: { filePath }
+      type: "openFile",
+      data: { filePath },
     })
   }
 
   openExternal(url: string): void {
     this.sendMessage({
-      type: 'openExternal',
-      data: { url }
+      type: "openExternal",
+      data: { url },
     })
   }
 
   /**
    * Send user prompt
    */
-  sendUserPrompt(text: string, mode: 'plan' | 'build'): void {
+  sendUserPrompt(text: string, mode: "plan" | "build"): void {
     this.sendMessage({
-      type: 'sendPrompt',
-      data: { text, mode }
+      type: "sendPrompt",
+      data: { text, mode },
     })
   }
 
   /**
    * Send user prompt with images
    */
-  sendUserPromptWithImages(text: string, mode: 'plan' | 'build', images: Array<{ data: string; name: string; mime: string }>): void {
+  sendUserPromptWithImages(
+    text: string,
+    mode: "plan" | "build",
+    images: Array<{ data: string; name: string; mime: string }>,
+  ): void {
     this.sendMessage({
-      type: 'sendPromptWithImages',
-      data: { text, mode, images }
+      type: "sendPromptWithImages",
+      data: { text, mode, images },
     })
   }
 
@@ -90,8 +94,8 @@ class WebViewServiceImpl implements WebViewService {
    */
   switchSession(sessionId: string): void {
     this.sendMessage({
-      type: 'switchSession',
-      data: { sessionId }
+      type: "switchSession",
+      data: { sessionId },
     })
   }
 
@@ -100,7 +104,7 @@ class WebViewServiceImpl implements WebViewService {
    */
   createSession(): void {
     this.sendMessage({
-      type: 'createSession'
+      type: "createSession",
     })
   }
 
@@ -109,8 +113,8 @@ class WebViewServiceImpl implements WebViewService {
    */
   updateSession(sessionId: string, title: string): void {
     this.sendMessage({
-      type: 'updateSession',
-      data: { sessionId, title }
+      type: "updateSession",
+      data: { sessionId, title },
     })
   }
 
@@ -119,8 +123,8 @@ class WebViewServiceImpl implements WebViewService {
    */
   deleteSession(sessionId: string): void {
     this.sendMessage({
-      type: 'deleteSession',
-      data: { sessionId }
+      type: "deleteSession",
+      data: { sessionId },
     })
   }
 
@@ -129,7 +133,7 @@ class WebViewServiceImpl implements WebViewService {
    */
   undo(): void {
     this.sendMessage({
-      type: 'undo'
+      type: "undo",
     })
   }
 
@@ -138,7 +142,7 @@ class WebViewServiceImpl implements WebViewService {
    */
   redo(): void {
     this.sendMessage({
-      type: 'redo'
+      type: "redo",
     })
   }
 
@@ -147,7 +151,7 @@ class WebViewServiceImpl implements WebViewService {
    */
   toggleThinkingBlocks(): void {
     this.sendMessage({
-      type: 'toggleThinkingBlocks'
+      type: "toggleThinkingBlocks",
     })
   }
 
@@ -156,37 +160,43 @@ class WebViewServiceImpl implements WebViewService {
    */
   toggleToolDetails(): void {
     this.sendMessage({
-      type: 'toggleToolDetails'
+      type: "toggleToolDetails",
     })
   }
 
   /**
    * Respond to permission request
    */
-  respondToPermission(sessionID: string, permissionID: string, response: 'once' | 'always' | 'reject'): void {
+  respondToPermission(sessionID: string, permissionID: string, response: "once" | "always" | "reject"): void {
     this.sendMessage({
-      type: 'permissionRespond',
+      type: "permissionRespond",
       data: {
         sessionID,
         permissionID,
-        response
-      }
+        response,
+      },
     })
   }
 
   /**
    * Show revert confirmation dialog using VSCode native API
    */
-  showRevertConfirmation(requestId: string, sessionId: string, messageId: string, content: string, mode: 'plan' | 'build'): void {
+  showRevertConfirmation(
+    requestId: string,
+    sessionId: string,
+    messageId: string,
+    content: string,
+    mode: "plan" | "build",
+  ): void {
     this.sendMessage({
-      type: 'showRevertConfirmation',
+      type: "showRevertConfirmation",
       data: {
         requestId,
         sessionId,
         messageId,
         content,
-        mode
-      }
+        mode,
+      },
     })
   }
 }

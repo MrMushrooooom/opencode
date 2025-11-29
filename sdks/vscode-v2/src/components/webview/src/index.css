@@ -7,7 +7,7 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background-color: #1e1e1e;
   color: #cccccc;
   overflow: hidden;
@@ -138,7 +138,7 @@ code {
   color: #cccccc !important;
   padding: 2px 4px !important;
   border-radius: 2px !important;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace !important;
+  font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace !important;
 }
 
 /* Message styling */
@@ -196,11 +196,11 @@ code {
   .ant-layout-header {
     padding: 0 8px !important;
   }
-  
+
   .ant-layout-content {
     padding: 8px !important;
   }
-  
+
   .ant-layout-footer {
     padding: 4px 8px !important;
   }

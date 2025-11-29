@@ -1,9 +1,9 @@
-import * as vscode from 'vscode'
-import { OpenCodeApp } from '../../core/app'
+import * as vscode from "vscode"
+import { OpenCodeApp } from "../../core/app"
 // @ts-ignore
-import type { Session } from '@opencode-ai/sdk'
-import * as path from 'path'
-import * as fs from 'fs'
+import type { Session } from "@opencode-ai/sdk"
+import * as path from "path"
+import * as fs from "fs"
 
 /**
  * OpenCode Webview Panel
@@ -22,24 +22,20 @@ export class OpenCodePanel {
 
     // Create webview panel
     this.webviewPanel = vscode.window.createWebviewPanel(
-      'opencode-v2-assistant',
-      'OpenCode Assistant',
+      "opencode-v2-assistant",
+      "OpenCode Assistant",
       vscode.ViewColumn.One,
       {
         enableScripts: true,
-        retainContextWhenHidden: true
-      }
+        retainContextWhenHidden: true,
+      },
     )
 
     // Set initial HTML
     this.webviewPanel.webview.html = this.getHtmlForWebview()
 
     // Handle messages from webview
-    this.webviewPanel.webview.onDidReceiveMessage(
-      (message) => this.handleMessage(message),
-      undefined,
-      []
-    )
+    this.webviewPanel.webview.onDidReceiveMessage((message) => this.handleMessage(message), undefined, [])
 
     // Handle panel disposal
     this.webviewPanel.onDidDispose(() => {
@@ -50,7 +46,7 @@ export class OpenCodePanel {
 
     // Set webview panel reference in app for streaming updates
     this.app.setWebviewPanel(this)
-    
+
     // CRITICAL FIX: Call updateUI immediately after setting the panel
     // This ensures that models, sessions, and messages are loaded and displayed
     // as soon as the panel is created and linked to the app.
@@ -65,126 +61,138 @@ export class OpenCodePanel {
   private async handleMessage(message: any): Promise<void> {
     try {
       switch (message.type) {
-        case 'sendPrompt':
+        case "sendPrompt":
           if (message.data?.text && message.data?.mode) {
             await this.handleSendPrompt(message.data.text, message.data.mode)
           } else {
             this.outputChannel.appendLine(`❌ Invalid sendPrompt message: missing text or mode`)
           }
           break
-        case 'sendPromptWithImages':
+        case "sendPromptWithImages":
           if (message.data?.text && message.data?.mode && message.data?.images) {
             await this.handleSendPromptWithImages(message.data.text, message.data.mode, message.data.images)
           } else {
             this.outputChannel.appendLine(`❌ Invalid sendPromptWithImages message: missing text, mode, or images`)
           }
           break
-        case 'createSession':
+        case "createSession":
           await this.handleCreateSession()
           break
-        case 'switchSession':
+        case "switchSession":
           if (message.data?.sessionId) {
             await this.handleSwitchSession(message.data.sessionId)
           } else {
             this.outputChannel.appendLine(`❌ Invalid switchSession message: missing sessionId`)
           }
           break
-        case 'getState':
+        case "getState":
           await this.handleGetState()
           break
-        case 'getModels':
+        case "getModels":
           await this.handleGetModels()
           break
-        case 'getSessions':
+        case "getSessions":
           await this.handleGetSessions()
           break
-        case 'switchModel':
+        case "switchModel":
           if (message.data?.providerId && message.data?.modelId) {
             await this.handleSwitchModel(message.data.providerId, message.data.modelId)
           } else {
             this.outputChannel.appendLine(`❌ Invalid switchModel message: missing providerId or modelId`)
           }
           break
-        case 'updateSession':
+        case "updateSession":
           await this.handleUpdateSession(message.data.sessionId, { title: message.data.title })
           break
-        case 'deleteSession':
+        case "deleteSession":
           await this.handleDeleteSession(message.data.sessionId)
           break
-        case 'respondToPermission':
+        case "respondToPermission":
           await this.handleRespondToPermission(message.data.permissionId, message.data.response)
           break
-        case 'permissionRespond':
+        case "permissionRespond":
           // Frontend sends response when user clicks on permission dialog
           await this.handleRespondToPermission(message.data.permissionID, message.data.response)
           break
-        case 'changeMode':
+        case "changeMode":
           if (message.data?.mode) {
             // Mode change is handled by frontend state management
             // Just acknowledge the change
             this.outputChannel.appendLine(`Mode changed to: ${message.data.mode}`)
           }
           break
-        case 'undoToMessage':
+        case "undoToMessage":
           await this.handleUndoToMessage(message.data.messageId, message.data.partId)
           break
-        case 'redoChanges':
+        case "redoChanges":
           await this.handleRedoChanges()
           break
 
-        case 'checkServerStatus':
+        case "checkServerStatus":
           // Check server status for debugging
           this.outputChannel.appendLine(`🔍 Server Status:`)
-          this.outputChannel.appendLine(`  - Connected: ${this.app.getCurrentSession() ? 'Yes' : 'No'}`)
+          this.outputChannel.appendLine(`  - Connected: ${this.app.getCurrentSession() ? "Yes" : "No"}`)
           this.outputChannel.appendLine(`  - Sessions: ${await this.app.getSessions()}`)
           break
-        case 'debug':
+        case "debug":
           // Handle debug messages from frontend
-          const debugMessage = message.data?.message || message.message || 'Unknown debug message'
+          const debugMessage = message.data?.message || message.message || "Unknown debug message"
           this.outputChannel.appendLine(`🐛 Debug: ${debugMessage}`)
           break
-        case 'initialize':
+        case "initialize":
           // Handle frontend initialization request
-          this.outputChannel.appendLine('🔄 Frontend initialization requested')
+          this.outputChannel.appendLine("🔄 Frontend initialization requested")
           // Send initial data to frontend
           await this.updateUI()
           break
-        case 'startEditMessage':
+        case "startEditMessage":
           // Handle message edit request
           if (message.data?.messageId && message.data?.content) {
             this.outputChannel.appendLine(`✏️ Starting edit for message ${message.data.messageId}`)
             this.outputChannel.appendLine(`📝 Content: ${message.data.content}`)
           }
           break
-        case 'showRevertConfirmation':
+        case "showRevertConfirmation":
           // Handle show revert confirmation dialog request
-          if (message.data?.requestId && message.data?.sessionId && message.data?.messageId && message.data?.content !== undefined && message.data?.mode) {
+          if (
+            message.data?.requestId &&
+            message.data?.sessionId &&
+            message.data?.messageId &&
+            message.data?.content !== undefined &&
+            message.data?.mode
+          ) {
             await this.handleShowRevertConfirmation(
               message.data.requestId,
               message.data.sessionId,
               message.data.messageId,
               message.data.content,
-              message.data.mode
+              message.data.mode,
             )
           } else {
             this.outputChannel.appendLine(`❌ Invalid showRevertConfirmation message: missing required fields`)
           }
           break
-        case 'revertToMessage':
+        case "revertToMessage":
           // Handle revert to message request
-          if (message.data?.sessionId && message.data?.messageId && message.data?.content && message.data?.shouldRevert !== undefined && message.data?.mode) {
+          if (
+            message.data?.sessionId &&
+            message.data?.messageId &&
+            message.data?.content &&
+            message.data?.shouldRevert !== undefined &&
+            message.data?.mode
+          ) {
             const { sessionId, messageId, content, shouldRevert, mode } = message.data
             await this.app.revertToMessage(sessionId, messageId, content, mode, shouldRevert)
           }
           break
-        case 'openFile':
+        case "openFile":
           // Handle open file request
           if (message.data?.filePath) {
             const filePath = message.data.filePath
             try {
               const uri = vscode.Uri.file(filePath)
               await vscode.window.showTextDocument(uri, {
-                preview: false  // 禁用预览模式，确保在新标签页中打开，不会被替换
+                preview: false, // 禁用预览模式，确保在新标签页中打开，不会被替换
               })
               this.outputChannel.appendLine(`✅ Opened file: ${filePath}`)
             } catch (error: any) {
@@ -193,7 +201,7 @@ export class OpenCodePanel {
             }
           }
           break
-        case 'openExternal':
+        case "openExternal":
           // Handle open external URL request
           if (message.data?.url) {
             const url = message.data.url
@@ -210,17 +218,17 @@ export class OpenCodePanel {
           this.outputChannel.appendLine(`⚠️ Unknown message type: ${message.type}`)
       }
     } catch (error: any) {
-      const errorMessage = error?.message || 'Unknown error'
+      const errorMessage = error?.message || "Unknown error"
       this.outputChannel.appendLine(`❌ Error handling message: ${errorMessage}`)
-      
+
       // Prevent infinite error loops by not sending error messages back to frontend
       // if we're already in an error state
       if (!this.isInErrorState) {
         this.isInErrorState = true
-      this.sendMessageToWebview({
-        type: 'error',
-          error: errorMessage
-      })
+        this.sendMessageToWebview({
+          type: "error",
+          error: errorMessage,
+        })
         // Reset error state after a short delay
         setTimeout(() => {
           this.isInErrorState = false
@@ -232,20 +240,19 @@ export class OpenCodePanel {
   /**
    * Handle send prompt
    */
-  private async handleSendPrompt(text: string, mode: 'plan' | 'build' = 'plan'): Promise<void> {
+  private async handleSendPrompt(text: string, mode: "plan" | "build" = "plan"): Promise<void> {
     try {
       this.outputChannel.appendLine(`📤 Frontend sent message: "${text}" (mode: ${mode})`)
       const response = await this.app.sendPrompt(text, mode)
       this.outputChannel.appendLine(`✅ Message sent successfully`)
-      
+
       // Don't call updateUI here as it resets the streaming status
       // The SSE events will handle UI updates during streaming
-      
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to send message: ${error.message}`)
       this.sendMessageToWebview({
-        type: 'error',
-        error: error.message
+        type: "error",
+        error: error.message,
       })
     }
   }
@@ -253,32 +260,37 @@ export class OpenCodePanel {
   /**
    * Handle send prompt with images
    */
-  private async handleSendPromptWithImages(text: string, mode: 'plan' | 'build', images: Array<{ data: string; name: string; mime: string }>): Promise<void> {
+  private async handleSendPromptWithImages(
+    text: string,
+    mode: "plan" | "build",
+    images: Array<{ data: string; name: string; mime: string }>,
+  ): Promise<void> {
     try {
-      this.outputChannel.appendLine(`📤 Frontend sent message with ${images.length} image(s): "${text}" (mode: ${mode})`)
-      
+      this.outputChannel.appendLine(
+        `📤 Frontend sent message with ${images.length} image(s): "${text}" (mode: ${mode})`,
+      )
+
       // Convert base64 images to opencode.File format
       const imageAttachments = images.map((image) => {
         return {
-          type: 'file' as const,
+          type: "file" as const,
           filename: image.name,
           mimeType: image.mime,
           url: image.data, // Use base64 data URL for image attachments
           display: image.data, // Store base64 data URL for display
-          path: '', // No file path for uploaded images
+          path: "", // No file path for uploaded images
           startIndex: text.length, // Append to end of text
-          endIndex: text.length
+          endIndex: text.length,
         }
       })
-      
+
       await this.app.sendPromptWithAttachments(text, mode, imageAttachments)
       this.outputChannel.appendLine(`✅ Message with images sent successfully`)
-      
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to send message with images: ${error.message}`)
       this.sendMessageToWebview({
-        type: 'error',
-        error: error.message
+        type: "error",
+        error: error.message,
       })
     }
   }
@@ -286,20 +298,20 @@ export class OpenCodePanel {
   /**
    * Handle respond to permission request
    */
-  private async handleRespondToPermission(permissionId: string, response: 'once' | 'always' | 'reject'): Promise<void> {
+  private async handleRespondToPermission(permissionId: string, response: "once" | "always" | "reject"): Promise<void> {
     try {
       const session = this.app.getCurrentSession()
       if (!session?.id) {
-        throw new Error('No active session')
+        throw new Error("No active session")
       }
-      
+
       await this.app.respondToPermission(session.id, permissionId, response)
       this.outputChannel.appendLine(`✅ Permission ${permissionId} responded: ${response}`)
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to respond to permission: ${error.message}`)
       this.sendMessageToWebview({
-        type: 'error',
-        error: error.message
+        type: "error",
+        error: error.message,
       })
     }
   }
@@ -312,71 +324,72 @@ export class OpenCodePanel {
     sessionId: string,
     messageId: string,
     content: string,
-    mode: 'plan' | 'build'
+    mode: "plan" | "build",
   ): Promise<void> {
     try {
-      const message = 'Submitting from a previous message will revert file changes to before this message and clear the messages after this one.'
-      
+      const message =
+        "Submitting from a previous message will revert file changes to before this message and clear the messages after this one."
+
       // VSCode automatically adds a Cancel button (via Esc key or close button)
       // We only need to provide the two action buttons
       // Use showInformationMessage for a friendlier confirmation dialog
       const selection = await vscode.window.showInformationMessage(
         message,
         { modal: true },
-        'Continue and revert',
-        'Continue without reverting'
+        "Continue and revert",
+        "Continue without reverting",
       )
 
       // Send result back to frontend
       this.sendMessageToWebview({
-        type: 'revertConfirmationResult',
+        type: "revertConfirmationResult",
         data: {
           requestId,
           sessionId,
           messageId,
           content,
           mode,
-          selection: selection || 'Cancel'
-        }
+          selection: selection || "Cancel",
+        },
       })
 
-      this.outputChannel.appendLine(`✅ Revert confirmation result: ${selection || 'Cancel'}`)
+      this.outputChannel.appendLine(`✅ Revert confirmation result: ${selection || "Cancel"}`)
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to show revert confirmation: ${error.message}`)
       // Send cancel result on error
       this.sendMessageToWebview({
-        type: 'revertConfirmationResult',
+        type: "revertConfirmationResult",
         data: {
           requestId,
           sessionId,
           messageId,
           content,
           mode,
-          selection: 'Cancel'
-        }
+          selection: "Cancel",
+        },
       })
     }
   }
   private async handleCreateSession(): Promise<void> {
     try {
       const session = await this.app.createSession()
-      
+
       // Clear current messages and switch to new session
       this.sendMessageToWebview({
-        type: 'sessionSwitched',
+        type: "sessionSwitched",
         data: {
           sessionId: session.id,
           session: session,
-          messages: []
-        }
+          messages: [],
+        },
       })
-      
+
       this.outputChannel.appendLine(`✅ New session created: ${session.id}`)
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to create session: ${error.message}`)
       this.sendMessageToWebview({
-        type: 'error',
-        data: { error: error.message }
+        type: "error",
+        data: { error: error.message },
       })
     }
   }
@@ -388,31 +401,30 @@ export class OpenCodePanel {
     try {
       await this.app.switchToSession(sessionId)
       this.outputChannel.appendLine(`✅ Switched to session: ${sessionId}`)
-      
-      
+
       // Load messages for the new session
       const messages = await this.app.getCurrentSessionMessages()
       this.outputChannel.appendLine(`📋 Loaded ${messages.length} messages for session ${sessionId}`)
-      
+
       // Update UI with new state
       await this.updateUI()
-      
+
       // Send session switched message with messages
       this.outputChannel.appendLine(`📡 Sending sessionSwitched message to webview: ${sessionId}`)
       const session = this.app.getCurrentSession()
       this.sendMessageToWebview({
-        type: 'sessionSwitched',
+        type: "sessionSwitched",
         data: {
-        sessionId: sessionId,
+          sessionId: sessionId,
           session: session,
-        messages: messages
-        }
+          messages: messages,
+        },
       })
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to switch session: ${error.message}`)
       this.sendMessageToWebview({
-        type: 'error',
-        error: error.message
+        type: "error",
+        error: error.message,
       })
     }
   }
@@ -424,14 +436,14 @@ export class OpenCodePanel {
     try {
       const state = await this.app.getFrontendState()
       this.sendMessageToWebview({
-        type: 'stateUpdate',
-        data: { state: state }
+        type: "stateUpdate",
+        data: { state: state },
       })
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to get state: ${error.message}`)
       this.sendMessageToWebview({
-        type: 'error',
-        error: error.message
+        type: "error",
+        error: error.message,
       })
     }
   }
@@ -443,14 +455,14 @@ export class OpenCodePanel {
     try {
       const models = this.app.getAvailableModels()
       this.sendMessageToWebview({
-        type: 'modelsUpdate',
-        data: { models: models }
+        type: "modelsUpdate",
+        data: { models: models },
       })
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to get models: ${error.message}`)
       this.sendMessageToWebview({
-        type: 'error',
-        error: error.message
+        type: "error",
+        error: error.message,
       })
     }
   }
@@ -462,14 +474,14 @@ export class OpenCodePanel {
     try {
       const sessions = this.app.getSessions()
       this.sendMessageToWebview({
-        type: 'sessionsUpdate',
-        data: { sessions: sessions }
+        type: "sessionsUpdate",
+        data: { sessions: sessions },
       })
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to get sessions: ${error.message}`)
       this.sendMessageToWebview({
-        type: 'error',
-        error: error.message
+        type: "error",
+        error: error.message,
       })
     }
   }
@@ -482,36 +494,36 @@ export class OpenCodePanel {
   private async handleSwitchModel(providerId: string, modelId: string): Promise<void> {
     try {
       await this.app.switchModel(providerId, modelId)
-      
+
       // Get updated state for validation and frontend sync
       const state = await this.app.getFrontendState()
-      
+
       // Validate state before sending to frontend
       if (!state.currentProvider || !state.currentModel) {
         this.outputChannel.appendLine(`⚠️ Warning: Provider or Model is null after switch`)
         this.sendMessageToWebview({
-          type: 'error',
-          error: 'Failed to switch model: Provider or Model is null'
+          type: "error",
+          error: "Failed to switch model: Provider or Model is null",
         })
         return
       }
-      
+
       // Send modelChanged message with complete provider and model objects
       // This updates frontend state without reloading messages (avoids streaming conflicts)
       this.sendMessageToWebview({
-        type: 'modelChanged',
+        type: "modelChanged",
         data: {
           provider: state.currentProvider,
-          model: state.currentModel
-        }
+          model: state.currentModel,
+        },
       })
-      
+
       this.outputChannel.appendLine(`✅ Switched to model: ${state.currentProvider.name}/${state.currentModel.name}`)
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to switch model: ${error.message}`)
       this.sendMessageToWebview({
-        type: 'error',
-        error: error.message
+        type: "error",
+        error: error.message,
       })
     }
   }
@@ -521,21 +533,21 @@ export class OpenCodePanel {
    */
   private async handleUpdateSession(sessionId: string, updates: { title?: string }): Promise<void> {
     try {
-      await this.app.updateSession(sessionId, updates.title || '')
-      
+      await this.app.updateSession(sessionId, updates.title || "")
+
       // Reload sessions to get updated data
       const sessions = await this.app.getSessions()
       this.sendMessageToWebview({
-        type: 'sessionsUpdate',
-        data: { sessions }
+        type: "sessionsUpdate",
+        data: { sessions },
       })
-      
+
       // Also send sessionUpdated for specific update
       this.sendMessageToWebview({
-        type: 'sessionUpdated',
-        data: { sessionId, updates }
+        type: "sessionUpdated",
+        data: { sessionId, updates },
       })
-      
+
       this.outputChannel.appendLine(`✅ Session ${sessionId} updated`)
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to update session: ${error.message}`)
@@ -545,7 +557,7 @@ export class OpenCodePanel {
   private async handleDeleteSession(sessionId: string): Promise<void> {
     try {
       await this.app.deleteSession(sessionId)
-      
+
       // If deleted session was current, create or load another session
       const currentSession = this.app.getCurrentSession()
       if (currentSession?.id === sessionId) {
@@ -556,20 +568,19 @@ export class OpenCodePanel {
           await this.app.createSession()
         }
       }
-      
+
       // Update frontend state
       const sessions = await this.app.getSessions()
       this.sendMessageToWebview({
-        type: 'sessionsUpdate',
-        data: { sessions }
+        type: "sessionsUpdate",
+        data: { sessions },
       })
-      
+
       this.outputChannel.appendLine(`✅ Session ${sessionId} deleted`)
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to delete session: ${error.message}`)
     }
   }
-
 
   /**
    * Handle undo to message
@@ -603,32 +614,32 @@ export class OpenCodePanel {
   async updateUI(): Promise<void> {
     try {
       const state = await this.app.getFrontendState()
-      
+
       this.sendMessageToWebview({
-        type: 'stateUpdate',
-        data: { state: state }
+        type: "stateUpdate",
+        data: { state: state },
       })
-      
+
       // Send models and sessions data to ensure UI is updated
       const models = this.app.getAvailableModels()
-      
+
       this.sendMessageToWebview({
-        type: 'modelsUpdate',
-        data: { models: models }
+        type: "modelsUpdate",
+        data: { models: models },
       })
-      
+
       const sessions = await this.app.getSessions()
       this.sendMessageToWebview({
-        type: 'sessionsUpdate',
-        data: { sessions: sessions }
+        type: "sessionsUpdate",
+        data: { sessions: sessions },
       })
-      
+
       // If we have a current session, also load its messages
       if (state.currentSession) {
         const messages = await this.app.getCurrentSessionMessages()
         this.sendMessageToWebview({
-          type: 'messagesLoaded',
-          data: { messages: messages }
+          type: "messagesLoaded",
+          data: { messages: messages },
         })
       }
     } catch (error: any) {
@@ -650,7 +661,7 @@ export class OpenCodePanel {
     if (!this.disposed) {
       this.disposed = true
       this.webviewPanel.dispose()
-      this.outputChannel.appendLine('📡 WebView panel disposed')
+      this.outputChannel.appendLine("📡 WebView panel disposed")
     }
   }
 
@@ -676,13 +687,15 @@ export class OpenCodePanel {
    * Send streaming update to webview
    */
   sendStreamingUpdate(messageId: string, content: string, partType: string, role?: string): void {
-    this.outputChannel.appendLine(`📡 [Panel] Received streaming update from WebviewComm. messageId: ${messageId}, partType: ${partType}, Content (first 100 chars): ${content.substring(0, 100)}... (length: ${content.length})`)
+    this.outputChannel.appendLine(
+      `📡 [Panel] Received streaming update from WebviewComm. messageId: ${messageId}, partType: ${partType}, Content (first 100 chars): ${content.substring(0, 100)}... (length: ${content.length})`,
+    )
     this.sendMessageToWebview({
-      type: 'streamingUpdate',
+      type: "streamingUpdate",
       messageId: messageId,
       content: content,
       partType: partType,
-      role: role
+      role: role,
     })
   }
 
@@ -691,8 +704,8 @@ export class OpenCodePanel {
    */
   showPermissionRequest(permission: any): void {
     this.sendMessageToWebview({
-      type: 'permissionRequest',
-      permission: permission
+      type: "permissionRequest",
+      permission: permission,
     })
   }
 
@@ -704,25 +717,22 @@ export class OpenCodePanel {
       // Use absolute path to the React app build output
       // This is the standard approach for VSCode extensions
       const extensionPath = path.dirname(__dirname) // Go up from dist to vscode-v2 root
-      const templatePath = path.join(extensionPath, 'src', 'components', 'webview', 'dist', 'index.html')
-      
+      const templatePath = path.join(extensionPath, "src", "components", "webview", "dist", "index.html")
+
       // Read the React app template
-      const template = fs.readFileSync(templatePath, 'utf8')
-      
+      const template = fs.readFileSync(templatePath, "utf8")
+
       // Get webview URI for the dist directory
       const webviewDir = path.dirname(templatePath)
       const webviewUri = this.webviewPanel.webview.asWebviewUri(vscode.Uri.file(webviewDir))
-      
+
       // Replace bundle.js path with webview URI
-      const html = template.replace(
-        'src="bundle.js"',
-        `src="${webviewUri}/bundle.js"`
-      )
-      
+      const html = template.replace('src="bundle.js"', `src="${webviewUri}/bundle.js"`)
+
       return html
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to load template: ${error.message}`)
-      
+
       // Fallback to simple HTML
       return this.getFallbackHtml()
     }
