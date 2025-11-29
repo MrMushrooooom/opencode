@@ -57,9 +57,8 @@ export namespace State {
 
       tasks.push(task)
     }
-
+    entries.clear()
     await Promise.all(tasks)
-
     disposalFinished = true
     log.info("state disposal completed", { key })
   }

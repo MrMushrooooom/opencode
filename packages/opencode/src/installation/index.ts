@@ -1,7 +1,7 @@
 import path from "path"
 import { $ } from "bun"
 import z from "zod"
-import { NamedError } from "../util/error"
+import { NamedError } from "@opencode-ai/util/error"
 import { Bus } from "../bus"
 import { Log } from "../util/log"
 
@@ -18,6 +18,12 @@ export namespace Installation {
   export const Event = {
     Updated: Bus.event(
       "installation.updated",
+      z.object({
+        version: z.string(),
+      }),
+    ),
+    UpdateAvailable: Bus.event(
+      "installation.update-available",
       z.object({
         version: z.string(),
       }),
@@ -73,7 +79,7 @@ export namespace Installation {
       },
       {
         name: "brew" as const,
-        command: () => $`brew list --formula opencode-ai`.throws(false).text(),
+        command: () => $`brew list --formula opencode`.throws(false).text(),
       },
     ]
 
@@ -87,7 +93,7 @@ export namespace Installation {
 
     for (const check of checks) {
       const output = await check.command()
-      if (output.includes("opencode-ai")) {
+      if (output.includes(check.name === "brew" ? "opencode" : "opencode-ai")) {
         return check.name
       }
     }
@@ -102,28 +108,43 @@ export namespace Installation {
     }),
   )
 
+  async function getBrewFormula() {
+    const tapFormula = await $`brew list --formula sst/tap/opencode`.throws(false).text()
+    if (tapFormula.includes("opencode")) return "sst/tap/opencode"
+    const coreFormula = await $`brew list --formula opencode`.throws(false).text()
+    if (coreFormula.includes("opencode")) return "opencode"
+    return "opencode"
+  }
+
   export async function upgrade(method: Method, target: string) {
-    const cmd = (() => {
-      switch (method) {
-        case "curl":
-          return $`curl -fsSL https://opencode.ai/install | bash`.env({
-            ...process.env,
-            VERSION: target,
-          })
-        case "npm":
-          return $`npm install -g opencode-ai@${target}`
-        case "pnpm":
-          return $`pnpm install -g opencode-ai@${target}`
-        case "bun":
-          return $`bun install -g opencode-ai@${target}`
-        case "brew":
-          return $`brew install sst/tap/opencode`.env({
-            HOMEBREW_NO_AUTO_UPDATE: "1",
-          })
-        default:
-          throw new Error(`Unknown method: ${method}`)
+    let cmd
+    switch (method) {
+      case "curl":
+        cmd = $`curl -fsSL https://opencode.ai/install | bash`.env({
+          ...process.env,
+          VERSION: target,
+        })
+        break
+      case "npm":
+        cmd = $`npm install -g opencode-ai@${target}`
+        break
+      case "pnpm":
+        cmd = $`pnpm install -g opencode-ai@${target}`
+        break
+      case "bun":
+        cmd = $`bun install -g opencode-ai@${target}`
+        break
+      case "brew": {
+        const formula = await getBrewFormula()
+        cmd = $`brew install ${formula}`.env({
+          HOMEBREW_NO_AUTO_UPDATE: "1",
+          ...process.env,
+        })
+        break
       }
-    })()
+      default:
+        throw new Error(`Unknown method: ${method}`)
+    }
     const result = await cmd.quiet().throws(false)
     log.info("upgraded", {
       method,

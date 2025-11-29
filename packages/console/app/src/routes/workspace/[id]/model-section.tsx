@@ -5,11 +5,21 @@ import { withActor } from "~/context/auth.withActor"
 import { ZenData } from "@opencode-ai/console-core/model.js"
 import styles from "./model-section.module.css"
 import { querySessionInfo } from "../common"
-import { IconAlibaba, IconAnthropic, IconMoonshotAI, IconOpenAI, IconStealth, IconXai, IconZai } from "~/component/icon"
+import {
+  IconAlibaba,
+  IconAnthropic,
+  IconGemini,
+  IconMoonshotAI,
+  IconOpenAI,
+  IconStealth,
+  IconXai,
+  IconZai,
+} from "~/component/icon"
 
 const getModelLab = (modelId: string) => {
   if (modelId.startsWith("claude")) return "Anthropic"
   if (modelId.startsWith("gpt")) return "OpenAI"
+  if (modelId.startsWith("gemini")) return "Google"
   if (modelId.startsWith("kimi")) return "Moonshot AI"
   if (modelId.startsWith("glm")) return "Z.ai"
   if (modelId.startsWith("qwen")) return "Alibaba"
@@ -23,8 +33,18 @@ const getModelsInfo = query(async (workspaceID: string) => {
     return {
       all: Object.entries(ZenData.list().models)
         .filter(([id, _model]) => !["claude-3-5-haiku"].includes(id))
-        .filter(([id, _model]) => !id.startsWith("an-"))
-        .sort(([_idA, modelA], [_idB, modelB]) => modelA.name.localeCompare(modelB.name))
+        .filter(([id, _model]) => !id.startsWith("alpha-"))
+        .sort(([idA, modelA], [idB, modelB]) => {
+          const priority = ["big-pickle", "grok", "claude", "gpt", "gemini"]
+          const getPriority = (id: string) => {
+            const index = priority.findIndex((p) => id.startsWith(p))
+            return index === -1 ? Infinity : index
+          }
+          const pA = getPriority(idA)
+          const pB = getPriority(idB)
+          if (pA !== pB) return pA - pB
+          return modelA.name.localeCompare(modelB.name)
+        })
         .map(([id, model]) => ({ id, name: model.name })),
       disabled: await Model.listDisabled(),
     }
@@ -52,8 +72,8 @@ const updateModel = action(async (form: FormData) => {
 
 export function ModelSection() {
   const params = useParams()
-  const modelsInfo = createAsync(() => getModelsInfo(params.id))
-  const userInfo = createAsync(() => querySessionInfo(params.id))
+  const modelsInfo = createAsync(() => getModelsInfo(params.id!))
+  const userInfo = createAsync(() => querySessionInfo(params.id!))
 
   const modelsWithLab = createMemo(() => {
     const info = modelsInfo()
@@ -96,6 +116,8 @@ export function ModelSection() {
                                   return <IconOpenAI width={16} height={16} />
                                 case "Anthropic":
                                   return <IconAnthropic width={16} height={16} />
+                                case "Google":
+                                  return <IconGemini width={16} height={16} />
                                 case "Moonshot AI":
                                   return <IconMoonshotAI width={16} height={16} />
                                 case "Z.ai":

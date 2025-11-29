@@ -1,5 +1,4 @@
 import path from "path"
-import { $ } from "bun"
 import { exec } from "child_process"
 import * as prompts from "@clack/prompts"
 import { map, pipe, sortBy, values } from "remeda"
@@ -8,7 +7,7 @@ import { graphql } from "@octokit/graphql"
 import * as core from "@actions/core"
 import * as github from "@actions/github"
 import type { Context } from "@actions/github/lib/context"
-import type { IssueCommentEvent } from "@octokit/webhooks-types"
+import type { IssueCommentEvent, PullRequestReviewCommentEvent } from "@octokit/webhooks-types"
 import { UI } from "../ui"
 import { cmd } from "./cmd"
 import { ModelsDev } from "../../provider/models"
@@ -20,6 +19,7 @@ import { Provider } from "../../provider/provider"
 import { Bus } from "../../bus"
 import { MessageV2 } from "../../session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
+import { $ } from "bun"
 
 type GitHubAuthor = {
   login: string
@@ -328,6 +328,8 @@ export const GithubInstallCommand = cmd({
 on:
   issue_comment:
     types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 jobs:
   opencode:
@@ -378,7 +380,7 @@ export const GithubRunCommand = cmd({
       const isMock = args.token || args.event
 
       const context = isMock ? (JSON.parse(args.event!) as Context) : github.context
-      if (context.eventName !== "issue_comment") {
+      if (context.eventName !== "issue_comment" && context.eventName !== "pull_request_review_comment") {
         core.setFailed(`Unsupported event type: ${context.eventName}`)
         process.exit(1)
       }
@@ -387,9 +389,14 @@ export const GithubRunCommand = cmd({
       const runId = normalizeRunId()
       const share = normalizeShare()
       const { owner, repo } = context.repo
-      const payload = context.payload as IssueCommentEvent
+      const payload = context.payload as IssueCommentEvent | PullRequestReviewCommentEvent
+      const issueEvent = isIssueCommentEvent(payload) ? payload : undefined
       const actor = context.actor
-      const issueId = payload.issue.number
+
+      const issueId =
+        context.eventName === "pull_request_review_comment"
+          ? (payload as PullRequestReviewCommentEvent).pull_request.number
+          : (payload as IssueCommentEvent).issue.number
       const runUrl = `/${owner}/${repo}/actions/runs/${runId}`
       const shareBaseUrl = isMock ? "https://dev.opencode.ai" : "https://opencode.ai"
 
@@ -434,16 +441,18 @@ export const GithubRunCommand = cmd({
         // 1. Issue
         // 2. Local PR
         // 3. Fork PR
-        if (payload.issue.pull_request) {
+        if (context.eventName === "pull_request_review_comment" || issueEvent?.issue.pull_request) {
           const prData = await fetchPR()
           // Local PR
           if (prData.headRepository.nameWithOwner === prData.baseRepository.nameWithOwner) {
             await checkoutLocalBranch(prData)
+            const head = (await $`git rev-parse HEAD`).stdout.toString().trim()
             const dataPrompt = buildPromptDataForPR(prData)
             const response = await chat(`${userPrompt}\n\n${dataPrompt}`, promptFiles)
-            if (await branchIsDirty()) {
+            const { dirty, uncommittedChanges } = await branchIsDirty(head)
+            if (dirty) {
               const summary = await summarize(response)
-              await pushToLocalBranch(summary)
+              await pushToLocalBranch(summary, uncommittedChanges)
             }
             const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${shareBaseUrl}/s/${shareId}`))
             await updateComment(`${response}${footer({ image: !hasShared })}`)
@@ -451,11 +460,13 @@ export const GithubRunCommand = cmd({
           // Fork PR
           else {
             await checkoutForkBranch(prData)
+            const head = (await $`git rev-parse HEAD`).stdout.toString().trim()
             const dataPrompt = buildPromptDataForPR(prData)
             const response = await chat(`${userPrompt}\n\n${dataPrompt}`, promptFiles)
-            if (await branchIsDirty()) {
+            const { dirty, uncommittedChanges } = await branchIsDirty(head)
+            if (dirty) {
               const summary = await summarize(response)
-              await pushToForkBranch(summary, prData)
+              await pushToForkBranch(summary, prData, uncommittedChanges)
             }
             const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${shareBaseUrl}/s/${shareId}`))
             await updateComment(`${response}${footer({ image: !hasShared })}`)
@@ -464,12 +475,14 @@ export const GithubRunCommand = cmd({
         // Issue
         else {
           const branch = await checkoutNewBranch()
+          const head = (await $`git rev-parse HEAD`).stdout.toString().trim()
           const issueData = await fetchIssue()
           const dataPrompt = buildPromptDataForIssue(issueData)
           const response = await chat(`${userPrompt}\n\n${dataPrompt}`, promptFiles)
-          if (await branchIsDirty()) {
+          const { dirty, uncommittedChanges } = await branchIsDirty(head)
+          if (dirty) {
             const summary = await summarize(response)
-            await pushToNewBranch(summary, branch)
+            await pushToNewBranch(summary, branch, uncommittedChanges)
             const pr = await createPR(
               repoData.data.default_branch,
               branch,
@@ -525,11 +538,45 @@ export const GithubRunCommand = cmd({
         throw new Error(`Invalid share value: ${value}. Share must be a boolean.`)
       }
 
+      function isIssueCommentEvent(
+        event: IssueCommentEvent | PullRequestReviewCommentEvent,
+      ): event is IssueCommentEvent {
+        return "issue" in event
+      }
+
+      function getReviewCommentContext() {
+        if (context.eventName !== "pull_request_review_comment") {
+          return null
+        }
+
+        const reviewPayload = payload as PullRequestReviewCommentEvent
+        return {
+          file: reviewPayload.comment.path,
+          diffHunk: reviewPayload.comment.diff_hunk,
+          line: reviewPayload.comment.line,
+          originalLine: reviewPayload.comment.original_line,
+          position: reviewPayload.comment.position,
+          commitId: reviewPayload.comment.commit_id,
+          originalCommitId: reviewPayload.comment.original_commit_id,
+        }
+      }
+
       async function getUserPrompt() {
+        const reviewContext = getReviewCommentContext()
         let prompt = (() => {
           const body = payload.comment.body.trim()
-          if (body === "/opencode" || body === "/oc") return "Summarize this thread"
-          if (body.includes("/opencode") || body.includes("/oc")) return body
+          if (body === "/opencode" || body === "/oc") {
+            if (reviewContext) {
+              return `Review this code change and suggest improvements for the commented lines:\n\nFile: ${reviewContext.file}\nLines: ${reviewContext.line}\n\n${reviewContext.diffHunk}`
+            }
+            return "Summarize this thread"
+          }
+          if (body.includes("/opencode") || body.includes("/oc")) {
+            if (reviewContext) {
+              return `${body}\n\nContext: You are reviewing a comment on file "${reviewContext.file}" at line ${reviewContext.line}.\n\nDiff context:\n${reviewContext.diffHunk}`
+            }
+            return body
+          }
           throw new Error("Comments must mention `/opencode` or `/oc`")
         })()
 
@@ -646,7 +693,10 @@ export const GithubRunCommand = cmd({
         try {
           return await chat(`Summarize the following in less than 40 characters:\n\n${response}`)
         } catch (e) {
-          return `Fix issue: ${payload.issue.title}`
+          const title = issueEvent
+            ? issueEvent.issue.title
+            : (payload as PullRequestReviewCommentEvent).pull_request.title
+          return `Fix issue: ${title}`
         }
       }
 
@@ -802,40 +852,57 @@ export const GithubRunCommand = cmd({
         return `opencode/${type}${issueId}-${timestamp}`
       }
 
-      async function pushToNewBranch(summary: string, branch: string) {
+      async function pushToNewBranch(summary: string, branch: string, commit: boolean) {
         console.log("Pushing to new branch...")
-        await $`git add .`
-        await $`git commit -m "${summary}
+        if (commit) {
+          await $`git add .`
+          await $`git commit -m "${summary}
 
 Co-authored-by: ${actor} <${actor}@users.noreply.github.com>"`
+        }
         await $`git push -u origin ${branch}`
       }
 
-      async function pushToLocalBranch(summary: string) {
+      async function pushToLocalBranch(summary: string, commit: boolean) {
         console.log("Pushing to local branch...")
-        await $`git add .`
-        await $`git commit -m "${summary}
+        if (commit) {
+          await $`git add .`
+          await $`git commit -m "${summary}
 
 Co-authored-by: ${actor} <${actor}@users.noreply.github.com>"`
+        }
         await $`git push`
       }
 
-      async function pushToForkBranch(summary: string, pr: GitHubPullRequest) {
+      async function pushToForkBranch(summary: string, pr: GitHubPullRequest, commit: boolean) {
         console.log("Pushing to fork branch...")
 
         const remoteBranch = pr.headRefName
 
-        await $`git add .`
-        await $`git commit -m "${summary}
+        if (commit) {
+          await $`git add .`
+          await $`git commit -m "${summary}
 
 Co-authored-by: ${actor} <${actor}@users.noreply.github.com>"`
+        }
         await $`git push fork HEAD:${remoteBranch}`
       }
 
-      async function branchIsDirty() {
+      async function branchIsDirty(originalHead: string) {
         console.log("Checking if branch is dirty...")
         const ret = await $`git status --porcelain`
-        return ret.stdout.toString().trim().length > 0
+        const status = ret.stdout.toString().trim()
+        if (status.length > 0) {
+          return {
+            dirty: true,
+            uncommittedChanges: true,
+          }
+        }
+        const head = await $`git rev-parse HEAD`
+        return {
+          dirty: head.stdout.toString().trim() !== originalHead,
+          uncommittedChanges: false,
+        }
       }
 
       async function assertPermissions() {

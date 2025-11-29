@@ -16,34 +16,26 @@ import { Checkbox } from "./checkbox"
 import { Diff } from "./diff"
 import { DiffChanges } from "./diff-changes"
 import { Markdown } from "./markdown"
+import { getDirectory, getFilename } from "@opencode-ai/util/path"
+import { sanitizePart } from "@opencode-ai/util/sanitize"
+import { unwrap } from "solid-js/store"
 
 export interface MessageProps {
   message: MessageType
   parts: PartType[]
+  sanitize?: RegExp
 }
 
 export interface MessagePartProps {
   part: PartType
   message: MessageType
   hideDetails?: boolean
+  sanitize?: RegExp
 }
 
 export type PartComponent = Component<MessagePartProps>
 
 export const PART_MAPPING: Record<string, PartComponent | undefined> = {}
-
-function getFilename(path: string) {
-  if (!path) return ""
-  const trimmed = path.replace(/[\/]+$/, "")
-  const parts = trimmed.split("/")
-  return parts[parts.length - 1] ?? ""
-}
-
-function getDirectory(path: string) {
-  const parts = path.split("/")
-  const dir = parts.slice(0, parts.length - 1).join("/")
-  return dir ? dir + "/" : ""
-}
 
 export function registerPartComponent(type: string, component: PartComponent) {
   PART_MAPPING[type] = component
@@ -53,15 +45,14 @@ export function Message(props: MessageProps) {
   return (
     <Switch>
       <Match when={props.message.role === "user" && props.message}>
-        {(userMessage) => (
-          <UserMessageDisplay message={userMessage() as UserMessage} parts={props.parts} />
-        )}
+        {(userMessage) => <UserMessageDisplay message={userMessage() as UserMessage} parts={props.parts} />}
       </Match>
       <Match when={props.message.role === "assistant" && props.message}>
         {(assistantMessage) => (
           <AssistantMessageDisplay
             message={assistantMessage() as AssistantMessage}
             parts={props.parts}
+            sanitize={props.sanitize}
           />
         )}
       </Match>
@@ -69,14 +60,16 @@ export function Message(props: MessageProps) {
   )
 }
 
-export function AssistantMessageDisplay(props: { message: AssistantMessage; parts: PartType[] }) {
+export function AssistantMessageDisplay(props: { message: AssistantMessage; parts: PartType[]; sanitize?: RegExp }) {
   const filteredParts = createMemo(() => {
     return props.parts?.filter((x) => {
       if (x.type === "reasoning") return false
       return x.type !== "tool" || (x as ToolPart).tool !== "todoread"
     })
   })
-  return <For each={filteredParts()}>{(part) => <Part part={part} message={props.message} />}</For>
+  return (
+    <For each={filteredParts()}>{(part) => <Part part={part} message={props.message} sanitize={props.sanitize} />}</For>
+  )
 }
 
 export function UserMessageDisplay(props: { message: UserMessage; parts: PartType[] }) {
@@ -91,14 +84,10 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
 
 export function Part(props: MessagePartProps) {
   const component = createMemo(() => PART_MAPPING[props.part.type])
+  const part = createMemo(() => sanitizePart(unwrap(props.part), props.sanitize))
   return (
     <Show when={component()}>
-      <Dynamic
-        component={component()}
-        part={props.part}
-        message={props.message}
-        hideDetails={props.hideDetails}
-      />
+      <Dynamic component={component()} part={part()} message={props.message} hideDetails={props.hideDetails} />
     </Show>
   )
 }
@@ -151,15 +140,17 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
             return (
               <Card variant="error">
                 <div data-component="tool-error">
-                  <Icon name="circle-ban-sign" size="small" data-slot="icon" />
+                  <Icon name="circle-ban-sign" size="small" data-slot="message-part-tool-error-icon" />
                   <Switch>
-                    <Match when={title}>
-                      <div data-slot="content">
-                        <div data-slot="title">{title}</div>
-                        <span>{rest.join(": ")}</span>
+                    <Match when={title && title.length < 30}>
+                      <div data-slot="message-part-tool-error-content">
+                        <div data-slot="message-part-tool-error-title">{title}</div>
+                        <span data-slot="message-part-tool-error-message">{rest.join(": ")}</span>
                       </div>
                     </Match>
-                    <Match when={true}>{cleaned}</Match>
+                    <Match when={true}>
+                      <span data-slot="message-part-tool-error-message">{cleaned}</span>
+                    </Match>
                   </Switch>
                 </div>
               </Card>
@@ -185,10 +176,11 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
 
 PART_MAPPING["text"] = function TextPartDisplay(props) {
   const part = props.part as TextPart
+  const sanitized = createMemo(() => (props.sanitize ? (sanitizePart(unwrap(part), props.sanitize) as TextPart) : part))
   return (
     <Show when={part.text.trim()}>
       <div data-component="text-part">
-        <Markdown text={part.text.trim()} />
+        <Markdown text={sanitized().text.trim()} />
       </div>
     </Show>
   )
@@ -224,10 +216,7 @@ ToolRegistry.register({
   name: "list",
   render(props) {
     return (
-      <BasicTool
-        icon="bullet-list"
-        trigger={{ title: "List", subtitle: getDirectory(props.input.path || "/") }}
-      >
+      <BasicTool icon="bullet-list" trigger={{ title: "List", subtitle: getDirectory(props.input.path || "/") }}>
         <Show when={false && props.output}>
           <div data-component="tool-output">{props.output}</div>
         </Show>
@@ -332,12 +321,14 @@ ToolRegistry.register({
         icon="console"
         trigger={{
           title: "Shell",
-          subtitle: "Ran " + props.input.command,
+          subtitle: props.input.description,
         }}
       >
-        <Show when={false && props.output}>
-          <div data-component="tool-output">{props.output}</div>
-        </Show>
+        <div data-component="tool-output">
+          <Markdown
+            text={`\`\`\`command\n$ ${props.input.command}${props.output ? "\n\n" + props.output : ""}\n\`\`\``}
+          />
+        </div>
       </BasicTool>
     )
   },
@@ -351,18 +342,18 @@ ToolRegistry.register({
         icon="code-lines"
         trigger={
           <div data-component="edit-trigger">
-            <div data-slot="title-area">
-              <div data-slot="title">Edit</div>
-              <div data-slot="path">
+            <div data-slot="message-part-title-area">
+              <div data-slot="message-part-title">Edit</div>
+              <div data-slot="message-part-path">
                 <Show when={props.input.filePath?.includes("/")}>
-                  <span data-slot="directory">{getDirectory(props.input.filePath!)}</span>
+                  <span data-slot="message-part-directory">{getDirectory(props.input.filePath!)}</span>
                 </Show>
-                <span data-slot="filename">{getFilename(props.input.filePath ?? "")}</span>
+                <span data-slot="message-part-filename">{getFilename(props.input.filePath ?? "")}</span>
               </div>
             </div>
-            <div data-slot="actions">
+            <div data-slot="message-part-actions">
               <Show when={props.metadata.filediff}>
-                <DiffChanges diff={props.metadata.filediff} />
+                <DiffChanges changes={props.metadata.filediff} />
               </Show>
             </div>
           </div>
@@ -395,16 +386,16 @@ ToolRegistry.register({
         icon="code-lines"
         trigger={
           <div data-component="write-trigger">
-            <div data-slot="title-area">
-              <div data-slot="title">Write</div>
-              <div data-slot="path">
+            <div data-slot="message-part-title-area">
+              <div data-slot="message-part-title">Write</div>
+              <div data-slot="message-part-path">
                 <Show when={props.input.filePath?.includes("/")}>
-                  <span data-slot="directory">{getDirectory(props.input.filePath!)}</span>
+                  <span data-slot="message-part-directory">{getDirectory(props.input.filePath!)}</span>
                 </Show>
-                <span data-slot="filename">{getFilename(props.input.filePath ?? "")}</span>
+                <span data-slot="message-part-filename">{getFilename(props.input.filePath ?? "")}</span>
               </div>
             </div>
-            <div data-slot="actions">{/* <DiffChanges diff={diff} /> */}</div>
+            <div data-slot="message-part-actions">{/* <DiffChanges diff={diff} /> */}</div>
           </div>
         }
       >
@@ -432,7 +423,7 @@ ToolRegistry.register({
             <For each={props.input.todos}>
               {(todo: any) => (
                 <Checkbox readOnly checked={todo.status === "completed"}>
-                  <div data-slot="todo-content" data-completed={todo.status === "completed"}>
+                  <div data-slot="message-part-todo-content" data-completed={todo.status === "completed"}>
                     {todo.content}
                   </div>
                 </Checkbox>
