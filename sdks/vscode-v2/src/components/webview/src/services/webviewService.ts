@@ -51,38 +51,17 @@ class WebViewServiceImpl implements WebViewService {
     this.messageHandlers.push(callback)
   }
 
-
-  /**
-   * Show session history dialog
-   */
-  showSessionHistory(): void {
-    this.sendMessage({
-      type: 'showSessionHistory'
-    })
-  }
-
-  /**
-   * Show model selector dialog
-   */
-  showModelSelector(): void {
-    this.sendMessage({
-      type: 'showModelSelector'
-    })
-  }
-
-  /**
-   * Show agent selector dialog
-   */
-  showAgentSelector(): void {
-    this.sendMessage({
-      type: 'showAgentSelector'
-    })
-  }
-
   openFile(filePath: string): void {
     this.sendMessage({
       type: 'openFile',
       data: { filePath }
+    })
+  }
+
+  openExternal(url: string): void {
+    this.sendMessage({
+      type: 'openExternal',
+      data: { url }
     })
   }
 
@@ -191,6 +170,22 @@ class WebViewServiceImpl implements WebViewService {
         sessionID,
         permissionID,
         response
+      }
+    })
+  }
+
+  /**
+   * Show revert confirmation dialog using VSCode native API
+   */
+  showRevertConfirmation(requestId: string, sessionId: string, messageId: string, content: string, mode: 'plan' | 'build'): void {
+    this.sendMessage({
+      type: 'showRevertConfirmation',
+      data: {
+        requestId,
+        sessionId,
+        messageId,
+        content,
+        mode
       }
     })
   }

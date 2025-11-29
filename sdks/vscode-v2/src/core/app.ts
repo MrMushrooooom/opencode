@@ -1249,6 +1249,11 @@ export class OpenCodeApp {
   private handleMessagePartUpdated(event: opencode.EventMessagePartUpdated): void {
     const part = event.properties.part
     
+    // Only process parts from the current session to avoid mixing child session parts
+    if (part.sessionID !== this.app.session?.id) {
+      return
+    }
+    
     // Log details only for tool parts with status changes
     if (part.type === 'tool') {
       const toolPart = part as any

@@ -156,6 +156,20 @@ export class OpenCodePanel {
             this.outputChannel.appendLine(`📝 Content: ${message.data.content}`)
           }
           break
+        case 'showRevertConfirmation':
+          // Handle show revert confirmation dialog request
+          if (message.data?.requestId && message.data?.sessionId && message.data?.messageId && message.data?.content !== undefined && message.data?.mode) {
+            await this.handleShowRevertConfirmation(
+              message.data.requestId,
+              message.data.sessionId,
+              message.data.messageId,
+              message.data.content,
+              message.data.mode
+            )
+          } else {
+            this.outputChannel.appendLine(`❌ Invalid showRevertConfirmation message: missing required fields`)
+          }
+          break
         case 'revertToMessage':
           // Handle revert to message request
           if (message.data?.sessionId && message.data?.messageId && message.data?.content && message.data?.shouldRevert !== undefined && message.data?.mode) {
@@ -176,6 +190,19 @@ export class OpenCodePanel {
             } catch (error: any) {
               this.outputChannel.appendLine(`❌ Failed to open file ${filePath}: ${error.message}`)
               vscode.window.showErrorMessage(`Failed to open file: ${error.message}`)
+            }
+          }
+          break
+        case 'openExternal':
+          // Handle open external URL request
+          if (message.data?.url) {
+            const url = message.data.url
+            try {
+              await vscode.env.openExternal(vscode.Uri.parse(url))
+              this.outputChannel.appendLine(`✅ Opened URL: ${url}`)
+            } catch (error: any) {
+              this.outputChannel.appendLine(`❌ Failed to open URL ${url}: ${error.message}`)
+              vscode.window.showErrorMessage(`Failed to open URL: ${error.message}`)
             }
           }
           break
@@ -273,6 +300,60 @@ export class OpenCodePanel {
       this.sendMessageToWebview({
         type: 'error',
         error: error.message
+      })
+    }
+  }
+
+  /**
+   * Handle show revert confirmation dialog using VSCode native API
+   */
+  private async handleShowRevertConfirmation(
+    requestId: string,
+    sessionId: string,
+    messageId: string,
+    content: string,
+    mode: 'plan' | 'build'
+  ): Promise<void> {
+    try {
+      const message = 'Submitting from a previous message will revert file changes to before this message and clear the messages after this one.'
+      
+      // VSCode automatically adds a Cancel button (via Esc key or close button)
+      // We only need to provide the two action buttons
+      // Use showInformationMessage for a friendlier confirmation dialog
+      const selection = await vscode.window.showInformationMessage(
+        message,
+        { modal: true },
+        'Continue and revert',
+        'Continue without reverting'
+      )
+
+      // Send result back to frontend
+      this.sendMessageToWebview({
+        type: 'revertConfirmationResult',
+        data: {
+          requestId,
+          sessionId,
+          messageId,
+          content,
+          mode,
+          selection: selection || 'Cancel'
+        }
+      })
+
+      this.outputChannel.appendLine(`✅ Revert confirmation result: ${selection || 'Cancel'}`)
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to show revert confirmation: ${error.message}`)
+      // Send cancel result on error
+      this.sendMessageToWebview({
+        type: 'revertConfirmationResult',
+        data: {
+          requestId,
+          sessionId,
+          messageId,
+          content,
+          mode,
+          selection: 'Cancel'
+        }
       })
     }
   }

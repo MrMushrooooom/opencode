@@ -4,6 +4,7 @@ import { ToolDiff } from './ToolDiff'
 import { ToolCommandOutput } from './ToolCommandOutput'
 import { ToolTodoList } from './ToolTodoList'
 import { ToolGenericOutput } from './ToolGenericOutput'
+import { ToolTaskOutput } from './ToolTaskOutput'
 import { extractFileChangeFromToolPart } from '../../utils/fileChangeExtractor'
 
 const { Text } = Typography
@@ -47,11 +48,21 @@ export const ToolPartContent: React.FC<ToolPartContentProps> = ({
   
   // For todo tools, show todo list in all states (pending/running/completed)
   if (toolName === 'todowrite' || toolName === 'todoread') {
-    // Unified data acquisition: always from toolInput (consistent with UI/Web)
     const todos = toolInput?.todos || []
     if (todos.length > 0) {
       return <ToolTodoList todos={todos} toolStatus={toolStatus} />
     }
+  }
+  
+  // For task tool, show task output with summary
+  if (toolName === 'task') {
+    return (
+      <ToolTaskOutput
+        toolMetadata={toolMetadata}
+        toolOutput={toolOutput}
+        toolStatus={toolStatus}
+      />
+    )
   }
   
   if (toolStatus === 'completed') {

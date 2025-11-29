@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Input, Button, Select, Space } from 'antd'
-import { SendOutlined, SettingOutlined, CameraOutlined } from '@ant-design/icons'
+import { SendOutlined, CameraOutlined } from '@ant-design/icons'
 import { webViewService } from '../../services/webviewService'
 import { useAppStore } from '../../store'
 import { SessionSelector } from '../Session/SessionSelector'
@@ -396,26 +396,6 @@ export const InputArea: React.FC<InputAreaProps> = ({
         >
           <SendOutlined style={{ fontSize: '14px' }} />
           Send
-        </button>
-
-        {/* Settings button */}
-        <button
-          onClick={() => webViewService.showModelSelector()}
-          disabled={disabled}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#888888',
-            cursor: 'pointer',
-            padding: '8px',
-            borderRadius: '6px',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = '#3e3e42'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          title="Settings"
-        >
-          <SettingOutlined style={{ fontSize: '16px' }} />
         </button>
       </div>
 

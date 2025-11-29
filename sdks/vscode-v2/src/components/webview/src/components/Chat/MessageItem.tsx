@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Typography, Space, Button, Input, Modal, Tag } from 'antd'
-import { EditOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { Typography, Space, Button, Input, Tag } from 'antd'
+import { EditOutlined } from '@ant-design/icons'
 import { Message, Part } from '../../types'
 import { useCurrentPermission, useAppStore } from '../../store'
 import { webViewService } from '../../services/webviewService'
@@ -11,7 +11,6 @@ import { ToolInlineDisplay } from './ToolInlineDisplay'
 
 const { Text, Paragraph } = Typography
 const { TextArea } = Input
-const { confirm } = Modal
 
 interface MessageItemProps {
   message: Message
@@ -65,82 +64,27 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   }
 
   const handleSend = () => {
-    if (!editText.trim()) return
+    if (!editText.trim() || !currentSessionId) return
     
-    confirm({
-      title: 'Submit from a previous message?',
-      icon: <ExclamationCircleOutlined />,
-      content: 'Submitting from a previous message will revert file changes to before this message and clear the messages after this one.',
-      okText: 'Continue and revert',
-      okType: 'primary',
-      cancelText: 'Cancel',
-      centered: true,
-      width: 480,
-      styles: {
-        mask: { backgroundColor: 'rgba(0, 0, 0, 0.6)' },
-        content: {
-          background: '#2d2d30',
-          borderRadius: '8px',
-          border: '1px solid #3e3e42'
-        },
-        header: {
-          background: '#2d2d30',
-          borderBottom: '1px solid #3e3e42',
-          color: '#cccccc'
-        },
-        body: { 
-          color: '#cccccc'
-        }
-      },
-      onOk() {
-        // Continue and revert
-        if (!currentSessionId) return
-        Modal.destroyAll()
-        webViewService.sendMessage({
-          type: 'revertToMessage',
-          data: {
-            sessionId: currentSessionId,
-            messageId: message.info.id,
-            content: editText,
-            shouldRevert: true,
-            mode: mode
-          }
-        })
-        setEditingMessageId(null)
-      },
-      footer: (_, { OkBtn, CancelBtn }) => (
-        <>
-          <Button 
-            onClick={() => {
-              // Continue without reverting
-              if (!currentSessionId) return
-              Modal.destroyAll()
-              webViewService.sendMessage({
-                type: 'revertToMessage',
-                data: {
-                  sessionId: currentSessionId,
-                  messageId: message.info.id,
-                  content: editText,
-                  shouldRevert: false,
-                  mode: mode
-                }
-              })
-              setEditingMessageId(null)
-            }}
-          >
-            Continue without reverting
-          </Button>
-          <CancelBtn />
-          <OkBtn />
-        </>
-      )
-    })
+    // Generate unique request ID for this confirmation
+    const requestId = `revert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    pendingRequestIdRef.current = requestId
+    
+    // Request VSCode native dialog
+    webViewService.showRevertConfirmation(
+      requestId,
+      currentSessionId,
+      message.info.id,
+      editText,
+      mode
+    )
   }
 
   const isEditing = editingMessageId === message.info.id
   const [editText, setEditText] = useState(() => extractTextContent())
   const textAreaRef = useRef<any>(null)
   const [previewImage, setPreviewImage] = useState<{ src: string; alt?: string; filename?: string } | null>(null)
+  const pendingRequestIdRef = useRef<string | null>(null)
 
   // Update edit text when entering edit mode
   useEffect(() => {
@@ -152,6 +96,38 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       }, 100)
     }
   }, [isEditing])
+
+  // Listen for revert confirmation result
+  useEffect(() => {
+    if (!isEditing || !currentSessionId) return
+
+    const handleMessage = (msg: any) => {
+      if (msg.type === 'revertConfirmationResult' && 
+          msg.data?.requestId === pendingRequestIdRef.current &&
+          msg.data?.messageId === message.info.id) {
+        const selection = msg.data.selection
+        
+        // If user cancelled, just clear editing state
+        if (selection === 'Cancel') {
+          setEditingMessageId(null)
+          pendingRequestIdRef.current = null
+        } else {
+          // If user confirmed, revertToMessage is handled in App.tsx
+          // Just clear editing state here
+          setEditingMessageId(null)
+          pendingRequestIdRef.current = null
+        }
+      }
+    }
+
+    webViewService.onMessage(handleMessage)
+
+    return () => {
+      // Cleanup: remove message handler
+      // Note: webViewService.onMessage doesn't support removal, but this is fine
+      // as the handler will check requestId and messageId before acting
+    }
+  }, [isEditing, currentSessionId, message.info.id, setEditingMessageId])
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
@@ -277,8 +253,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         const toolMetadata = state?.metadata
         const toolError = state?.error
         
-        // Use inline display for lightweight tools (read, grep, glob)
-        if (toolName === 'read' || toolName === 'grep' || toolName === 'glob') {
+        // Use inline display for lightweight tools (read, grep, glob, list)
+        if (toolName === 'read' || toolName === 'grep' || toolName === 'glob' || toolName === 'list' || toolName === 'webfetch') {
           return (
             <ToolInlineDisplay
               key={index}

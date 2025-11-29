@@ -284,6 +284,33 @@ export const App: React.FC = () => {
           const sessions = message.data && message.data.sessions && Array.isArray(message.data.sessions) ? message.data.sessions : []
           useAppStore.getState().setSessions(sessions)
           break
+
+        case 'revertConfirmationResult':
+          // Handle revert confirmation result from VSCode native dialog
+          if (message.data?.requestId && message.data?.sessionId && message.data?.messageId && message.data?.content !== undefined && message.data?.mode && message.data?.selection) {
+            const { requestId, sessionId, messageId, content, mode, selection } = message.data
+            
+            // Only proceed if user didn't cancel
+            if (selection !== 'Cancel') {
+              const shouldRevert = selection === 'Continue and revert'
+              
+              // Send revertToMessage request
+              webViewService.sendMessage({
+                type: 'revertToMessage',
+                data: {
+                  sessionId,
+                  messageId,
+                  content,
+                  shouldRevert,
+                  mode
+                }
+              })
+            }
+            
+            // Notify MessageItem that confirmation is complete (for cleanup)
+            // This is handled by the component's internal state management
+          }
+          break
           
         default:
           console.warn('Unknown message type:', message.type)

@@ -81,8 +81,8 @@ export interface WebViewService {
   sendMessage(message: WebViewMessage): void
   postMessage(message: WebViewMessage): void
   onMessage(handler: (message: any) => void): void
-  showAgentSelector(): void
   openFile(filePath: string): void
+  openExternal(url: string): void
 }
 
 /**

@@ -44,7 +44,6 @@ export const ToolPartHeader: React.FC<ToolPartHeaderProps> = ({
   
   // For todo tools (todowrite/todoread), show todo list header
   if (toolName === 'todowrite' || toolName === 'todoread') {
-    // Unified data acquisition: always from toolInput (consistent with UI/Web)
     const todos = toolInput?.todos || []
     const incompleteCount = todos.filter((t: any) => t.status !== 'completed' && t.status !== 'cancelled').length
     const isProcessing = toolStatus === 'pending' || toolStatus === 'running'
@@ -224,17 +223,34 @@ export const ToolPartHeader: React.FC<ToolPartHeaderProps> = ({
   }
   
   let toolTitle = toolName
+  let toolTitleFull = toolName
   if (toolInput) {
     if (toolName === 'read' && toolInput.filePath) {
       toolTitle = `${toolName} ${toolInput.filePath}`
+      toolTitleFull = toolTitle
     } else if (toolName === 'glob' && toolInput.pattern) {
       toolTitle = `${toolName} ${toolInput.pattern}`
-    } else if (toolName === 'list' && toolInput.directory) {
-      toolTitle = `${toolName} ${toolInput.directory}`
+      toolTitleFull = toolTitle
+    } else if (toolName === 'list') {
+      const fullPath = toolInput.directory || toolInput.path || ''
+      const pathDisplay = fullPath || 'current directory'
+      toolTitleFull = `${toolName} ${fullPath || 'current directory'}`
+      toolTitle = `${toolName} ${pathDisplay}`
     } else if (toolName === 'bash' && toolInput.description) {
       toolTitle = `${toolName} ${toolInput.description}`
+      toolTitleFull = toolTitle
     } else if (toolName === 'edit' && toolInput.filePath) {
       toolTitle = `${toolName} ${toolInput.filePath}`
+      toolTitleFull = toolTitle
+    } else if (toolName === 'task') {
+      const description = toolInput?.description || 'Task'
+      const subagentType = toolInput?.subagent_type
+      if (subagentType) {
+        toolTitle = `Task [${subagentType}]: ${description}`
+      } else {
+        toolTitle = `Task: ${description}`
+      }
+      toolTitleFull = toolTitle
     } else {
       const keys = Object.keys(toolInput)
       if (keys.length > 0) {
@@ -242,6 +258,7 @@ export const ToolPartHeader: React.FC<ToolPartHeaderProps> = ({
         const firstValue = toolInput[firstKey]
         if (typeof firstValue === 'string') {
           toolTitle = `${toolName} ${firstValue.substring(0, 50)}`
+          toolTitleFull = `${toolName} ${firstValue}`
         }
       }
     }
@@ -257,12 +274,13 @@ export const ToolPartHeader: React.FC<ToolPartHeaderProps> = ({
       justifyContent: 'space-between',
       borderBottom: '1px solid #3e3e42'
     }}>
-      <Space size="small">
+      <Space size="small" style={{ flex: 1, minWidth: 0 }}>
         <ToolOutlined 
           style={{ 
             color: '#52c41a', 
             fontSize: '14px',
-            animation: isProcessing ? 'blink 2s ease-in-out infinite' : 'none'
+            animation: isProcessing ? 'blink 2s ease-in-out infinite' : 'none',
+            flexShrink: 0
           }} 
         />
         <Text 
@@ -270,7 +288,12 @@ export const ToolPartHeader: React.FC<ToolPartHeaderProps> = ({
             color: '#cccccc', 
             fontSize: '12px', 
             fontFamily: 'monospace',
-            animation: isProcessing ? 'blink 2s ease-in-out infinite' : 'none'
+            animation: isProcessing ? 'blink 2s ease-in-out infinite' : 'none',
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
           }}
         >
           {toolTitle}
