@@ -52,10 +52,13 @@ export class TypeConverter {
    * Convert Model: extracts id, name, providerID
    */
   static modelToFrontend(model: opencode.Model): FrontendModel {
+    const providerId = typeof model.provider === "string" 
+      ? model.provider 
+      : (model.provider as any)?.id ?? ""
     return {
       id: model.id,
       name: model.name,
-      providerID: model.providerID,
+      providerID: providerId,
     }
   }
 
@@ -63,10 +66,13 @@ export class TypeConverter {
    * Convert Provider: includes nested models
    */
   static providerToFrontend(provider: opencode.Provider): FrontendProvider {
+    const models = Array.isArray(provider.models) 
+      ? provider.models 
+      : Object.values(provider.models || {})
     return {
       id: provider.id,
       name: provider.name,
-      models: provider.models.map((model) => this.modelToFrontend(model)),
+      models: models.map((model: opencode.Model) => this.modelToFrontend(model)),
     }
   }
 
@@ -76,7 +82,7 @@ export class TypeConverter {
   static agentToFrontend(agent: opencode.Agent): FrontendAgent {
     return {
       name: agent.name,
-      description: agent.description,
+      description: agent.description ?? "",
       mode: agent.mode as "plan" | "build",
     }
   }

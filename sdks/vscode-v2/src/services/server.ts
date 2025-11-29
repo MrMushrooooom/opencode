@@ -49,14 +49,18 @@ export class ServerManager {
         port: 0, // Let the system assign a port
         timeout: 15000, // 15 second timeout
         config: sdkConfig, // Pass converted configuration for server initialization
-        env: serverEnv, // Pass environment with workspace path
-      })
+        // env: serverEnv, // Note: env is not a valid ServerOptions property, handled via config
+      } as any)
 
       // Store the exact server URL
       this.serverURL = this.server.url
+      if (!this.serverURL) {
+        throw new Error("Server URL is null")
+      }
       this.outputChannel.appendLine(`🔍 Server URL: ${this.serverURL}`)
       const url = new URL(this.serverURL)
-      this.serverPort = parseInt(url.port)
+      const port = url.port
+      this.serverPort = parseInt(port ? String(port) : "0", 10)
 
       this.outputChannel.appendLine(`✅ OpenCode server started on port: ${this.serverPort}`)
       this.outputChannel.appendLine(`🔍 Full server URL: ${this.serverURL}`)
@@ -88,6 +92,9 @@ export class ServerManager {
       await this.waitForModelsToLoad()
 
       this.isStarting = false
+      if (!this.serverURL) {
+        throw new Error("Server URL is null")
+      }
       return this.serverURL
     } catch (error: any) {
       this.isStarting = false
@@ -151,15 +158,15 @@ export class ServerManager {
         // Test the providers endpoint
         const response = await fetch(`${this.serverURL}/config/providers`)
         if (response.ok) {
-          const data = await response.json()
-          const providerCount = data.providers?.length || 0
+          const data = (await response.json()) as any
+          const providerCount = (data?.providers as any[])?.length || 0
 
           this.outputChannel.appendLine(`📊 Server response: ${providerCount} providers available`)
 
           if (providerCount > 0) {
             this.outputChannel.appendLine(`✅ Models loaded successfully! Found ${providerCount} providers`)
             // Log some model details for debugging
-            data.providers.forEach((provider: any) => {
+            ;(data?.providers as any[]).forEach((provider: any) => {
               const modelCount = Object.keys(provider.models || {}).length
               this.outputChannel.appendLine(`  📋 Provider: ${provider.name} (${provider.id}) - ${modelCount} models`)
             })

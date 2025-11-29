@@ -25,10 +25,10 @@ export class MessageConverter {
     let text = prompt.text
     const textAttachments = prompt.attachments.filter((att) => att.type === "text")
 
-    textAttachments.sort((a, b) => a.startIndex - b.startIndex)
+    textAttachments.sort((a, b) => (a.startIndex ?? 0) - (b.startIndex ?? 0))
 
     for (const att of textAttachments) {
-      if (att.startIndex > att.endIndex || att.endIndex > text.length) {
+      if (!att.startIndex || !att.endIndex || att.startIndex > att.endIndex || att.endIndex > text.length) {
         continue
       }
       text = text.slice(0, att.startIndex) + att.display + text.slice(att.endIndex)
@@ -142,6 +142,9 @@ export class MessageConverter {
 
         case "agent":
           const agentPart = part as opencode.AgentPart
+          if (!agentPart.source) {
+            break
+          }
           attachments.push({
             type: "agent",
             path: "",
@@ -155,7 +158,7 @@ export class MessageConverter {
             filename: agentPart.name,
             mimeType: "text/plain",
             url: "",
-          })
+          } as any)
           break
 
         case "file":
@@ -164,7 +167,7 @@ export class MessageConverter {
           // Handle uploaded images (no source) vs local file references (with source)
           if (!filePart.source || !filePart.source.path) {
             // Uploaded image: use URL as display, empty path
-            const attachment: opencode.File = {
+            const attachment = {
               type: "file",
               path: "",
               status: "modified",
@@ -176,25 +179,25 @@ export class MessageConverter {
               filename: filePart.filename,
               mimeType: filePart.mime,
               url: filePart.url,
-            }
+            } as any
             attachments.push(attachment)
             break
           }
 
           // Local file reference: include source information
-          const attachment: opencode.File = {
+          const attachment = {
             type: filePart.source.type === "symbol" ? "symbol" : "file",
             path: filePart.source.path,
             status: "modified",
             added: 0,
             removed: 0,
-            display: filePart.source.text.value,
-            startIndex: filePart.source.text.start,
-            endIndex: filePart.source.text.end,
+            display: filePart.source.text?.value ?? filePart.source.path,
+            startIndex: filePart.source.text?.start ?? 0,
+            endIndex: filePart.source.text?.end ?? 0,
             filename: filePart.filename,
             mimeType: filePart.mime,
             url: filePart.url,
-          }
+          } as any
 
           // Add symbol-specific information
           if (filePart.source.type === "symbol") {
@@ -228,13 +231,16 @@ export class MessageConverter {
   /**
    * Convert MessageStruct to session API parameters
    */
-  static messageToSessionParams(message: MessageStruct): opencode.SessionPromptParamsPartUnion[] {
-    const parts: opencode.SessionPromptParamsPartUnion[] = []
+  static messageToSessionParams(message: MessageStruct): any[] {
+    const parts: any[] = []
 
     for (const part of message.parts) {
       switch (part.type) {
         case "text":
           const textPart = part as opencode.TextPart
+          if (!textPart.time) {
+            continue
+          }
           parts.push({
             id: textPart.id,
             type: "text",
@@ -288,18 +294,18 @@ export class MessageConverter {
           }
 
           // Local file reference: include source
-          let source: opencode.FilePartSourceUnionParam
+          let source: any
 
           if (filePart.source.type === "file") {
             source = {
               type: "file",
               path: filePart.source.path,
               text: {
-                start: filePart.source.text.start,
-                end: filePart.source.text.end,
-                value: filePart.source.text.value,
+                start: filePart.source.text?.start ?? 0,
+                end: filePart.source.text?.end ?? 0,
+                value: filePart.source.text?.value ?? "",
               },
-            } as opencode.FileSourceParam
+            }
           } else {
             source = {
               type: "symbol",
@@ -317,11 +323,11 @@ export class MessageConverter {
                 },
               },
               text: {
-                start: filePart.source.text.start,
-                end: filePart.source.text.end,
-                value: filePart.source.text.value,
+                start: filePart.source.text?.start ?? 0,
+                end: filePart.source.text?.end ?? 0,
+                value: filePart.source.text?.value ?? "",
               },
-            } as opencode.SymbolSourceParam
+            }
           }
 
           parts.push({
@@ -336,6 +342,9 @@ export class MessageConverter {
 
         case "agent":
           const agentPart = part as opencode.AgentPart
+          if (!agentPart.source) {
+            break
+          }
           parts.push({
             id: agentPart.id,
             type: "agent",

@@ -168,7 +168,7 @@ export class OpenCodeApp {
     const response = await this.client.project.current({
       query: { directory: this.app.workspacePath },
     })
-    this.app.project = response.data
+    this.app.project = response.data ?? null
     this.outputChannel.appendLine(`Project loaded: ${this.app.project?.id} (${this.app.project?.worktree})`)
   }
 
@@ -178,7 +178,7 @@ export class OpenCodeApp {
     }
 
     const response = await this.client.config.get({})
-    this.app.config = response.data
+    this.app.config = response.data ?? null
     this.outputChannel.appendLine("Configuration loaded")
   }
 
@@ -188,7 +188,7 @@ export class OpenCodeApp {
     }
 
     const response = await this.client.config.providers({})
-    this.app.providers = response.data.providers
+    this.app.providers = response.data?.providers ?? []
     this.outputChannel.appendLine(`Loaded ${this.app.providers.length} providers`)
 
     await this.setDefaultModel()
@@ -306,7 +306,7 @@ export class OpenCodeApp {
     }
 
     const response = await this.client.app.agents({})
-    this.app.agents = response.data
+    this.app.agents = response.data ?? []
     this.outputChannel.appendLine(`Loaded ${this.app.agents.length} agents`)
 
     this.app.agents.forEach((agent) => {
@@ -334,7 +334,12 @@ export class OpenCodeApp {
     })
     const session = response.data
 
+    if (!session) {
+      throw new Error("Failed to create session: response.data is undefined")
+    }
+
     this.app.session = session
+    this.app.messages = []
     this.updateSessionState(session)
     this.sendToWebView("sessionCreated", { session })
 
@@ -608,7 +613,7 @@ export class OpenCodeApp {
 
     // If there are images (either in attachments or history), check if the current model supports image input
     if (hasImagesInAttachments || hasImagesInSessionHistory) {
-      const supportsImages = this.app.model?.modalities?.input?.includes("image") ?? false
+      const supportsImages = (this.app.model as any)?.modalities?.input?.includes("image") ?? false
       if (!supportsImages) {
         const modelName =
           this.app.model?.name || (this.app.provider ? `${this.app.provider.name}/${this.app.model?.id}` : "Unknown")
@@ -876,11 +881,10 @@ export class OpenCodeApp {
       throw new Error("OpenCode client not initialized")
     }
 
-    await this.client.permission.grant({
-      path: { id: permissionId },
-    })
-
-    this.outputChannel.appendLine(`Permission granted: ${permissionId}`)
+    // Use respondToPermission instead, as permission.grant doesn't exist in the SDK
+    // This method is kept for backward compatibility but should use respondToPermission
+    this.outputChannel.appendLine(`⚠️ grantPermission is deprecated, use respondToPermission instead`)
+    throw new Error("grantPermission is deprecated, use respondToPermission instead")
   }
 
   setProvider(provider: opencode.Provider): void {
@@ -1017,10 +1021,11 @@ export class OpenCodeApp {
       })
 
       if (response && "error" in response && response.error) {
-        throw new Error(`Session not found: ${response.error.data?.message || sessionId}`)
+        const errorMessage = (response.error as any)?.data?.message || sessionId
+        throw new Error(`Session not found: ${errorMessage}`)
       }
 
-      session = response?.data
+      session = response?.data ?? undefined
     }
 
     if (!session || !session.id) {
