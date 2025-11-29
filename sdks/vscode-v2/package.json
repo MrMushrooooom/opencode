@@ -3,7 +3,7 @@
   "displayName": "OpenCode V2",
   "description": "Enhanced OpenCode VSCode extension",
   "version": "0.1.0",
-  "publisher": "your-publisher",
+  "publisher": "sst-dev",
   "repository": {
     "type": "git",
     "url": "https://github.com/sst/opencode"
