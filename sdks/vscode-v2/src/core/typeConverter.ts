@@ -52,9 +52,7 @@ export class TypeConverter {
    * Convert Model: extracts id, name, providerID
    */
   static modelToFrontend(model: opencode.Model): FrontendModel {
-    const providerId = typeof model.provider === "string" 
-      ? model.provider 
-      : (model.provider as any)?.id ?? ""
+    const providerId = typeof model.provider === "string" ? model.provider : ((model.provider as any)?.id ?? "")
     return {
       id: model.id,
       name: model.name,
@@ -66,9 +64,7 @@ export class TypeConverter {
    * Convert Provider: includes nested models
    */
   static providerToFrontend(provider: opencode.Provider): FrontendProvider {
-    const models = Array.isArray(provider.models) 
-      ? provider.models 
-      : Object.values(provider.models || {})
+    const models = Array.isArray(provider.models) ? provider.models : Object.values(provider.models || {})
     return {
       id: provider.id,
       name: provider.name,
