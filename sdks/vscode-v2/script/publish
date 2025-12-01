@@ -1,20 +1,50 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-# Get the latest Git tag
-latest_tag=$(git tag --sort=committerdate | grep -E '^vscode-v[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)
-if [ -z "$latest_tag" ]; then
-    echo "No tags found"
+# Check required environment variables
+if [ -z "${VSCE_PAT:-}" ]; then
+    echo "❌ Error: VSCE_PAT environment variable is not set"
+    echo "   Please set it with: export VSCE_PAT=your_token"
     exit 1
 fi
-echo "Latest tag: $latest_tag"
-version=$(echo $latest_tag | sed 's/^vscode-v//')
-echo "Latest version: $version"
+
+if [ -z "${OPENVSX_TOKEN:-}" ]; then
+    echo "❌ Error: OPENVSX_TOKEN environment variable is not set"
+    echo "   Please set it with: export OPENVSX_TOKEN=your_token"
+    exit 1
+fi
+
+# Get the latest Git tag
+git fetch --force --tags
+latest_tag=$(git tag --sort=committerdate | grep -E '^vscode-v[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)
+if [ -z "$latest_tag" ]; then
+    echo "❌ Error: No tags found matching pattern 'vscode-v*.*.*'"
+    echo "   Please create a tag first: git tag vscode-v0.1.0 && git push --tags"
+    exit 1
+fi
+echo "✅ Latest tag: $latest_tag"
+version=$(echo "$latest_tag" | sed 's/^vscode-v//')
+echo "✅ Version: $version"
+
+# Build the extension
+echo ""
+echo "📦 Building extension..."
+bun run package
 
 # package-marketplace
-vsce package --no-git-tag-version --no-update-package-json --no-dependencies --skip-license -o dist/opencode.vsix $version
+echo ""
+echo "📦 Packaging extension..."
+vsce package --no-git-tag-version --no-update-package-json --no-dependencies --skip-license -o dist/opencode.vsix "$version"
 
 # publish-marketplace
+echo ""
+echo "🚀 Publishing to VSCode Marketplace..."
 vsce publish --packagePath dist/opencode.vsix
 
 # publish-openvsx
-npx ovsx publish dist/opencode.vsix -p $OPENVSX_TOKEN
+echo ""
+echo "🚀 Publishing to OpenVSX..."
+npx ovsx publish dist/opencode.vsix -p "$OPENVSX_TOKEN"
+
+echo ""
+echo "✅ Successfully published version $version to both marketplaces!"

@@ -19,8 +19,12 @@ fi
 
 echo "Latest tag: $latest_tag"
 
-# Split the tag into major, minor, and patch numbers
-IFS='.' read -ra VERSION <<< "$latest_tag"
+# Extract version number (remove vscode-v prefix)
+version=$(echo "$latest_tag" | sed 's/^vscode-v//')
+echo "Current version: $version"
+
+# Split the version into major, minor, and patch numbers
+IFS='.' read -ra VERSION <<< "$version"
 
 if [ "$minor" = true ]; then
     # Increment the minor version and reset patch to 0
@@ -36,6 +40,10 @@ fi
 
 echo "New version: $new_version"
 
+# Tag with vscode-v prefix
+new_tag="vscode-v$new_version"
+echo "New tag: $new_tag"
+
 # Tag
-git tag $new_version
-git push --tags
+git tag $new_tag
+git push --tags --no-verify

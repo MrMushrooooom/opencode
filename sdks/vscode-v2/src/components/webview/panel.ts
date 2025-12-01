@@ -713,11 +713,30 @@ export class OpenCodePanel {
    * Get HTML for webview using template system
    */
   private getHtmlForWebview(): string {
+    let templatePath: string | undefined
     try {
-      // Use absolute path to the React app build output
-      // This is the standard approach for VSCode extensions
-      const extensionPath = path.dirname(__dirname) // Go up from dist to vscode-v2 root
-      const templatePath = path.join(extensionPath, "src", "components", "webview", "dist", "index.html")
+      // Get extension path using VSCode API (works in both dev and packaged environments)
+      const extensionPath = vscode.extensions.getExtension("sst-dev.opencode-v2")?.extensionPath
+      if (!extensionPath) {
+        // Fallback: use __dirname (for development)
+        const extensionPathFallback = path.dirname(path.dirname(__dirname))
+        templatePath = path.join(extensionPathFallback, "src", "components", "webview", "dist", "index.html")
+        if (fs.existsSync(templatePath)) {
+          const template = fs.readFileSync(templatePath, "utf8")
+          const webviewDir = path.dirname(templatePath)
+          const webviewUri = this.webviewPanel.webview.asWebviewUri(vscode.Uri.file(webviewDir))
+          return template.replace('src="bundle.js"', `src="${webviewUri}/bundle.js"`)
+        }
+      }
+
+      // In packaged extension, files are in dist/components/webview/dist/
+      templatePath = extensionPath
+        ? path.join(extensionPath, "dist", "components", "webview", "dist", "index.html")
+        : path.join(path.dirname(path.dirname(__dirname)), "dist", "components", "webview", "dist", "index.html")
+
+      if (!fs.existsSync(templatePath)) {
+        throw new Error(`Template not found at: ${templatePath}`)
+      }
 
       // Read the React app template
       const template = fs.readFileSync(templatePath, "utf8")
@@ -732,6 +751,7 @@ export class OpenCodePanel {
       return html
     } catch (error: any) {
       this.outputChannel.appendLine(`❌ Failed to load template: ${error.message}`)
+      this.outputChannel.appendLine(`❌ Template path attempted: ${templatePath || "unknown"}`)
 
       // Fallback to simple HTML
       return this.getFallbackHtml()

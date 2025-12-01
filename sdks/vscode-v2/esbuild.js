@@ -75,6 +75,32 @@ function copyStaticAssets() {
       fs.copyFileSync(path.join(scriptsSrc, file), path.join(scriptsDist, file))
     })
   }
+
+  // Copy React build output (dist directory)
+  const webviewDistSrc = path.join(srcDir, "dist")
+  const webviewDistDist = path.join(distDir, "dist")
+  if (fs.existsSync(webviewDistSrc)) {
+    if (!fs.existsSync(webviewDistDist)) {
+      fs.mkdirSync(webviewDistDist, { recursive: true })
+    }
+    const files = fs.readdirSync(webviewDistSrc)
+    files.forEach((file) => {
+      const srcPath = path.join(webviewDistSrc, file)
+      const distPath = path.join(webviewDistDist, file)
+      if (fs.statSync(srcPath).isDirectory()) {
+        // Recursively copy directories
+        if (!fs.existsSync(distPath)) {
+          fs.mkdirSync(distPath, { recursive: true })
+        }
+        const subFiles = fs.readdirSync(srcPath)
+        subFiles.forEach((subFile) => {
+          fs.copyFileSync(path.join(srcPath, subFile), path.join(distPath, subFile))
+        })
+      } else {
+        fs.copyFileSync(srcPath, distPath)
+      }
+    })
+  }
 }
 
 async function main() {
