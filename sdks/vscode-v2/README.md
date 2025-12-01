@@ -1,6 +1,8 @@
-# OpenCode V2 VS Code Extension
+# OpenCode VS Code Extension (Beta)
 
 A Visual Studio Code extension that integrates [opencode](https://opencode.ai) directly into your development workflow with an enhanced chat interface.
+
+> **Note**: This is a Beta release. We're actively improving the extension based on user feedback.
 
 ## Prerequisites
 
@@ -18,7 +20,7 @@ This extension requires the [opencode CLI](https://opencode.ai) to be installed 
 
 ## Support
 
-This is an early release. If you encounter issues or have feedback, please create an issue at https://github.com/sst/opencode/issues.
+This is a Beta release. We're actively working on improvements and new features. If you encounter issues or have feedback, please create an issue at https://github.com/sst/opencode/issues.
 
 ## Development
 

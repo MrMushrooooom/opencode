@@ -1,6 +1,6 @@
 {
   "name": "opencode-v2",
-  "displayName": "OpenCode V2",
+  "displayName": "OpenCode Beta",
   "description": "Enhanced OpenCode VSCode extension",
   "version": "0.1.0",
   "publisher": "sst-dev",
@@ -47,7 +47,7 @@
     "commands": [
       {
         "command": "opencode-v2.openPanel",
-        "title": "Open OpenCode V2 Assistant",
+        "title": "Open OpenCode Assistant",
         "icon": {
           "light": "images/button-dark.svg",
           "dark": "images/button-light.svg"
@@ -77,7 +77,7 @@
     "keybindings": [
       {
         "command": "opencode-v2.openPanel",
-        "title": "Open OpenCode V2 Assistant",
+        "title": "Open OpenCode Assistant",
         "key": "cmd+shift+escape",
         "mac": "cmd+shift+escape",
         "win": "ctrl+escape",
