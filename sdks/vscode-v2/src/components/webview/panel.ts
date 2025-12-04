@@ -47,6 +47,10 @@ export class OpenCodePanel {
     // Set webview panel reference in app for streaming updates
     this.app.setWebviewPanel(this)
 
+    // Try to move WebView to new window for landscape layout
+    // This allows reusing desktop app's webview code (landscape design)
+    this.tryMoveToNewWindow()
+
     // CRITICAL FIX: Call updateUI immediately after setting the panel
     // This ensures that models, sessions, and messages are loaded and displayed
     // as soon as the panel is created and linked to the app.
@@ -675,6 +679,62 @@ export class OpenCodePanel {
   }
 
   /**
+   * Try to move WebView panel to new window for landscape layout
+   * This allows reusing desktop app's webview code (landscape design)
+   */
+  private async tryMoveToNewWindow(): Promise<void> {
+    try {
+      // First, reveal the panel to make it active
+      this.webviewPanel.reveal()
+
+      // Wait for panel to be visible using event listener (more reliable than fixed delay)
+      await new Promise<void>((resolve) => {
+        const disposable = this.webviewPanel.onDidChangeViewState((e) => {
+          if (e.webviewPanel.visible) {
+            disposable.dispose()
+            resolve()
+          }
+        })
+        // Fallback: if panel is already visible, resolve immediately
+        if (this.webviewPanel.visible) {
+          disposable.dispose()
+          resolve()
+        }
+        // Safety timeout: resolve after 500ms even if event doesn't fire
+        setTimeout(() => {
+          disposable.dispose()
+          resolve()
+        }, 500)
+      })
+
+      // Small additional delay to ensure panel is fully ready
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      // Try to execute the command to move editor to new window
+      const result = await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow")
+
+      if (result) {
+        this.outputChannel.appendLine("✅ Successfully moved WebView to new window")
+      } else {
+        this.outputChannel.appendLine("ℹ️ Move to new window command executed")
+      }
+
+      // Note: VSCode API doesn't support automatically resizing windows or hiding tabs
+      // The WebView is optimized for landscape layout and will adapt to the window size
+      this.outputChannel.appendLine("💡 Tip: You can manually resize the window for a better landscape experience")
+      this.outputChannel.appendLine("💡 The WebView layout is optimized for wide screens and will adapt automatically")
+    } catch (error: any) {
+      // Command may not exist or may not work for WebView panels
+      this.outputChannel.appendLine(
+        `ℹ️ Could not move WebView to new window automatically: ${error.message || "Command not available"}`,
+      )
+      this.outputChannel.appendLine(
+        "💡 You can manually move the panel to a new window by right-clicking the tab and selecting 'Move into New Window'",
+      )
+    }
+  }
+
+  /**
    * Send message to webview
    */
   sendMessageToWebview(message: any): void {
@@ -713,6 +773,41 @@ export class OpenCodePanel {
    * Get HTML for webview using template system
    */
   private getHtmlForWebview(): string {
+    // Flag to switch between desktop app and original React app
+    const USE_DESKTOP_APP = true // Toggle via comment to switch
+
+    if (USE_DESKTOP_APP) {
+      // Load desktop app via iframe (opencode server proxies desktop app)
+      const serverURL = "http://127.0.0.1:4096"
+      return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <iframe src="${serverURL}" allow="clipboard-read; clipboard-write"></iframe>
+</body>
+</html>
+      `
+    }
+
+    // Original React app code (preserved for switching back)
     let templatePath: string | undefined
     try {
       // Get extension path using VSCode API (works in both dev and packaged environments)

@@ -46,7 +46,7 @@ export class ServerManager {
       }
 
       this.server = await createOpencodeServer({
-        port: 0, // Let the system assign a port
+        port: 4096, // Fixed port for desktop app iframe loading
         timeout: 15000, // 15 second timeout
         config: sdkConfig, // Pass converted configuration for server initialization
         // env: serverEnv, // Note: env is not a valid ServerOptions property, handled via config

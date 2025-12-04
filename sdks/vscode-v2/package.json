@@ -2,7 +2,7 @@
   "name": "opencode-v2",
   "displayName": "OpenCode Beta",
   "description": "Enhanced OpenCode VSCode extension",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "sst-dev",
   "repository": {
     "type": "git",
