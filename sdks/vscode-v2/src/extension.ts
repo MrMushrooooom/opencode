@@ -96,20 +96,25 @@ export function activate(context: vscode.ExtensionContext) {
  * Extension deactivation function
  */
 export function deactivate() {
-  // Extension deactivated - logging handled by individual components
-
   if (outputChannel) {
-    outputChannel.appendLine("OpenCode extension deactivated")
+    outputChannel.appendLine("🔄 OpenCode extension deactivated - cleaning up resources...")
   }
 
-  // Dispose of resources
   if (openCodePanel) {
     openCodePanel.dispose()
     openCodePanel = null
   }
 
   if (openCodeApp) {
-    // Clean up app resources
+    openCodeApp.dispose().catch((error: any) => {
+      if (outputChannel) {
+        outputChannel.appendLine(`❌ Failed to dispose OpenCode app: ${error.message}`)
+      }
+    })
     openCodeApp = null
+  }
+
+  if (outputChannel) {
+    outputChannel.appendLine("✅ OpenCode extension cleanup completed")
   }
 }

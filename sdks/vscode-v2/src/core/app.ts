@@ -24,6 +24,27 @@ export class OpenCodeApp {
   private abortController?: AbortController
   private isStreaming: boolean = false
   private revertingSessionId: string | null = null
+  private serverManager: any = null
+
+  getWorkspacePath(): string {
+    return this.workspacePath
+  }
+
+  async getServerURL(): Promise<string> {
+    if (!this.serverManager) {
+      throw new Error("Server manager not initialized")
+    }
+    
+    const url = this.serverManager.getServerURL()
+    if (!url) {
+      this.outputChannel.appendLine("🔄 Server not running, restarting...")
+      const serverURL = await this.serverManager.startServer(this.app.workspacePath)
+      await this.initializeClient(serverURL)
+      return serverURL
+    }
+    
+    return url
+  }
 
   constructor(outputChannel: vscode.OutputChannel, workspacePath: string, context: vscode.ExtensionContext) {
     this.outputChannel = outputChannel
@@ -136,8 +157,8 @@ export class OpenCodeApp {
       this.outputChannel.appendLine("Initializing OpenCode application...")
 
       const { ServerManager } = await import("../services/server.js")
-      const serverManager = new ServerManager(this.outputChannel)
-      const serverURL = await serverManager.startServer(this.app.workspacePath)
+      this.serverManager = new ServerManager(this.outputChannel)
+      const serverURL = await this.serverManager.startServer(this.app.workspacePath)
 
       await this.initializeClient(serverURL)
       await this.loadProject()
@@ -1506,12 +1527,10 @@ export class OpenCodeApp {
 
   setWebviewPanel(panel: any): void {
     this.webviewPanel = panel
-    this.outputChannel.appendLine("WebView panel set")
   }
 
   clearWebviewPanel(): void {
     this.webviewPanel = null
-    this.outputChannel.appendLine("WebView panel cleared")
   }
 
   /**
@@ -1548,13 +1567,21 @@ export class OpenCodeApp {
 
   // ==================== Cleanup ====================
 
-  dispose(): void {
+  async dispose(): Promise<void> {
+    this.outputChannel.appendLine("🧹 Disposing OpenCode application...")
+    
     if (this.eventStream) {
       this.eventStream.close()
     }
     if (this.abortController) {
       this.abortController.abort()
     }
+    if (this.serverManager) {
+      await this.serverManager.stopServer()
+      this.serverManager = null
+    }
     this.webviewPanel = null
+    
+    this.outputChannel.appendLine("✅ OpenCode application disposed")
   }
 }

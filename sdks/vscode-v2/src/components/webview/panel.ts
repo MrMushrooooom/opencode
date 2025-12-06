@@ -31,11 +31,14 @@ export class OpenCodePanel {
       },
     )
 
-    // Set initial HTML
-    this.webviewPanel.webview.html = this.getHtmlForWebview()
+    // Set initial HTML (will be updated asynchronously)
+    this.webviewPanel.webview.html = this.getLoadingHtml()
 
     // Handle messages from webview
     this.webviewPanel.webview.onDidReceiveMessage((message) => this.handleMessage(message), undefined, [])
+
+    // Load actual HTML asynchronously
+    this.loadWebviewHtml()
 
     // Handle panel disposal
     this.webviewPanel.onDidDispose(() => {
@@ -770,15 +773,55 @@ export class OpenCodePanel {
   }
 
   /**
+   * Get loading HTML
+   */
+  private getLoadingHtml(): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div>Loading OpenCode...</div>
+</body>
+</html>
+    `
+  }
+
+  /**
+   * Load webview HTML asynchronously
+   */
+  private async loadWebviewHtml(): Promise<void> {
+    try {
+      const html = await this.getHtmlForWebview()
+      this.webviewPanel.webview.html = html
+    } catch (error: any) {
+      this.outputChannel.appendLine(`❌ Failed to load webview HTML: ${error.message}`)
+      this.webviewPanel.webview.html = this.getFallbackHtml()
+    }
+  }
+
+  /**
    * Get HTML for webview using template system
    */
-  private getHtmlForWebview(): string {
-    // Flag to switch between desktop app and original React app
-    const USE_DESKTOP_APP = true // Toggle via comment to switch
+  private async getHtmlForWebview(): Promise<string> {
+    const USE_DESKTOP_APP = true
 
     if (USE_DESKTOP_APP) {
-      // Load desktop app via iframe (opencode server proxies desktop app)
-      const serverURL = "http://127.0.0.1:4096"
+      const workspacePath = this.app.getWorkspacePath()
+      const baseServerURL = await this.app.getServerURL()
+      const serverURL = `${baseServerURL}/?directory=${encodeURIComponent(workspacePath)}`
       return `
 <!DOCTYPE html>
 <html>

@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import { createOpencodeServer } from "@opencode-ai/sdk"
 import * as fs from "fs"
 import * as path from "path"
+import { spawn } from "node:child_process"
 
 /**
  * OpenCode Server Manager
@@ -35,22 +36,20 @@ export class ServerManager {
       this.isStarting = true
       this.outputChannel.appendLine("🚀 Starting OpenCode server...")
 
+      // Ensure workspacePath is provided
+      if (!workspacePath) {
+        throw new Error("workspacePath is required to start the server")
+      }
+
+      this.outputChannel.appendLine(`📁 Expected workspace path: ${workspacePath}`)
+      this.outputChannel.appendLine(`📁 Plugin process.cwd(): ${process.cwd()}`)
+
       // Load OpenCode configuration
       const sdkConfig = this.loadOpenCodeConfig()
 
-      // Set workspace path in environment for project context detection
-      const serverEnv = {
-        ...process.env,
-        PWD: workspacePath, // Workspace path for detection
-        OPENCODE_WORKSPACE: workspacePath, // Workspace path for detection
-      }
-
-      this.server = await createOpencodeServer({
-        port: 4096, // Fixed port for desktop app iframe loading
-        timeout: 15000, // 15 second timeout
-        config: sdkConfig, // Pass converted configuration for server initialization
-        // env: serverEnv, // Note: env is not a valid ServerOptions property, handled via config
-      } as any)
+      // Use SDK's createOpencodeServer but with cwd support
+      // Since SDK doesn't support cwd option, we replicate its logic but add cwd
+      this.server = await this.createServerWithCwd(workspacePath, sdkConfig)
 
       // Store the exact server URL
       this.serverURL = this.server.url
@@ -64,6 +63,26 @@ export class ServerManager {
 
       this.outputChannel.appendLine(`✅ OpenCode server started on port: ${this.serverPort}`)
       this.outputChannel.appendLine(`🔍 Full server URL: ${this.serverURL}`)
+
+      // Check what directory the server is actually using
+      try {
+        this.outputChannel.appendLine(`🔍 Checking server's actual working directory...`)
+        const currentProjectResponse = await fetch(`${this.serverURL}/project/current`)
+        if (currentProjectResponse.ok) {
+          const currentProject = await currentProjectResponse.json()
+          this.outputChannel.appendLine(`📁 Server's current project worktree: ${currentProject.worktree || "unknown"}`)
+          this.outputChannel.appendLine(`📁 Expected workspace path: ${workspacePath}`)
+          if (currentProject.worktree !== workspacePath) {
+            this.outputChannel.appendLine(`⚠️ WARNING: Server's worktree (${currentProject.worktree}) doesn't match expected workspace path (${workspacePath})`)
+          } else {
+            this.outputChannel.appendLine(`✅ Server's worktree matches expected workspace path`)
+          }
+        } else {
+          this.outputChannel.appendLine(`⚠️ Failed to get server's current project: ${currentProjectResponse.status}`)
+        }
+      } catch (error: any) {
+        this.outputChannel.appendLine(`⚠️ Error checking server's working directory: ${error.message}`)
+      }
 
       // Test server health - try multiple endpoints
       try {
@@ -109,16 +128,21 @@ export class ServerManager {
    */
   async stopServer(): Promise<void> {
     if (this.server) {
+      const portToRelease = this.serverPort
       try {
-        this.outputChannel.appendLine("🛑 Stopping OpenCode server...")
+        this.outputChannel.appendLine(`🛑 Stopping OpenCode server on port ${portToRelease}...`)
         this.server.close()
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        
         this.server = null
         this.serverPort = null
         this.serverURL = null
-        this.outputChannel.appendLine("✅ OpenCode server stopped")
+        this.outputChannel.appendLine(`✅ OpenCode server stopped and port ${portToRelease} released`)
       } catch (error: any) {
         this.outputChannel.appendLine(`❌ Failed to stop OpenCode server: ${error.message}`)
-        throw error
+        this.server = null
+        this.serverPort = null
+        this.serverURL = null
       }
     }
   }
@@ -187,6 +211,79 @@ export class ServerManager {
     }
 
     this.outputChannel.appendLine(`⚠️ Models loading timeout after ${maxAttempts} attempts`)
+  }
+
+  /**
+   * Create server with cwd by replicating SDK's logic but adding cwd support
+   * 
+   * NOTE: SDK's createOpencodeServer doesn't support cwd option, but we need
+   * to ensure process.cwd() is correct in the server process so that desktop app's
+   * API calls (project.list, project.current) work correctly.
+   * 
+   * This replicates packages/sdk/js/src/server.ts:createOpencodeServer but adds cwd.
+   * If SDK adds cwd support in the future, we should switch back to using SDK directly.
+   */
+  private async createServerWithCwd(workspacePath: string, config: any): Promise<{ url: string; close: () => void }> {
+    const hostname = "127.0.0.1"
+    const port = 0
+    const timeout = 15000
+
+    const proc = spawn(`opencode`, [`serve`, `--hostname=${hostname}`, `--port=${port}`], {
+      cwd: workspacePath, // This is the key: set cwd for spawned process
+      env: {
+        ...process.env,
+        OPENCODE_CONFIG_CONTENT: JSON.stringify(config ?? {}),
+      },
+    })
+
+    const url = await new Promise<string>((resolve, reject) => {
+      const id = setTimeout(() => {
+        reject(new Error(`Timeout waiting for server to start after ${timeout}ms`))
+      }, timeout)
+      let output = ""
+      proc.stdout?.on("data", (chunk) => {
+        output += chunk.toString()
+        const lines = output.split("\n")
+        for (const line of lines) {
+          if (line.startsWith("opencode server listening")) {
+            const match = line.match(/on\s+(https?:\/\/[^\s]+)/)
+            if (!match) {
+              throw new Error(`Failed to parse server url from output: ${line}`)
+            }
+            clearTimeout(id)
+            resolve(match[1]!)
+            return
+          }
+        }
+      })
+      proc.stderr?.on("data", (chunk) => {
+        output += chunk.toString()
+      })
+      proc.on("exit", (code) => {
+        clearTimeout(id)
+        let msg = `Server exited with code ${code}`
+        if (output.trim()) {
+          msg += `\nServer output: ${output}`
+        }
+        reject(new Error(msg))
+      })
+      proc.on("error", (error) => {
+        clearTimeout(id)
+        reject(error)
+      })
+    })
+
+    return {
+      url,
+      close() {
+        proc.kill("SIGTERM")
+        setTimeout(() => {
+          if (!proc.killed && proc.exitCode === null) {
+            proc.kill("SIGKILL")
+          }
+        }, 1000)
+      },
+    }
   }
 
   /**
