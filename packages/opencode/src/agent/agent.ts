@@ -33,6 +33,7 @@ export namespace Agent {
       prompt: z.string().optional(),
       tools: z.record(z.string(), z.boolean()),
       options: z.record(z.string(), z.any()),
+      maxSteps: z.number().int().positive().optional(),
     })
     .meta({
       ref: "Agent",
@@ -102,8 +103,7 @@ export namespace Agent {
     const result: Record<string, Info> = {
       general: {
         name: "general",
-        description:
-          "General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you.",
+        description: `General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.`,
         tools: {
           todoread: false,
           todowrite: false,
@@ -183,7 +183,20 @@ export namespace Agent {
           tools: {},
           builtIn: false,
         }
-      const { name, model, prompt, tools, description, temperature, top_p, mode, permission, color, ...extra } = value
+      const {
+        name,
+        model,
+        prompt,
+        tools,
+        description,
+        temperature,
+        top_p,
+        mode,
+        permission,
+        color,
+        maxSteps,
+        ...extra
+      } = value
       item.options = {
         ...item.options,
         ...extra,
@@ -206,6 +219,7 @@ export namespace Agent {
       if (color) item.color = color
       // just here for consistency & to prevent it from being added as an option
       if (name) item.name = name
+      if (maxSteps != undefined) item.maxSteps = maxSteps
 
       if (permission ?? cfg.permission) {
         item.permission = mergeAgentPermissions(cfg.permission ?? {}, permission ?? {})
@@ -223,12 +237,15 @@ export namespace Agent {
   }
 
   export async function generate(input: { description: string }) {
+    const cfg = await Config.get()
     const defaultModel = await Provider.defaultModel()
     const model = await Provider.getModel(defaultModel.providerID, defaultModel.modelID)
+    const language = await Provider.getLanguage(model)
     const system = SystemPrompt.header(defaultModel.providerID)
     system.push(PROMPT_GENERATE)
     const existing = await list()
     const result = await generateObject({
+      experimental_telemetry: { isEnabled: cfg.experimental?.openTelemetry },
       temperature: 0.3,
       prompt: [
         ...system.map(
@@ -242,7 +259,7 @@ export namespace Agent {
           content: `Create an agent configuration based on this request: \"${input.description}\".\n\nIMPORTANT: The following identifiers already exist and must NOT be used: ${existing.map((i) => i.name).join(", ")}\n  Return ONLY the JSON object, no other text, do not wrap in backticks`,
         },
       ],
-      model: model.language,
+      model: language,
       schema: z.object({
         identifier: z.string(),
         whenToUse: z.string(),
